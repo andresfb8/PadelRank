@@ -6,7 +6,7 @@ export interface User {
   name: string;
   role: Role;
   clubName?: string;
-  status: 'active' | 'pending' | 'rejected';
+  status: 'active' | 'pending' | 'rejected' | 'blocked';
 }
 
 export interface Player {

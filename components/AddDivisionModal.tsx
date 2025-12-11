@@ -13,6 +13,7 @@ interface Props {
 
 export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players, occupiedPlayerIds = new Set(), onSave }: Props) => {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>(['', '', '', '']);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handlePlayerSelect = (index: number, id: string) => {
     const newSelected = [...selectedPlayers];
@@ -24,12 +25,12 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
     const matches: Match[] = [];
     const [p0, p1, p2, p3] = playerIds;
     const createMatch = (jornada: number, p1Id: string, p2Id: string, p3Id: string, p4Id: string): Match => ({
-        id: `m-new-${Date.now()}-${jornada}-${Math.random().toString(36).substr(2, 9)}`,
-        jornada,
-        pair1: { p1Id, p2Id },
-        pair2: { p1Id: p3Id, p2Id: p4Id },
-        status: 'pendiente',
-        points: { p1: 0, p2: 0 }
+      id: `m-new-${Date.now()}-${jornada}-${Math.random().toString(36).substr(2, 9)}`,
+      jornada,
+      pair1: { p1Id, p2Id },
+      pair2: { p1Id: p3Id, p2Id: p4Id },
+      status: 'pendiente',
+      points: { p1: 0, p2: 0 }
     });
     matches.push(createMatch(1, p0, p1, p2, p3));
     matches.push(createMatch(2, p0, p2, p1, p3));
@@ -56,16 +57,16 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
 
   // Filter logic: Player is available if NOT in occupiedPlayerIds AND NOT currently selected in another slot
   const getAvailablePlayers = (currentSlotIndex: number) => {
-      return Object.values(players).filter(p => {
-          const isOccupiedInTournament = occupiedPlayerIds.has(p.id);
-          const isSelectedInThisModal = selectedPlayers.includes(p.id);
-          const isCurrentSlotValue = selectedPlayers[currentSlotIndex] === p.id;
-          
-          if (isOccupiedInTournament) return false;
-          if (isSelectedInThisModal && !isCurrentSlotValue) return false;
-          
-          return true;
-      });
+    return Object.values(players).filter(p => {
+      const isOccupiedInTournament = occupiedPlayerIds.has(p.id);
+      const isSelectedInThisModal = selectedPlayers.includes(p.id);
+      const isCurrentSlotValue = selectedPlayers[currentSlotIndex] === p.id;
+
+      if (isOccupiedInTournament) return false;
+      if (isSelectedInThisModal && !isCurrentSlotValue) return false;
+
+      return true;
+    });
   };
 
   return (
@@ -74,34 +75,58 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
         <p className="text-sm text-gray-500 mb-4">
           Selecciona 4 jugadores para crear la nueva división. Solo aparecen jugadores que no están participando actualmente en el torneo.
         </p>
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Buscar jugador por nombre or apellidos..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary text-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           {[0, 1, 2, 3].map((idx) => {
             const available = getAvailablePlayers(idx);
+            // Filter available by search term
+            const filtered = available.filter(p =>
+              `${p.nombre} ${p.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            // Limit to 5 results for performance/UX
+            const displayedOptions = filtered.slice(0, 5);
+            const currentSelectedId = selectedPlayers[idx];
+
             return (
-                <div key={idx}>
+              <div key={idx}>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Jugador {idx + 1}</label>
-                <select 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    value={selectedPlayers[idx]}
-                    onChange={(e) => handlePlayerSelect(idx, e.target.value)}
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  value={currentSelectedId}
+                  onChange={(e) => handlePlayerSelect(idx, e.target.value)}
                 >
-                    <option value="">Seleccionar...</option>
-                    {available.map(p => (
+                  <option value="">Seleccionar...</option>
+
+                  {/* Show Top 5 Matches */}
+                  {displayedOptions.map(p => (
                     <option key={p.id} value={p.id}>{p.nombre} {p.apellidos}</option>
-                    ))}
-                    {selectedPlayers[idx] && !available.some(p => p.id === selectedPlayers[idx]) && (
-                         <option value={selectedPlayers[idx]}>
-                            {players[selectedPlayers[idx]]?.nombre} {players[selectedPlayers[idx]]?.apellidos}
-                         </option>
+                  ))}
+
+                  {/* Persistence: Show currently selected player if they are valid but NOT in the top 5 (e.g. filtered out by limit or search) */}
+                  {currentSelectedId &&
+                    !displayedOptions.some(p => p.id === currentSelectedId) &&
+                    players[currentSelectedId] && (
+                      <option value={currentSelectedId}>
+                        {players[currentSelectedId].nombre} {players[currentSelectedId].apellidos} (Seleccionado)
+                      </option>
                     )}
                 </select>
-                </div>
+              </div>
             );
           })}
         </div>
         <div className="flex justify-end gap-3 pt-4 border-t mt-4">
-           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-           <Button onClick={handleSave}>Crear División</Button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave}>Crear División</Button>
         </div>
       </div>
     </Modal>
