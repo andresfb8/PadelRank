@@ -11,9 +11,10 @@ interface Props {
   onBlock?: (id: string) => void; // Optional for now to avoid breaking if parent not updated immediately
   onUnblock?: (id: string) => void;
   onCreate: (userData: { name: string; email: string; clubName: string }) => void;
+  onClearDB?: () => void;
 }
 
-export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate }: Props) => {
+export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate, onClearDB }: Props) => {
   const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', clubName: '' });
@@ -30,6 +31,17 @@ export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate
 
   return (
     <div className="space-y-6">
+      {onClearDB && (
+        <div className="bg-red-50 p-4 rounded-lg border border-red-200 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-red-800 font-medium">
+            <Shield size={20} />
+            <span>Zona de Mantenimiento</span>
+          </div>
+          <Button variant="danger" onClick={onClearDB} className="text-xs">
+            Borrar Jugadores/Torneos de Prueba
+          </Button>
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Administradores</h2>

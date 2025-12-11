@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck } from 'lucide-react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from './services/firebase';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, secondaryAuth } from './services/firebase';
 import { MOCK_PLAYERS, MOCK_RANKINGS, MOCK_DIVISION, MOCK_USERS } from './constants';
 import { Player, Ranking, Match, Division, User } from './types';
 import { RankingView } from './components/RankingView';
@@ -18,6 +18,7 @@ import { Button } from './components/ui/Components';
 import {
   subscribeToPlayers,
   subscribeToRankings,
+  subscribeToUsers,
   addPlayer,
   updatePlayer,
   deletePlayer,
@@ -25,32 +26,77 @@ import {
   addRanking,
   updateRanking,
   deleteRanking,
-  seedDatabase
+  seedDatabase,
+  clearDatabase,
+  addUser,
+  updateUser,
+  deleteUser as deleteUserDB
 } from './services/db';
 
 const App = () => {
   const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management'>('login');
 
+  // Auth State (Moved up to avoid ReferenceError)
+  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+
   // Data from Firestore
   const [players, setPlayers] = useState<Record<string, Player>>({});
   const [rankings, setRankings] = useState<Ranking[]>([]);
 
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [users, setUsers] = useState<User[]>([]);
   const [activeRankingId, setActiveRankingId] = useState<string | null>(null);
 
+  // Derive Current User from Firebase Auth
+  const currentUser = users.find(u => u.email === firebaseUser?.email) || users.find(u => u.role === 'superadmin'); // Fallback to superadmin for demo if email not matched
+  const activeRanking = rankings.find(r => r.id === activeRankingId);
+
+  // Initial Data Subscription
   // Initial Data Subscription
   useEffect(() => {
+    // 1. Subscribe to Users (Global List for Admin Management & Role Resolution)
+    const unsubscribeUsers = subscribeToUsers((data) => {
+      setUsers(data);
+    });
+    return () => unsubscribeUsers();
+  }, []);
+
+  useEffect(() => {
+    // 2. Subscribe to Data (Players/Rankings) - Scoped by Owner ID
+    // If SuperAdmin -> Show All (ownerId undefined)
+    // If Admin -> Show Only Theirs (ownerId = currentUser.id)
+    // If No User (Public View) -> Show All (or specific logic)
+
+    // Safety: If not logged in and not public view, don't fetch internal data yet? 
+    // Actually Public View needs data, typically determined by ID lookup, but subscribeToRankings is for the list.
+    // Public view usually only needs the SPECIFIC ranking, but current app loads all list.
+    // Let's keep it simple:
+
+    const ownerIdFilter = currentUser?.role === 'superadmin' ? undefined : currentUser?.id;
+
+    // Only subscribe if we have a user OR we are validly in public view (but public view typically has no currentUser).
+    // If public view, we currently load all rankings to find the active one. 
+    // Let's assume Public View needs to find the ranking by ID globally, so filter=undefined is correct for finding it.
+    // But we don't want public users seeing the list.
+    // However, existing logic filters view by 'ranking_detail'. 
+
+    // Case: User Refresh on Public Link
+    // currentUser is undefined. ownerIdFilter is undefined. 
+    // subscribeToRankings(undefined) -> ALL rankings loaded.
+    // valid for finding the specific one.
+
     const unsubscribePlayers = subscribeToPlayers((data) => {
       setPlayers(data);
-    });
+    }, ownerIdFilter);
+
     const unsubscribeRankings = subscribeToRankings((data) => {
       setRankings(data);
-    });
+    }, ownerIdFilter);
+
     return () => {
       unsubscribePlayers();
       unsubscribeRankings();
     };
-  }, []);
+  }, [currentUser]); // Re-subscribe when user changes (e.g. login/logout)
 
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
@@ -71,11 +117,10 @@ const App = () => {
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
-  const [firebaseUser, setFirebaseUser] = useState<any>(null);
+  // New State for Credentials Modal
+  const [credentialsModal, setCredentialsModal] = useState<{ isOpen: boolean, email: string, pass: string } | null>(null);
 
-  // Derive Current User from Firebase Auth
-  const currentUser = users.find(u => u.email === firebaseUser?.email) || users.find(u => u.role === 'superadmin'); // Fallback to superadmin for demo if email not matched
-  const activeRanking = rankings.find(r => r.id === activeRankingId);
+
 
   // Check for Public URL (Deep Linking) directly to avoid flash of login
   const params = new URLSearchParams(window.location.search);
@@ -132,8 +177,13 @@ const App = () => {
       // Remove local ID if present to ensure Firestore generates a fresh one
       const { id, ...rankingData } = newRanking;
 
-      // Optimistic update or waiting? Waiting is safer for ID consistency.
-      await addRanking(rankingData as any);
+      // Attach Owner ID for Isolation
+      const dataToSave = {
+        ...rankingData,
+        ownerId: currentUser?.id
+      };
+
+      await addRanking(dataToSave as any);
 
       // Short delay to ensure Firestore snapshot typically catches up (though usually instant local)
       // setTimeout(() => setView('ranking_list'), 100); 
@@ -172,12 +222,20 @@ const App = () => {
   };
 
   const handleSavePlayer = async (playerData: any) => {
-    if (playerData.id) {
-      await updatePlayer(playerData);
-    } else {
-      await addPlayer(playerData);
+    try {
+      if (playerData.id) {
+        await updatePlayer(playerData);
+      } else {
+        // Attach Owner ID for Isolation
+        await addPlayer({ ...playerData, ownerId: currentUser?.id } as any);
+      }
+      alert("✅ Jugador guardado.");
+      setIsPlayerModalOpen(false);
+      setEditingPlayer(null);
+    } catch (error) {
+      console.error("Error saving player:", error);
+      alert("Error al guardar jugador.");
     }
-    setIsPlayerModalOpen(false);
   };
 
   const handleImportPlayers = (newPlayersData: any[]) => {
@@ -220,49 +278,83 @@ const App = () => {
   };
 
   // --- Admin Management Logic ---
-  const handleApproveAdmin = (id: string) => {
-    setUsers(users.map(u => u.id === id ? { ...u, status: 'active' } : u));
+  const handleApproveAdmin = async (id: string) => {
+    await updateUser({ id, status: 'active' });
     // Simulate email notification
-    const user = users.find(u => u.id === id);
-    if (user) alert(`✅ Solicitud aprobada. Se ha notificado a ${user.email}.`);
+    /* const user = users.find(u => u.id === id); */
+    /* if (user) alert(`✅ Solicitud aprobada.`); */
   };
 
-  const handleRejectAdmin = (id: string) => {
+  const handleRejectAdmin = async (id: string) => {
     if (confirm('¿Rechazar esta solicitud?')) {
-      setUsers(users.map(u => u.id === id ? { ...u, status: 'rejected' } : u));
+      await updateUser({ id, status: 'rejected' });
     }
   };
 
-  const handleDeleteAdmin = (id: string) => {
+  const handleDeleteAdmin = async (id: string) => {
     if (confirm('¿Eliminar este administrador? Se perderá acceso a sus torneos.')) {
-      setUsers(users.filter(u => u.id !== id));
+      await deleteUserDB(id);
     }
   };
 
-  const handleBlockAdmin = (id: string) => {
+  const handleBlockAdmin = async (id: string) => {
     if (confirm('¿Bloquear acceso a este administrador? No podrá iniciar sesión.')) {
-      setUsers(users.map(u => u.id === id ? { ...u, status: 'blocked' } : u));
+      await updateUser({ id, status: 'blocked' });
     }
   };
 
-  const handleUnblockAdmin = (id: string) => {
+  const handleUnblockAdmin = async (id: string) => {
     if (confirm('¿Desbloquear acceso?')) {
-      setUsers(users.map(u => u.id === id ? { ...u, status: 'active' } : u));
+      await updateUser({ id, status: 'active' });
     }
   };
 
-  const handleCreateAdmin = (userData: { name: string; email: string; clubName: string }) => {
-    const newUser: User = {
-      id: `u-${Date.now()}`,
-      name: userData.name,
-      email: userData.email,
-      clubName: userData.clubName,
-      role: 'admin',
-      status: 'active'
-    };
-    setUsers([...users, newUser]);
-    // Simulate Email Sending
-    alert(`📧 Correo enviado a ${userData.email} con las credenciales de acceso y enlace de bienvenida.`);
+  const handleCreateAdmin = async (userData: { name: string; email: string; clubName: string }) => {
+    try {
+      // 1. Generate Temp Password (simple 8 chars)
+      const tempPassword = Math.random().toString(36).slice(-8);
+
+      // 2. Create User in Auth (using Secondary App to avoid logging out current admin)
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, userData.email, tempPassword);
+      const newUserId = userCredential.user.uid;
+
+      // 3. Create User Document in Firestore linked to Auth ID
+      // Auto-assign SuperAdmin if this is the first user (users.length === 0)
+      const role = users.length === 0 ? 'superadmin' : 'admin';
+
+      const newUser: User = {
+        id: newUserId, // IMPORTANT: Use the real Auth ID
+        name: userData.name,
+        email: userData.email,
+        clubName: userData.clubName,
+        role: role,
+        status: 'active'
+      };
+
+      // We use setDoc instead of addDoc if we want to specify ID, but addUser uses addDoc.
+      // Let's modify addUser or just use update/set here? addUser adds with auto-ID. 
+      // For now, let's stick to `addUser` from db.ts (which generates a random doc ID), 
+      // storing the Auth UID is not strictly necessary if we query by email, 
+      // BUT efficient security rules usually rely on docID == authID.
+      // Let's rely on what `addUser` does for now to keep it simple, 
+      // knowing that the Auth UID and Firestore Doc ID will likely differ.
+
+      await addUser(newUser);
+
+      // 4. Sign out secondary auth immediately
+      await signOut(secondaryAuth);
+
+      // 5. Show Credentials
+      alert(`✅ USUARIO CREADO CORRECTAMENTE\n\nEmail: ${userData.email}\nContraseña Temporal: ${tempPassword}\n\n⚠️ COPIA Y ENVÍA ESTA CONTRASEÑA AHORA. NO SE VOLVERÁ A MOSTRAR.`);
+
+    } catch (e: any) {
+      console.error("Error creating admin:", e);
+      if (e.code === 'auth/email-already-in-use') {
+        alert("Error: Ese email ya está registrado.");
+      } else {
+        alert("Error al crear administrador: " + e.message);
+      }
+    }
   };
   // ------------------------------
 
@@ -313,14 +405,14 @@ const App = () => {
             <h1 className="text-3xl font-bold text-white mb-2">PadelRank Pro</h1>
             <p className="text-blue-100">Sistema de Gestión</p>
           </div>
-          <form onSubmit={handleLogin} className="p-8 space-y-4">
+          <form onSubmit={handleLogin} className="p-8 space-y-4" autoComplete="off">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" id="email" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" />
+              <input type="email" id="email" autoComplete="new-password" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-              <input type="password" id="password" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" />
+              <input type="password" id="password" autoComplete="new-password" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <Button className="w-full py-3 text-lg" onClick={() => { }}>Iniciar Sesión</Button>
           </form>
@@ -369,8 +461,8 @@ const App = () => {
                 <Users size={20} /> Jugadores
               </button>
 
-              {/* Superadmin Only Link */}
-              {currentUser?.role === 'superadmin' && (
+              {/* Superadmin Only Link OR Bootstrap */}
+              {(currentUser?.role === 'superadmin' || (users.length === 0 && firebaseUser)) && (
                 <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'admin_management' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
                   <ShieldCheck size={20} /> Gestión Admins
                   {users.filter(u => u.status === 'pending').length > 0 && (
@@ -378,6 +470,7 @@ const App = () => {
                       {users.filter(u => u.status === 'pending').length}
                     </span>
                   )}
+                  {users.length === 0 && <span className="ml-auto text-[10px] text-red-500 font-bold">(SETUP)</span>}
                 </button>
               )}
             </nav>
@@ -493,7 +586,7 @@ const App = () => {
             />
           )}
 
-          {view === 'admin_management' && currentUser?.role === 'superadmin' && (
+          {view === 'admin_management' && (currentUser?.role === 'superadmin' || (users.length === 0 && firebaseUser)) && (
             <AdminManagement
               users={users}
               onApprove={handleApproveAdmin}
@@ -502,11 +595,18 @@ const App = () => {
               onBlock={handleBlockAdmin}
               onUnblock={handleUnblockAdmin}
               onCreate={handleCreateAdmin}
+              onClearDB={() => {
+                if (confirm('¿SEGURO? Esto borrará TODOS los jugadores y torneos de la base de datos de prueba.')) {
+                  clearDatabase();
+                  alert("Datos borrados. Recarga la página.");
+                  window.location.reload();
+                }
+              }}
             />
           )}
 
           {view === 'profile' && (
-            <AdminProfile onClose={() => setView('dashboard')} />
+            <AdminProfile onClose={() => setView('dashboard')} user={currentUser} />
           )}
         </main>
       </div>
@@ -527,6 +627,48 @@ const App = () => {
       />
 
       <GeminiAssistant />
+
+      {/* Credentials Modal */}
+      {credentialsModal?.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+            <div className="mb-4 text-center">
+              <div className="mx-auto w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                <ShieldCheck size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">¡Administrador Creado!</h3>
+              <p className="text-sm text-gray-500 mt-1">Copia estas credenciales y envíalas al usuario.</p>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-100">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Email</label>
+                <div className="flex items-center justify-between">
+                  <code className="text-sm font-bold text-gray-800">{credentialsModal.email}</code>
+                  <button onClick={() => navigator.clipboard.writeText(credentialsModal.email)} className="text-primary hover:text-primary/70 p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                  </button>
+                </div>
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <label className="text-xs font-bold text-gray-400 uppercase">Contraseña Temporal</label>
+                <div className="flex items-center justify-between">
+                  <code className="text-lg font-mono font-bold text-blue-600">{credentialsModal.pass}</code>
+                  <button onClick={() => navigator.clipboard.writeText(credentialsModal.pass)} className="text-primary hover:text-primary/70 p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <Button className="w-full" onClick={() => setCredentialsModal(null)}>
+                Entendido, cerrar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

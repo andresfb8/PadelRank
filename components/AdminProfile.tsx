@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { User, Shield, Mail, Building, Lock, AlertCircle } from 'lucide-react';
+import { User as UserIcon, Shield, Mail, Building, Lock, AlertCircle } from 'lucide-react';
 import { Card, Button, Input } from './ui/Components';
 import { updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { auth } from '../services/firebase';
+import { User } from '../types';
 
 interface Props {
     onClose: () => void;
+    user?: User;
 }
 
-export const AdminProfile = ({ onClose }: Props) => {
+export const AdminProfile = ({ onClose, user }: Props) => {
     const [isEditing, setIsEditing] = useState(false);
     const [email, setEmail] = useState(auth.currentUser?.email || '');
     const [newPassword, setNewPassword] = useState('');
@@ -44,12 +46,12 @@ export const AdminProfile = ({ onClose }: Props) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in max-w-md mx-auto">
             <div className="bg-primary/10 p-8 flex flex-col items-center justify-center relative">
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-800">✕</button>
-                <div className="w-24 h-24 bg-primary text-white rounded-full flex items-center justify-center text-3xl font-bold mb-4 border-4 border-white shadow-lg">
-                    SA
+                <div className="w-24 h-24 bg-primary text-white rounded-full flex items-center justify-center text-3xl font-bold mb-4 border-4 border-white shadow-lg uppercase">
+                    {(user?.name || auth.currentUser?.email || 'U').charAt(0).toUpperCase()}
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Admin Usuario</h2>
-                <div className="flex items-center gap-1 mt-1 text-primary font-semibold">
-                    <Shield size={16} /> Super Admin
+                <h2 className="text-2xl font-bold text-gray-900">{user?.name || 'Administrador'}</h2>
+                <div className="flex items-center gap-1 mt-1 text-primary font-semibold capitalize">
+                    <Shield size={16} /> {user?.role || 'Admin'}
                 </div>
             </div>
 
@@ -88,7 +90,7 @@ export const AdminProfile = ({ onClose }: Props) => {
                             <Building className="text-gray-400" />
                             <div>
                                 <p className="text-xs text-gray-500 uppercase font-bold">Club Principal</p>
-                                <p className="text-gray-900 font-medium">Club Central Pádel</p>
+                                <p className="text-gray-900 font-medium">{user?.clubName || 'Sin asignar'}</p>
                             </div>
                         </div>
 

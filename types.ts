@@ -21,6 +21,7 @@ export interface Player {
     pp: number;
     winrate: number;
   };
+  ownerId?: string;
 }
 
 export interface Ranking {
@@ -31,6 +32,7 @@ export interface Ranking {
   status: 'activo' | 'finalizado';
   divisions: Division[];
   publicUrl?: string;
+  ownerId?: string;
 }
 
 export interface Division {

@@ -9,15 +9,49 @@ import {
     orderBy,
     setDoc,
     getDocs,
-    writeBatch
+    writeBatch,
+    where
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Player, Ranking } from "../types";
+import { Player, Ranking, User } from "../types";
+
+// --- USERS ---
+
+export const subscribeToUsers = (callback: (users: User[]) => void) => {
+    const q = query(collection(db, "users"));
+    return onSnapshot(q, (snapshot) => {
+        const usersList: User[] = [];
+        snapshot.forEach((doc) => {
+            usersList.push({ id: doc.id, ...doc.data() } as User);
+        });
+        callback(usersList);
+    });
+};
+
+export const addUser = async (user: Omit<User, "id">) => {
+    return await addDoc(collection(db, "users"), user);
+};
+
+export const updateUser = async (user: Partial<User> & { id: string }) => {
+    const { id, ...data } = user;
+    const userRef = doc(db, "users", id);
+    return await updateDoc(userRef, data);
+};
+
+export const deleteUser = async (id: string) => {
+    return await deleteDoc(doc(db, "users", id));
+};
 
 // --- PLAYERS ---
 
-export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void) => {
-    const q = query(collection(db, "players"), orderBy("nombre"));
+export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void, ownerId?: string) => {
+    let q;
+    if (ownerId) {
+        q = query(collection(db, "players"), where("ownerId", "==", ownerId), orderBy("nombre"));
+    } else {
+        q = query(collection(db, "players"), orderBy("nombre"));
+    }
+
     return onSnapshot(q, (snapshot) => {
         const playersMap: Record<string, Player> = {};
         snapshot.forEach((doc) => {
@@ -53,9 +87,15 @@ export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
 
 // --- RANKINGS (TOURNAMENTS) ---
 
-export const subscribeToRankings = (callback: (rankings: Ranking[]) => void) => {
+export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
     // Order by creation or name? Name for now.
-    const q = query(collection(db, "rankings"), orderBy("nombre"));
+    let q;
+    if (ownerId) {
+        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId), orderBy("nombre"));
+    } else {
+        q = query(collection(db, "rankings"), orderBy("nombre"));
+    }
+
     return onSnapshot(q, (snapshot) => {
         const rankingsList: Ranking[] = [];
         snapshot.forEach((doc) => {
@@ -121,4 +161,20 @@ export const seedDatabase = async (players: Record<string, Player>, rankings: Ra
         await batch.commit();
         console.log("Rankings seeded.");
     }
+};
+
+export const clearDatabase = async () => {
+    // Dangerous: Clears all players and rankings
+    const batch = writeBatch(db);
+
+    // Players
+    const snapshotP = await getDocs(collection(db, "players"));
+    snapshotP.forEach(doc => batch.delete(doc.ref));
+
+    // Rankings
+    const snapshotR = await getDocs(collection(db, "rankings"));
+    snapshotR.forEach(doc => batch.delete(doc.ref));
+
+    await batch.commit();
+    console.log("Database cleared.");
 };
