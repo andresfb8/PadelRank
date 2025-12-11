@@ -1,0 +1,8 @@
+{
+  "name": "PadelRank Pro",
+  "description": "Professional Padel Ranking Management System featuring AI-powered scorecard analysis, search grounding for rules, and voice announcements.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
