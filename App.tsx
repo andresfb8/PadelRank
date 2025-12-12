@@ -252,8 +252,12 @@ const App = () => {
       } else {
         // Remove 'id' if it exists (it might be undefined, causing Firestore error)
         const { id, ...dataToSave } = playerData;
-        // Attach Owner ID for Isolation
-        await addPlayer({ ...dataToSave, ownerId: currentUser?.id } as any);
+        // Attach Owner ID for Isolation and initialize stats
+        await addPlayer({
+          ...dataToSave,
+          ownerId: currentUser?.id,
+          stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }
+        } as any);
       }
       alert("✅ Jugador guardado.");
       setIsPlayerModalOpen(false);
