@@ -52,7 +52,14 @@ export const subscribeToPlayers = (callback: (players: Record<string, Player>) =
     return onSnapshot(q, (snapshot) => {
         const playersMap: Record<string, Player> = {};
         snapshot.forEach((doc) => {
-            playersMap[doc.id] = { id: doc.id, ...doc.data() } as Player;
+            const data = doc.data();
+            // Defensive: ensure stats exists for backward compatibility
+            const player: Player = {
+                id: doc.id,
+                ...data,
+                stats: data.stats || { pj: 0, pg: 0, pp: 0, winrate: 0 }
+            } as Player;
+            playersMap[doc.id] = player;
         });
         callback(playersMap);
     }, (error) => {

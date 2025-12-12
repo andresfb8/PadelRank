@@ -128,8 +128,9 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
       let valB: any = b[sortField as keyof Player];
 
       if (sortField === 'pj' || sortField === 'pg' || sortField === 'pp' || sortField === 'winrate') {
-        valA = a.stats[sortField];
-        valB = b.stats[sortField];
+        // Defensive: ensure stats exists
+        valA = a.stats?.[sortField] ?? 0;
+        valB = b.stats?.[sortField] ?? 0;
       }
 
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
@@ -230,12 +231,12 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
                   <div className="text-sm text-gray-900">{p.email}</div>
                   <div className="text-xs text-gray-500">{p.telefono}</div>
                 </td>
-                <td className="px-6 py-4 text-center text-gray-600 font-medium">{p.stats.pj}</td>
-                <td className="px-6 py-4 text-center text-green-600 font-medium">{p.stats.pg}</td>
-                <td className="px-6 py-4 text-center text-red-600 font-medium">{p.stats.pp}</td>
+                <td className="px-6 py-4 text-center text-gray-600 font-medium">{p.stats?.pj ?? 0}</td>
+                <td className="px-6 py-4 text-center text-green-600 font-medium">{p.stats?.pg ?? 0}</td>
+                <td className="px-6 py-4 text-center text-red-600 font-medium">{p.stats?.pp ?? 0}</td>
                 <td className="px-6 py-4 text-center">
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${p.stats.winrate >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                    {p.stats.winrate}%
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${(p.stats?.winrate ?? 0) >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {p.stats?.winrate ?? 0}%
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">

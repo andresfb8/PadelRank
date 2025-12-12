@@ -31,6 +31,7 @@ import {
   updateUser,
   deleteUser as deleteUserDB
 } from './services/db';
+import { migratePlayersStats } from './services/migration';
 
 const App = () => {
   const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management'>('login');
@@ -48,6 +49,11 @@ const App = () => {
   // Derive Current User from Firebase Auth
   const currentUser = users.find(u => u.email === firebaseUser?.email) || users.find(u => u.role === 'superadmin'); // Fallback to superadmin for demo if email not matched
   const activeRanking = rankings.find(r => r.id === activeRankingId);
+
+  // Run migration once on app start
+  useEffect(() => {
+    migratePlayersStats().catch(err => console.error("Migration error:", err));
+  }, []);
 
   // Initial Data Subscription
   // Initial Data Subscription
