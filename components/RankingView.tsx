@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, Volume2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag } from 'lucide-react';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag } from 'lucide-react';
 import { Button, Card, Badge } from './ui/Components';
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
-import { generateSpeech } from '../services/geminiService';
 import { AddDivisionModal } from './AddDivisionModal';
 import { PromotionModal } from './PromotionModal';
 
@@ -21,7 +20,6 @@ interface Props {
 export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin }: Props) => {
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global'>('standings');
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isAddDivModalOpen, setIsAddDivModalOpen] = useState(false);
   const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
@@ -46,32 +44,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   ranking.divisions.forEach(div => {
     div.players.forEach(pid => occupiedPlayerIds.add(pid));
   });
-
-  const handleReadStandings = async () => {
-    if (isPlayingAudio || !activeDivision) return;
-    setIsPlayingAudio(true);
-
-    const top3 = standings.slice(0, 3).map(s => {
-      const p = players[s.playerId];
-      return `${s.pos}º lugar, ${p.nombre} ${p.apellidos} con ${s.pts} puntos.`;
-    }).join(' ');
-
-    const text = `Clasificación para ${ranking.nombre}, División ${activeDivision.numero}. ${top3}`;
-
-    try {
-      const audioBuffer = await generateSpeech(text);
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const buffer = await ctx.decodeAudioData(audioBuffer);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      source.start(0);
-      source.onended = () => setIsPlayingAudio(false);
-    } catch (e) {
-      console.error(e);
-      setIsPlayingAudio(false);
-    }
-  };
 
   const copyToClipboard = () => {
     const baseUrl = window.location.origin + window.location.pathname;
@@ -263,9 +235,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         <Card className="overflow-hidden !p-0">
           <div className="p-4 border-b flex justify-between items-center bg-gray-50">
             <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> Tabla de Clasificación</h3>
-            <Button variant="secondary" onClick={handleReadStandings} disabled={isPlayingAudio} className="text-xs">
-              <Volume2 size={14} className="mr-1" /> {isPlayingAudio ? 'Leyendo...' : 'Leer voz alta'}
-            </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left whitespace-nowrap">
@@ -320,12 +289,11 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       {activeTab === 'matches' && activeDivision && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {activeDivision.matches.map((m) => {
-            const p1 = players[m.pair1.p1Id];
-            const p2 = players[m.pair1.p2Id];
-            const p3 = players[m.pair2.p1Id];
-            const p4 = players[m.pair2.p2Id];
-
-            if (!p1 || !p2 || !p3 || !p4) return null;
+            // Graceful fallback if player data is missing/deleted
+            const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
+            const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
+            const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
+            const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
 
             return (
               <div

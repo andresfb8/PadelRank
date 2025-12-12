@@ -13,7 +13,6 @@ import { PlayerList } from './components/PlayerList';
 import { AdminProfile } from './components/AdminProfile';
 import { AdminManagement } from './components/AdminManagement';
 import { PlayerModal } from './components/PlayerModal';
-import { GeminiAssistant } from './components/GeminiAssistant';
 import { Button } from './components/ui/Components';
 import {
   subscribeToPlayers,
@@ -85,8 +84,33 @@ const App = () => {
     // valid for finding the specific one.
 
     const unsubscribePlayers = subscribeToPlayers((data) => {
-      setPlayers(data);
-    }, ownerIdFilter);
+      // Safety Check: Prevent crash if Auth is slower than Database
+      if (!currentUser && !publicRankingId) {
+        setPlayers({});
+        return;
+      }
+      if (!currentUser && !publicRankingId) {
+        setPlayers({});
+        return;
+      }
+      // Client-Side Filtering:
+      // Show if:
+      // 1. I am Superadmin (Show All)
+      // 2. I am the Owner (p.ownerId === currentUser.id)
+      // 3. Player has NO Owner (Legacy/Public) (p.ownerId is null/undefined)
+
+      let visibleData = data;
+      if (currentUser && currentUser.role !== 'superadmin') {
+        visibleData = {};
+        Object.values(data).forEach(p => {
+          if (!p.ownerId || p.ownerId === currentUser.id) {
+            visibleData[p.id] = p;
+          }
+        });
+      }
+
+      setPlayers(visibleData);
+    }, undefined); // Removing ownerIdFilter arg as we handle it inside
 
     const unsubscribeRankings = subscribeToRankings((data) => {
       setRankings(data);
@@ -226,33 +250,37 @@ const App = () => {
       if (playerData.id) {
         await updatePlayer(playerData);
       } else {
+        // Remove 'id' if it exists (it might be undefined, causing Firestore error)
+        const { id, ...dataToSave } = playerData;
         // Attach Owner ID for Isolation
-        await addPlayer({ ...playerData, ownerId: currentUser?.id } as any);
+        await addPlayer({ ...dataToSave, ownerId: currentUser?.id } as any);
       }
       alert("✅ Jugador guardado.");
       setIsPlayerModalOpen(false);
       setEditingPlayer(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving player:", error);
-      alert("Error al guardar jugador.");
+      alert("Error al guardar jugador: " + (error?.message || error));
     }
   };
 
-  const handleImportPlayers = (newPlayersData: any[]) => {
-    const newPlayersMap = { ...players };
-    newPlayersData.forEach(p => {
-      const id = `p${Date.now() + Math.random()}`; // Random to avoid collision in fast loops
-      newPlayersMap[id] = {
-        id,
+  const handleImportPlayers = async (newPlayersData: any[]) => {
+    try {
+      const playersToSave = newPlayersData.map(p => ({
         nombre: p.nombre || 'Desconocido',
         apellidos: p.apellidos || '',
         email: p.email || '',
         telefono: p.telefono || '',
-        stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }
-      };
-    });
-    setPlayers(newPlayersMap);
-    alert(`✅ Importados ${newPlayersData.length} jugadores correctamente.`);
+        stats: { pj: 0, pg: 0, pp: 0, winrate: 0 },
+        ownerId: currentUser?.id
+      }));
+
+      await importPlayersBatch(playersToSave);
+      alert(`✅ Importados ${newPlayersData.length} jugadores correctamente.`);
+    } catch (error) {
+      console.error("Error importing players:", error);
+      alert("Error al importar jugadores.");
+    }
   };
 
   const handleDeletePlayer = (id: string) => {
@@ -442,7 +470,7 @@ const App = () => {
 
       {/* Sidebar - Hidden in Public View unless user is admin */}
       {(!isPublicView || currentUser) && (
-        <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'shadow-2xl lg:shadow-none' : ''}`}>
+        <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'shadow-2xl lg:shadow-none' : ''}`}>
           <div className="h-full flex flex-col">
             <div className="p-6 border-b border-gray-100 flex items-center justify-center">
               <h2 className="text-xl font-bold text-primary flex items-center gap-2">
@@ -450,7 +478,7 @@ const App = () => {
               </h2>
             </div>
 
-            <nav className="flex-1 p-4 space-y-2">
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
               <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'dashboard' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
                 <LayoutDashboard size={20} /> Panel
               </button>
@@ -625,8 +653,6 @@ const App = () => {
         onSave={handleSavePlayer}
         playerToEdit={editingPlayer}
       />
-
-      <GeminiAssistant />
 
       {/* Credentials Modal */}
       {credentialsModal?.isOpen && (

@@ -17,8 +17,7 @@
     "main": "lib/index.js",
     "dependencies": {
         "firebase-admin": "^12.0.0",
-        "firebase-functions": "^4.5.0",
-        "@google/genai": "latest"
+        "firebase-functions": "^4.5.0"
     },
     "devDependencies": {
         "typescript": "^4.9.0",

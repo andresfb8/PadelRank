@@ -45,12 +45,9 @@ export const deleteUser = async (id: string) => {
 // --- PLAYERS ---
 
 export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void, ownerId?: string) => {
-    let q;
-    if (ownerId) {
-        q = query(collection(db, "players"), where("ownerId", "==", ownerId), orderBy("nombre"));
-    } else {
-        q = query(collection(db, "players"), orderBy("nombre"));
-    }
+    // Hybrid Approach: Always fetch ALL players (ordered by name)
+    // We will filter them on the client side (App.tsx) to show Own + Unowned.
+    const q = query(collection(db, "players"), orderBy("nombre"));
 
     return onSnapshot(q, (snapshot) => {
         const playersMap: Record<string, Player> = {};
@@ -58,6 +55,8 @@ export const subscribeToPlayers = (callback: (players: Record<string, Player>) =
             playersMap[doc.id] = { id: doc.id, ...doc.data() } as Player;
         });
         callback(playersMap);
+    }, (error) => {
+        console.error("Error subscribing to players:", error);
     });
 };
 
@@ -102,6 +101,8 @@ export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, own
             rankingsList.push({ id: doc.id, ...doc.data() } as Ranking);
         });
         callback(rankingsList);
+    }, (error) => {
+        console.error("Error subscribing to rankings:", error);
     });
 };
 
