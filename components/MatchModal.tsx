@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { Modal, Button, Input, Badge } from './ui/Components';
-import { Match, Player } from '../types';
+import { Match, Player, RankingConfig } from '../types';
 import { calculateMatchPoints } from '../services/logic';
 
 interface Props {
@@ -10,9 +10,10 @@ interface Props {
   match: Match | null;
   players: Record<string, Player>;
   onSave: (matchId: string, result: any) => void;
+  rankingConfig?: RankingConfig;
 }
 
-export const MatchModal = ({ isOpen, onClose, match, players, onSave }: Props) => {
+export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingConfig }: Props) => {
   const [s1, setS1] = useState({ p1: '', p2: '' });
   const [s2, setS2] = useState({ p1: '', p2: '' });
   const [s3, setS3] = useState({ p1: '', p2: '' });
@@ -43,7 +44,15 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave }: Props) =
 
     try {
       if (!v2 && isIncomplete) return null; // Need set 2 for incomplete
-      return calculateMatchPoints(v1, v2, v3, isIncomplete);
+      // Only pass fields if config exists
+      const configClean = rankingConfig ? {
+        pointsPerWin2_0: rankingConfig.pointsPerWin2_0,
+        pointsPerWin2_1: rankingConfig.pointsPerWin2_1,
+        pointsDraw: rankingConfig.pointsDraw,
+        pointsPerLoss2_1: rankingConfig.pointsPerLoss2_1,
+        pointsPerLoss2_0: rankingConfig.pointsPerLoss2_0
+      } : undefined;
+      return calculateMatchPoints(v1, v2, v3, isIncomplete, configClean);
     } catch (e) {
       return null;
     }

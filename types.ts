@@ -24,6 +24,20 @@ export interface Player {
   ownerId?: string;
 }
 
+export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual';
+
+export interface RankingConfig {
+  pointsPerWin2_0: number;
+  pointsPerWin2_1: number;
+  pointsDraw: number;
+  pointsPerLoss2_1: number;
+  pointsPerLoss2_0: number;
+  promotionCount: number; // For individual ranking
+  relegationCount: number; // For individual ranking
+  maxPoints?: number; // For Americano/Mexicano (e.g. 32 points total)
+  courts?: number; // For Americano/Mexicano scheduling
+}
+
 export interface Ranking {
   id: string;
   nombre: string;
@@ -33,6 +47,8 @@ export interface Ranking {
   divisions: Division[];
   publicUrl?: string;
   ownerId?: string;
+  format?: RankingFormat; // Optional for backward compatibility (default 'classic')
+  config?: RankingConfig;
 }
 
 export interface Division {

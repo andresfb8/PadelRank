@@ -4,6 +4,7 @@ import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDo
 import { Button, Card, Badge } from './ui/Components';
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
+import { MatchGenerator } from '../services/matchGenerator';
 import { AddDivisionModal } from './AddDivisionModal';
 import { PromotionModal } from './PromotionModal';
 
@@ -76,6 +77,50 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
   if (!ranking) return <div className="p-8 text-center text-gray-500">Torneo no encontrado</div>;
 
+  const handleGenerateNextRound = () => {
+    if (!onUpdateRanking || !activeDivision) return;
+
+    const currentRound = activeDivision.matches.reduce((max, m) => Math.max(max, m.jornada), 0);
+    const nextRound = currentRound + 1;
+
+    let newMatches: Match[] = [];
+
+    // Mexicano Logic
+    if (ranking.format === 'mexicano') {
+      if (currentRound > 0 && activeDivision.matches.some(m => m.status === 'pendiente')) {
+        return alert("Debes finalizar todos los partidos de la ronda actual antes de generar la siguiente en modo Mexicano.");
+      }
+      newMatches = MatchGenerator.generateMexicanoRound(activeDivision.players.map(id => players[id] || { id, nombre: '?', apellidos: '' } as Player), standings, nextRound);
+    }
+    // Individual Logic
+    else if (ranking.format === 'individual') {
+      newMatches = MatchGenerator.generateIndividualRound(activeDivision.players, activeDivision.numero, nextRound);
+    }
+    // Americano Logic
+    else if (ranking.format === 'americano') {
+      const pObjs = activeDivision.players.map(id => players[id] || { id } as Player);
+      newMatches = MatchGenerator.generateAmericano(pObjs, ranking.config?.courts || 2);
+      newMatches.forEach(m => m.jornada = nextRound);
+    }
+
+    if (newMatches.length === 0) return alert("No se pudieron generar partidos. Verifica el número de jugadores.");
+
+    const updatedDiv = {
+      ...activeDivision,
+      matches: [...activeDivision.matches, ...newMatches]
+    };
+
+    const updatedRanking = {
+      ...ranking,
+      divisions: ranking.divisions.map(d => d.id === updatedDiv.id ? updatedDiv : d)
+    };
+
+    onUpdateRanking(updatedRanking);
+    alert(`✅ Roda ${nextRound} generada (${newMatches.length} partidos).`);
+  };
+
+  const showGenerateRound = isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || (ranking.format === 'individual' && ranking.config?.courts)); // Individual usually pre-generated? Or round by round? User said "random", can be round by round.
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -98,7 +143,12 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto justify-end">
-          {isAdmin && onUpdateRanking && (
+          {isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || ranking.format === 'individual') && (
+            <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
+              <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
+            </Button>
+          )}
+          {isAdmin && onUpdateRanking && ranking.format === 'classic' && (
             <Button onClick={handleOpenPromotionModal} className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 text-sm px-3 py-2">
               <Flag size={16} /> <span className="hidden sm:inline">Finalizar Fase</span>
             </Button>
