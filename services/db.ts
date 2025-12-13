@@ -1,16 +1,17 @@
 import {
     collection,
-    onSnapshot,
     addDoc,
     updateDoc,
     deleteDoc,
     doc,
+    onSnapshot,
     query,
     orderBy,
-    setDoc,
-    getDocs,
+    where,
+    limit,
     writeBatch,
-    where
+    setDoc, // Kept from original, not in user's example but not explicitly removed
+    getDocs // Kept from original, not in user's example but not explicitly removed
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Player, Ranking, User } from "../types";
@@ -25,8 +26,23 @@ export const subscribeToUsers = (callback: (users: User[]) => void) => {
             usersList.push({ id: doc.id, ...doc.data() } as User);
         });
         callback(usersList);
+    }, (error) => {
+        // Silent failure if permission denied (normal for non-superadmins now)
+        console.warn("Could not subscribe to users list (likely permission denied implies not superadmin):", error.message);
     });
 };
+
+export const subscribeToUserProfile = (userId: string, callback: (user: User | null) => void) => {
+    return onSnapshot(doc(db, "users", userId), (docSnap) => {
+        if (docSnap.exists()) {
+            callback({ id: docSnap.id, ...docSnap.data() } as User);
+        } else {
+            callback(null);
+        }
+    });
+};
+
+
 
 export const addUser = async (user: Omit<User, "id">) => {
     return await addDoc(collection(db, "users"), user);
@@ -94,13 +110,8 @@ export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
 // --- RANKINGS (TOURNAMENTS) ---
 
 export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
-    // Order by creation or name? Name for now.
-    let q;
-    if (ownerId) {
-        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId), orderBy("nombre"));
-    } else {
-        q = query(collection(db, "rankings"), orderBy("nombre"));
-    }
+    // Always fetch all, filter on client (like players) to support Legacy/Mixed views
+    const q = query(collection(db, "rankings"), orderBy("nombre"));
 
     return onSnapshot(q, (snapshot) => {
         const rankingsList: Ranking[] = [];
