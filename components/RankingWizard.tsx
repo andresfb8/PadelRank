@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info } from 'lucide-react';
 import { Button, Card, Input } from './ui/Components';
-import { Player, Ranking, RankingFormat, RankingConfig, Division } from '../types';
+import { Player, Ranking, RankingFormat, RankingConfig, Division, ScoringMode } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
 
@@ -36,7 +36,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         promotionCount: 2,
         relegationCount: 2,
         courts: 2,
-        maxPoints: 24
+        scoringMode: '24'  // Default for Mexicano/Americano
     });
 
     // Players
@@ -119,31 +119,71 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 </div>
             </div>
 
-            {format !== 'classic' && (
-                <>
-                    <div className="border-t pt-4">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Settings size={18} /> Reglas de Puntuación</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <Input type="number" label="Pts Victoria 2-0" value={config.pointsPerWin2_0} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) })} />
-                            <Input type="number" label="Pts Victoria 2-1" value={config.pointsPerWin2_1} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_1: parseInt(e.target.value) })} />
-                            <Input type="number" label="Pts Empate" value={config.pointsDraw} onChange={(e: any) => setConfig({ ...config, pointsDraw: parseInt(e.target.value) })} />
-                            <Input type="number" label="Pts Derrota 1-2" value={config.pointsPerLoss2_1} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_1: parseInt(e.target.value) })} />
-                            <Input type="number" label="Pts Derrota 0-2" value={config.pointsPerLoss2_0} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_0: parseInt(e.target.value) })} />
-                        </div>
+            {/* Mexicano/Americano Configuration */}
+            {(format === 'mexicano' || format === 'americano') && (
+                <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Settings size={18} /> Configuración del Torneo</h3>
+
+                    {/* Courts */}
+                    <div className="mb-4">
+                        <Input
+                            type="number"
+                            label="Número de Pistas"
+                            value={config.courts || 2}
+                            onChange={(e: any) => setConfig({ ...config, courts: parseInt(e.target.value) || 2 })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Determina cuántos partidos simultáneos se pueden jugar por ronda
+                        </p>
                     </div>
 
-                    {format === 'individual' && (
-                        <div className="border-t pt-4">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Configuración de Liga</h3>
-                            <div className="grid md:grid-cols-4 gap-4">
-                                <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
-                                <Input type="number" label="Max Jugadores/Div" value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(2, parseInt(e.target.value) || 2))} />
-                                <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) })} />
-                                <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) })} />
-                            </div>
-                        </div>
-                    )}
-                </>
+                    {/* Scoring Mode */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Sistema de Puntuación</label>
+                        <select
+                            className="input-field w-full border p-2 rounded-lg mb-2"
+                            value={config.scoringMode || '24'}
+                            onChange={(e: any) => setConfig({ ...config, scoringMode: e.target.value as ScoringMode })}
+                        >
+                            <option value="16">16 Puntos</option>
+                            <option value="21">21 Puntos</option>
+                            <option value="24">24 Puntos</option>
+                            <option value="31">31 Puntos</option>
+                            <option value="32">32 Puntos</option>
+                            <option value="custom">Puntos Personalizados</option>
+                            <option value="per-game">Por Juego (Tradicional)</option>
+                        </select>
+
+                        {/* Custom Points Input */}
+                        {config.scoringMode === 'custom' && (
+                            <Input
+                                type="number"
+                                label="Puntos Totales"
+                                value={config.customPoints || 24}
+                                onChange={(e: any) => setConfig({ ...config, customPoints: parseInt(e.target.value) || 24 })}
+                            />
+                        )}
+
+                        <p className="text-xs text-gray-500 mt-1">
+                            {config.scoringMode === 'per-game'
+                                ? 'Sistema tradicional: 6 juegos por set, mejor de 3 sets'
+                                : 'Los equipos acumulan puntos hasta alcanzar el total. El sistema autorellena la puntuación del rival.'}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Individual Configuration */}
+            {format === 'individual' && (
+                <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Configuración de Liga</h3>
+                    <div className="grid md:grid-cols-4 gap-4">
+                        <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
+                        <Input type="number" label="Max Jugadores/Div" value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(2, parseInt(e.target.value) || 2))} />
+                        <Input type="number" label="Ascienden" value={config.promotionCount || 2} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) })} />
+                        <Input type="number" label="Descienden" value={config.relegationCount || 2} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) })} />
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -226,35 +266,63 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             )
         }
 
-        // For Americano/Mexicano: Select Pool from List
+        // For Americano/Mexicano: Select Pool from List with Search
         return (
             <div className="space-y-4">
                 <div className="flex justify-between">
                     <h3 className="font-bold text-gray-800">Seleccionar Jugadores ({selectedPlayerIds.length})</h3>
-                    <span className="text-sm text-gray-500">Mínimo 4 jugadores recomendados</span>
+                    <span className="text-sm text-gray-500">Mínimo 4 jugadores · Múltiplo de 4 recomendado</span>
                 </div>
-                <div className="bg-white border rounded-lg h-96 overflow-y-auto p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {availablePlayers.map(p => {
-                        const isSelected = selectedPlayerIds.includes(p.id);
-                        return (
-                            <div
-                                key={p.id}
-                                onClick={() => {
-                                    if (isSelected) setSelectedPlayerIds(selectedPlayerIds.filter(id => id !== p.id));
-                                    else setSelectedPlayerIds([...selectedPlayerIds, p.id]);
-                                }}
-                                className={`p-3 rounded-lg border cursor-pointer flex items-center gap-3 ${isSelected ? 'bg-primary text-white border-primary' : 'hover:bg-gray-50'}`}
-                            >
-                                <div className={`w-4 h-4 rounded-full border border-current flex items-center justify-center`}>
-                                    {isSelected && <div className="w-2 h-2 rounded-full bg-current" />}
-                                </div>
-                                <div>
-                                    <div className="font-bold text-sm">{p.nombre} {p.apellidos}</div>
-                                    <div className="text-xs opacity-75">Nivel: {p.stats.winrate}%</div>
-                                </div>
-                            </div>
-                        )
-                    })}
+
+                {/* Search and Add Player */}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Buscar y Añadir Jugador</label>
+                    <SearchableSelect
+                        options={availablePlayers
+                            .filter(p => !selectedPlayerIds.includes(p.id))
+                            .map(p => ({
+                                id: p.id,
+                                label: `${p.nombre} ${p.apellidos}`,
+                                subLabel: `Nivel: ${p.stats.winrate}%`
+                            }))}
+                        value=""
+                        onChange={(id) => {
+                            if (id) setSelectedPlayerIds([...selectedPlayerIds, id]);
+                        }}
+                        placeholder="Buscar jugador..."
+                    />
+                </div>
+
+                {/* Selected Players List */}
+                <div className="bg-white border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-700 mb-3">Jugadores Seleccionados</h4>
+                    {selectedPlayerIds.length === 0 ? (
+                        <p className="text-gray-400 text-center py-8">No hay jugadores seleccionados</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {selectedPlayerIds.map(id => {
+                                const player = players[id];
+                                if (!player) return null;
+                                return (
+                                    <div
+                                        key={id}
+                                        className="flex items-center justify-between p-2 bg-gray-50 rounded border"
+                                    >
+                                        <div className="flex-1">
+                                            <div className="font-medium text-sm">{player.nombre} {player.apellidos}</div>
+                                            <div className="text-xs text-gray-500">Nivel: {player.stats.winrate}%</div>
+                                        </div>
+                                        <button
+                                            onClick={() => setSelectedPlayerIds(selectedPlayerIds.filter(pid => pid !== id))}
+                                            className="ml-2 p-1 hover:bg-red-100 rounded text-red-500"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -301,8 +369,10 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             let matches: any[] = [];
             if (format === 'mexicano') {
                 matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
+            } else if (format === 'americano') {
+                const selectedPlayers = selectedPlayerIds.map(id => players[id]).filter(p => !!p);
+                matches = MatchGenerator.generateAmericano(selectedPlayers, config.courts || 2);
             }
-            // Americano generated later or different logic
 
             divisions.push({
                 id: `div-${Date.now()}-0`,

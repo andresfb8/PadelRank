@@ -364,8 +364,15 @@ export const AdminLayout = () => {
                     <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden text-gray-500 p-2 -ml-2 hover:bg-gray-100 rounded-lg"><Menu /></button>
                     <div className="flex items-center gap-4 ml-auto">
                         <div className="text-right hidden md:block">
-                            <div className="text-sm font-bold text-gray-900">{currentUser?.name}</div>
-                            <div className="text-xs text-primary font-medium capitalize">{currentUser?.role}</div>
+                            <div className="text-sm font-bold text-gray-900">{currentUser?.name || currentUser?.email}</div>
+                            <div className="mt-0.5 flex justify-end">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${currentUser?.role === 'superadmin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                        currentUser?.role === 'admin' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                            'bg-gray-100 text-gray-600 border-gray-200'
+                                    }`}>
+                                    {currentUser?.role}
+                                </span>
+                            </div>
                         </div>
                         <button onClick={() => setView('profile')} className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold hover:opacity-90">{currentUser?.role === 'superadmin' ? 'SA' : 'A'}</button>
                     </div>

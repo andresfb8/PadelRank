@@ -125,13 +125,36 @@ export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, own
 };
 
 export const addRanking = async (ranking: Omit<Ranking, "id">) => {
-    return await addDoc(collection(db, "rankings"), ranking);
+    // Sanitize data to remove undefined values before adding
+    const sanitizedData = sanitizeForFirestore(ranking);
+    return await addDoc(collection(db, "rankings"), sanitizedData);
+};
+
+// Helper function to remove undefined values from objects (Firestore doesn't accept undefined)
+const sanitizeForFirestore = (obj: any): any => {
+    if (obj === null || obj === undefined) return null;
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeForFirestore(item));
+    }
+    if (typeof obj === 'object') {
+        const sanitized: any = {};
+        Object.keys(obj).forEach(key => {
+            const value = obj[key];
+            if (value !== undefined) {
+                sanitized[key] = sanitizeForFirestore(value);
+            }
+        });
+        return sanitized;
+    }
+    return obj;
 };
 
 export const updateRanking = async (ranking: Ranking) => {
     const { id, ...data } = ranking;
     const rankingRef = doc(db, "rankings", id);
-    return await updateDoc(rankingRef, data);
+    // Sanitize data to remove undefined values
+    const sanitizedData = sanitizeForFirestore(data);
+    return await updateDoc(rankingRef, sanitizedData);
 };
 
 export const deleteRanking = async (id: string) => {

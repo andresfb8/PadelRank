@@ -43,9 +43,16 @@ export const RankingList = ({ rankings, onSelect, onCreateClick, onDelete }: Pro
 
               <div className="relative z-10">
                 <div className="flex justify-between items-start mb-2">
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {ranking.status === 'activo' ? 'Activo' : 'Finalizado'}
-                  </span>
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {ranking.status === 'activo' ? 'Activo' : 'Finalizado'}
+                    </span>
+                    <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-50 text-blue-700 uppercase tracking-wider">
+                      {ranking.format === 'americano' ? 'Americano' :
+                        ranking.format === 'mexicano' ? 'Mexicano' :
+                          ranking.format === 'individual' ? 'Individual' : 'Clásico'}
+                    </span>
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -59,11 +66,23 @@ export const RankingList = ({ rankings, onSelect, onCreateClick, onDelete }: Pro
                 </div>
 
                 <h3 className="text-lg font-bold text-gray-900 mb-1">{ranking.nombre}</h3>
-                <p className="text-gray-500 text-sm mb-4">{ranking.categoria} • {ranking.divisions.length} Divisiones</p>
+                <p className="text-gray-500 text-sm mb-4">
+                  {ranking.categoria}
+                  <span className="mx-2">•</span>
+                  {ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} Jugadores
+                </p>
 
-                <div className="flex items-center text-sm text-gray-400 gap-2">
-                  <Calendar size={14} />
-                  <span>Iniciado: {ranking.fechaInicio}</span>
+                <div className="flex items-center text-sm text-gray-400 gap-4">
+                  <div className="flex items-center gap-1">
+                    <Calendar size={14} />
+                    <span>{ranking.fechaInicio}</span>
+                  </div>
+                  {ranking.rules && (
+                    <div className="flex items-center gap-1 text-orange-600" title="Tiene normas específicas">
+                      <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                      <span>Normas</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-100 flex items-center text-primary text-sm font-medium">

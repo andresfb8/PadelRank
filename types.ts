@@ -26,17 +26,23 @@ export interface Player {
 
 export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual';
 
+export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
+
 export interface RankingConfig {
-  pointsPerWin2_0: number;
-  pointsPerWin2_1: number;
-  pointsDraw: number;
-  pointsPerLoss2_1: number;
-  pointsPerLoss2_0: number; // Confirmed present
-  promotionCount: number; // For individual ranking
-  relegationCount: number; // For individual ranking
-  maxPoints?: number; // For Americano/Mexicano (e.g. 32 points total)
-  courts?: number; // For Americano/Mexicano scheduling
-  maxPlayersPerDivision?: number; // New for Individual
+  // For Classic/Individual (set-based scoring)
+  pointsPerWin2_0?: number;
+  pointsPerWin2_1?: number;
+  pointsDraw?: number;
+  pointsPerLoss2_1?: number;
+  pointsPerLoss2_0?: number; // Confirmed present
+  promotionCount?: number; // For individual ranking
+  relegationCount?: number; // For individual ranking
+  maxPlayersPerDivision?: number; // For Individual
+
+  // For Americano/Mexicano (point-based scoring)
+  courts?: number; // Number of courts for scheduling
+  scoringMode?: ScoringMode; // Scoring system
+  customPoints?: number; // If scoringMode === 'custom'
 }
 
 export interface Ranking {
@@ -50,6 +56,7 @@ export interface Ranking {
   ownerId?: string;
   format?: RankingFormat; // Optional for backward compatibility (default 'classic')
   config?: RankingConfig;
+  rules?: string; // Markdown or text rules
 }
 
 export interface Division {
@@ -66,11 +73,16 @@ export interface MatchPair {
 }
 
 export interface MatchScore {
-  set1: { p1: number; p2: number };
+  // For Classic/Individual (set-based scoring)
+  set1?: { p1: number; p2: number };
   set2?: { p1: number; p2: number };
   set3?: { p1: number; p2: number };
-  isIncomplete: boolean;
+  isIncomplete?: boolean;
   finalizationType?: 'completo' | 'victoria_incompleta' | 'empate_diferencia' | 'empate_manual' | 'derrota_incompleta';
+
+  // For Americano/Mexicano (point-based scoring)
+  pointsScored?: { p1: number; p2: number }; // Actual game points scored
+
   description?: string;
 }
 
@@ -82,6 +94,7 @@ export interface Match {
   score?: MatchScore;
   points: { p1: number; p2: number };
   status: 'pendiente' | 'finalizado' | 'no_disputado';
+  court?: number;
 }
 
 export interface StandingRow {

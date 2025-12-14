@@ -7,14 +7,16 @@ const createMatch = (
     p1Id: string,
     p2Id: string,
     p3Id: string,
-    p4Id: string
+    p4Id: string,
+    court?: number
 ): Match => ({
     id: `m-${Date.now()}-${divIndex}-${jornada}-${Math.random().toString(36).substr(2, 9)}`,
     jornada,
     pair1: { p1Id, p2Id },
     pair2: { p1Id: p3Id, p2Id: p4Id },
     status: 'pendiente',
-    points: { p1: 0, p2: 0 }
+    points: { p1: 0, p2: 0 },
+    court
 });
 
 export const MatchGenerator = {
@@ -38,19 +40,56 @@ export const MatchGenerator = {
     // This is a complex rotation. For now, we implement a basic random mixer or specific logic for 4, 8, 12, 16.
     // A true Americano for X players requires a specific mathematical rotation (like a Whist drive).
     // For MVP: We will implement a "Random Fair Mixer" if N > 4, or strict Americano for 4/8.
-    generateAmericano: (players: Player[], courts: number): Match[] => {
-        // MVP: Use Random Round logic. 
-        // Real implementation would require a pre-calculated matrix for perfect rotation.
-        // But for now, random mixing (Shuffle) acts as a "Mixer".
-        // Use a high round number or dynamic? 
-        // We usually generate all rounds at once? No, Americano is often round by round too if dynamic.
-        // Let's generate 1 round for now.
-        return MatchGenerator.generateIndividualRound(players.map(p => p.id), 0, 1);
+    generateAmericano: (players: Player[], courts: number, previousMatches: Match[] = []): Match[] => {
+        // Collect partner history
+        const partnerHistory = new Set<string>();
+        previousMatches.forEach(m => {
+            const p1 = [m.pair1.p1Id, m.pair1.p2Id].sort().join('-');
+            const p2 = [m.pair2.p1Id, m.pair2.p2Id].sort().join('-');
+            partnerHistory.add(p1);
+            partnerHistory.add(p2);
+        });
+
+        // Optimization: Try multiple shuffles to minimize history overlap
+        const ids = players.map(p => p.id);
+        let bestMatches: Match[] = [];
+        let minRepeats = Infinity;
+
+        // Try 50 iterations to find best combination
+        for (let i = 0; i < 50; i++) {
+            const currentMatches = MatchGenerator.generateIndividualRound(ids, 0, 1);
+            let repeats = 0;
+            currentMatches.forEach(m => {
+                const p1 = [m.pair1.p1Id, m.pair1.p2Id].sort().join('-');
+                const p2 = [m.pair2.p1Id, m.pair2.p2Id].sort().join('-');
+                if (partnerHistory.has(p1)) repeats++;
+                if (partnerHistory.has(p2)) repeats++;
+            });
+
+            if (repeats === 0) {
+                bestMatches = currentMatches;
+                minRepeats = 0;
+                break;
+            }
+
+            if (repeats < minRepeats) {
+                minRepeats = repeats;
+                bestMatches = currentMatches;
+            }
+        }
+
+        // Assign courts to the best batch found
+        if (courts > 0) {
+            bestMatches.forEach((m, index) => {
+                m.court = (index % courts) + 1;
+            });
+        }
+        return bestMatches;
     },
 
     // --- MEXICANO (Skill Based) ---
     // Generated Round by Round based on Standings.
-    generateMexicanoRound: (players: Player[], standings: StandingRow[], roundNumber: number): Match[] => {
+    generateMexicanoRound: (players: Player[], standings: StandingRow[], roundNumber: number, courts: number = 20): Match[] => {
         // Sort players by points
         const sorted = [...standings].sort((a, b) => b.pts - a.pts || b.gamesDiff - a.gamesDiff);
 
@@ -63,7 +102,6 @@ export const MatchGenerator = {
         // They play together. Usually 1&4 vs 2&3 or 1&3 vs 2&4.
         // Let's go with Snake Draft for balance: 1 & 4 vs 2 & 3.
 
-        const usedPlayers = new Set<string>();
         let courtIndex = 1;
 
         // Group by 4
@@ -78,7 +116,9 @@ export const MatchGenerator = {
             const p4 = group[3].playerId;
 
             // 1 & 4 vs 2 & 3 (Balanced)
-            matches.push(createMatch(courtIndex, roundNumber, p1, p4, p2, p3));
+            // Use roundNumber as part of ID, but court assignment follows available courts
+            const currentCourt = ((courtIndex - 1) % courts) + 1;
+            matches.push(createMatch(0, roundNumber, p1, p4, p2, p3, currentCourt));
             courtIndex++;
         }
 

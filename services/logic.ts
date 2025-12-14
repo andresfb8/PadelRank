@@ -110,7 +110,12 @@ export function calculateMatchPoints(
   }
 }
 
-export function generateStandings(divisionId: string, matches: Match[], playerIds: string[]): StandingRow[] {
+export function generateStandings(
+  divisionId: string,
+  matches: Match[],
+  playerIds: string[],
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual'
+): StandingRow[] {
   const map: Record<string, StandingRow> = {};
 
   // Init
@@ -125,6 +130,8 @@ export function generateStandings(divisionId: string, matches: Match[], playerId
     const p1s = [m.pair1.p1Id, m.pair1.p2Id];
     const p2s = [m.pair2.p1Id, m.pair2.p2Id];
 
+    // For Mexicano/Americano: m.points already contains actual game points scored
+    // For Classic/Individual: m.points contains match points (3, 2, 1, 0)
     p1s.forEach(id => { if (map[id]) { map[id].pts += m.points.p1; map[id].pj += 1; } });
     p2s.forEach(id => { if (map[id]) { map[id].pts += m.points.p2; map[id].pj += 1; } });
 
@@ -135,8 +142,8 @@ export function generateStandings(divisionId: string, matches: Match[], playerId
       p2s.forEach(id => { if (map[id]) map[id].pg += 1; });
     }
 
-    // Sets/Games if finalizado
-    if (m.status === 'finalizado' && m.score) {
+    // Sets/Games if finalizado (only for set-based formats)
+    if (m.status === 'finalizado' && m.score && m.score.set1) {
       const sets = [m.score.set1, m.score.set2, m.score.set3].filter(s => !!s);
 
       sets.forEach(s => {
