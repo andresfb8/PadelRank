@@ -65,6 +65,14 @@ export const AdminLayout = () => {
 
         const unsubscribeProfile = subscribeToUserProfile(firebaseUser.uid, async (user) => {
             if (user) {
+                // FORCE SUPERADMIN: Setup self-healing for owner
+                if (user.email === 'andresfb8@gmail.com' && user.role !== 'superadmin') {
+                    console.log("Healing Superadmin Role...");
+                    // We need to call updateUser but it's async and we are in a sync callback.
+                    // We can just fire it. 
+                    // Note: 'updateUser' takes {id, ...partial}.
+                    updateUser({ id: user.id, role: 'superadmin' } as any);
+                }
                 setCurrentUser(user);
             } else {
                 // AUTO-FIX: If we have an Auth User but no Firestore Profile, CREATE IT.
@@ -78,7 +86,9 @@ export const AdminLayout = () => {
                     // Actually, db.ts exports setDoc. 
                     await setDoc(doc(db, "users", firebaseUser.uid), {
                         email: firebaseUser.email || "",
-                        role: 'user', // Default role
+                        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuario",
+                        role: firebaseUser.email === 'andresfb8@gmail.com' ? 'superadmin' : 'admin',
+                        status: 'pending',
                         createdAt: new Date()
                     });
                 } catch (err) {
