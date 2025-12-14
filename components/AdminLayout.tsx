@@ -143,7 +143,7 @@ export const AdminLayout = () => {
             let visibleData = data;
             if (currentUser?.role !== 'superadmin') {
                 visibleData = {};
-                Object.values(data).forEach(p => {
+                (Object.values(data) as Player[]).forEach(p => {
                     // Strict Ownership or Public (no owner)
                     if (!p.ownerId || p.ownerId === currentUser?.id) {
                         visibleData[p.id] = p;
@@ -463,7 +463,7 @@ export const AdminLayout = () => {
                                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                                     <h3 className="text-lg font-bold text-gray-900 mb-4">Top Jugadores (Winrate)</h3>
                                     <div className="space-y-3">
-                                        {Object.values(players)
+                                        {(Object.values(players) as Player[])
                                             .filter(p => p.stats && p.stats.pj >= 5) // Min 5 games
                                             .sort((a, b) => b.stats.winrate - a.stats.winrate)
                                             .slice(0, 5)
@@ -486,7 +486,7 @@ export const AdminLayout = () => {
                                                     </div>
                                                 </div>
                                             ))}
-                                        {Object.values(players).filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
+                                        {(Object.values(players) as Player[]).filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
                                             <p className="text-sm text-gray-400 text-center py-4">Faltan datos (mín 5 partidos)</p>
                                         )}
                                     </div>
