@@ -40,11 +40,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
     });
 
     // Players
-    // For Classic: We keep logic of "Divisions of 4".
+    // For Classic & Individual: We use Divisions logic.
     // For Others: We just need a pool of players.
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
-    const [numDivisions, setNumDivisions] = useState(1); // Only for Classic
-    const [assignments, setAssignments] = useState<Record<number, string[]>>({ 0: ['', '', '', ''] }); // Only for Classic
+    const [numDivisions, setNumDivisions] = useState(1);
+    const [individualMaxPlayers, setIndividualMaxPlayers] = useState(12); // Default for individual
+    const [assignments, setAssignments] = useState<Record<number, string[]>>({});
 
     // --- Helpers ---
     const availablePlayers = Object.values(players);
@@ -63,7 +64,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 {
                     id: 'individual',
                     label: 'Ranking Individual',
-                    desc: 'Liga individual con ascensos y descensos. Partidos con parejas rotatorias o aleatorias.',
+                    desc: 'Liga individual con divisiones. Partidos con parejas rotatorias o aleatorias.',
                     color: 'purple'
                 },
                 {
@@ -82,7 +83,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 <div
                     key={f.id}
                     className={`p-6 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${format === f.id ? `border-${f.color}-500 bg-${f.color}-50 ring-2 ring-${f.color}-200` : 'border-gray-200 hover:border-gray-300 bg-white'}`}
-                    onClick={() => setFormat(f.id as RankingFormat)}
+                    onClick={() => {
+                        setFormat(f.id as RankingFormat);
+                        // Reset assignments when changing format
+                        setAssignments({});
+                        setNumDivisions(1);
+                    }}
                 >
                     <div className="flex justify-between items-start mb-2">
                         <h3 className={`text-lg font-bold text-gray-900`}>{f.label}</h3>
@@ -117,18 +123,21 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 <>
                     <div className="border-t pt-4">
                         <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Settings size={18} /> Reglas de Puntuación</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <Input type="number" label="Pts Victoria 2-0" value={config.pointsPerWin2_0} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) })} />
                             <Input type="number" label="Pts Victoria 2-1" value={config.pointsPerWin2_1} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_1: parseInt(e.target.value) })} />
                             <Input type="number" label="Pts Empate" value={config.pointsDraw} onChange={(e: any) => setConfig({ ...config, pointsDraw: parseInt(e.target.value) })} />
                             <Input type="number" label="Pts Derrota 1-2" value={config.pointsPerLoss2_1} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_1: parseInt(e.target.value) })} />
+                            <Input type="number" label="Pts Derrota 0-2" value={config.pointsPerLoss2_0} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_0: parseInt(e.target.value) })} />
                         </div>
                     </div>
 
                     {format === 'individual' && (
                         <div className="border-t pt-4">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Ascensos y Descensos</h3>
-                            <div className="grid grid-cols-2 gap-4 max-w-md">
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Configuración de Liga</h3>
+                            <div className="grid md:grid-cols-4 gap-4">
+                                <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
+                                <Input type="number" label="Max Jugadores/Div" value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(2, parseInt(e.target.value) || 2))} />
                                 <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) })} />
                                 <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) })} />
                             </div>
@@ -139,44 +148,74 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         </div>
     );
 
-    const handleClassicAssignment = (divIdx: number, pIdx: number, pId: string) => {
+    const handleAssignment = (divIdx: number, pIdx: number, pId: string, maxP: number) => {
         const newA = { ...assignments };
-        if (!newA[divIdx]) newA[divIdx] = ['', '', '', ''];
+        if (!newA[divIdx]) newA[divIdx] = Array(maxP).fill('');
+        // Resize if needed (e.g. if maxPlayers increased)
+        if (newA[divIdx].length < maxP) {
+            newA[divIdx] = [...newA[divIdx], ...Array(maxP - newA[divIdx].length).fill('')];
+        }
         newA[divIdx][pIdx] = pId;
         setAssignments(newA);
     };
 
     const renderStep3 = () => {
-        if (format === 'classic') {
-            // Reuse logic from RankingCreator (Divisions of 4)
+        if (format === 'classic' || format === 'individual') {
+            const maxP = format === 'classic' ? 4 : individualMaxPlayers;
+
+            // Generate assignments structure if missing
+            const ensureAssignments = () => {
+                const newA = { ...assignments };
+                let changed = false;
+                for (let i = 0; i < numDivisions; i++) {
+                    if (!newA[i] || newA[i].length !== maxP) {
+                        const current = newA[i] || [];
+                        if (current.length < maxP) {
+                            newA[i] = [...current, ...Array(maxP - current.length).fill('')];
+                        } else {
+                            newA[i] = current.slice(0, maxP);
+                        }
+                        changed = true;
+                    }
+                }
+                if (changed) setAssignments(newA);
+            };
+
+            // Run once on render? safer to do it in useEffect or just render what we have and fill on interaction?
+            // React render needs to be pure. We can iterate on the fly.
+
             return (
                 <div className="space-y-6">
-                    <div className="flex items-center gap-4 mb-4">
-                        <span className="font-bold">Número de Divisiones (Mesas de 4):</span>
-                        <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => {
-                            const n = parseInt(e.target.value) || 1;
-                            setNumDivisions(n);
-                            const newA = { ...assignments };
-                            for (let i = 0; i < n; i++) if (!newA[i]) newA[i] = ['', '', '', ''];
-                            setAssignments(newA);
-                        }} className="border p-1 w-16 text-center rounded" />
-                    </div>
+                    {format === 'classic' && (
+                        <div className="flex items-center gap-4 mb-4">
+                            <span className="font-bold">Número de Divisiones (Mesas de 4):</span>
+                            <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => {
+                                const n = parseInt(e.target.value) || 1;
+                                setNumDivisions(n);
+                            }} className="border p-1 w-16 text-center rounded" />
+                        </div>
+                    )}
+
                     {Array.from({ length: numDivisions }).map((_, divIdx) => (
                         <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border">
                             <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
                             <div className="grid md:grid-cols-2 gap-3">
-                                {[0, 1, 2, 3].map(pIdx => {
-                                    const val = assignments[divIdx]?.[pIdx] || '';
+                                {Array.from({ length: maxP }).map((_, pIdx) => {
+                                    // Safe access
+                                    const currentList = assignments[divIdx] || [];
+                                    const val = currentList[pIdx] || '';
+
                                     // Filter used
                                     const used = new Set<string>();
-                                    Object.values(assignments).forEach(arr => arr.forEach(id => { if (id && id !== val) used.add(id) }));
+                                    Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
                                     const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({
                                         id: p.id, label: `${p.nombre} ${p.apellidos}`
                                     }));
+
                                     return (
                                         <div key={pIdx}>
                                             <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
-                                            <SearchableSelect options={options} value={val} onChange={(v) => handleClassicAssignment(divIdx, pIdx, v)} placeholder="Seleccionar..." />
+                                            <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, maxP)} placeholder="Seleccionar..." />
                                         </div>
                                     )
                                 })}
@@ -187,7 +226,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             )
         }
 
-        // For Americano/Mexicano/Individual: Select Pool from List
+        // For Americano/Mexicano: Select Pool from List
         return (
             <div className="space-y-4">
                 <div className="flex justify-between">
@@ -229,40 +268,41 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
         const divisions: Division[] = [];
 
-        if (format === 'classic') {
+        if (format === 'classic' || format === 'individual') {
             for (let i = 0; i < numDivisions; i++) {
-                const p = assignments[i];
-                if (p.some(x => !x)) return alert(`Faltan jugadores en Div ${i + 1}`);
+                const p = assignments[i] || [];
+                // Filter empty players
+                const activePlayers = p.filter(x => x);
+
+                const minP = 4;
+                if (activePlayers.length < minP) return alert(`Mínimo ${minP} jugadores en Div ${i + 1}`);
+
+                let matches: any[] = [];
+                if (format === 'classic') {
+                    if (activePlayers.length !== 4) return alert(`La División ${i + 1} debe tener exactamente 4 jugadores en liga clásica`);
+                    matches = MatchGenerator.generateClassic4(activePlayers, i);
+                } else {
+                    // Individual matches (League generation)
+                    matches = MatchGenerator.generateIndividualLeague(activePlayers, i);
+                }
+
                 divisions.push({
                     id: `div-${Date.now()}-${i}`,
                     numero: i + 1,
                     status: 'activa',
-                    players: p,
-                    matches: MatchGenerator.generateClassic4(p, i)
+                    players: activePlayers,
+                    matches: matches
                 });
             }
         } else {
-            // New formats: All players in one "Division" (or multiple if we implemented splitting)
-            // For now, Americano/Mexicano usually plays in one big group or mixed.
-            // Requirement for "Individual Ranking" mentioned "players per division".
-            // Since we only implemented step 3 as a Pool for non-classic, we will put everyone in Division 1 for now.
+            // Americano/Mexicano
             if (selectedPlayerIds.length < 4) return alert("Selecciona al menos 4 jugadores");
 
-            // Only INDIVIDUAL needs initial match generation?
-            // Americano/Mexicano might generate matches round-by-round or all at once.
-            // Let's generate Round 1 for Individual/Mexicano.
-            // Americano we leave empty to generate dynamically or TODO.
-
             let matches: any[] = [];
-            if (format === 'individual') {
-                // Random pairs for Round 1
-                matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
-            }
             if (format === 'mexicano') {
-                // Mexicano starts with random draw if no history, or standard draw. 
-                // Usually round 1 is random.
                 matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
             }
+            // Americano generated later or different logic
 
             divisions.push({
                 id: `div-${Date.now()}-0`,
@@ -281,7 +321,10 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             status: 'activo',
             divisions,
             format,
-            config
+            config: {
+                ...config,
+                maxPlayersPerDivision: format === 'individual' ? individualMaxPlayers : undefined
+            }
         };
 
         onSave(newRanking);

@@ -31,11 +31,12 @@ export interface RankingConfig {
   pointsPerWin2_1: number;
   pointsDraw: number;
   pointsPerLoss2_1: number;
-  pointsPerLoss2_0: number;
+  pointsPerLoss2_0: number; // Confirmed present
   promotionCount: number; // For individual ranking
   relegationCount: number; // For individual ranking
   maxPoints?: number; // For Americano/Mexicano (e.g. 32 points total)
   courts?: number; // For Americano/Mexicano scheduling
+  maxPlayersPerDivision?: number; // New for Individual
 }
 
 export interface Ranking {

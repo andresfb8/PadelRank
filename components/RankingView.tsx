@@ -7,6 +7,7 @@ import { Match, Player, Ranking, Division } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
 import { AddDivisionModal } from './AddDivisionModal';
 import { PromotionModal } from './PromotionModal';
+import { MatchModal } from './MatchModal';
 
 interface Props {
   ranking: Ranking;
@@ -25,6 +26,33 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [isAddDivModalOpen, setIsAddDivModalOpen] = useState(false);
   const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
+  const handleMatchClick = (m: Match) => {
+    setSelectedMatch(m);
+    if (onMatchClick) onMatchClick(m);
+  };
+
+  const handleSaveMatchResult = (matchId: string, result: any) => {
+    // Find the match in the active division and update it
+    // Then propagate up via onUpdateRanking
+    if (!activeDivision || !onUpdateRanking) return;
+
+    const matchIndex = activeDivision.matches.findIndex(m => m.id === matchId);
+    if (matchIndex === -1) return;
+
+    const updatedMatch = { ...activeDivision.matches[matchIndex], score: result, status: 'finalizado' as const, points: result.points };
+    const updatedMatches = [...activeDivision.matches];
+    updatedMatches[matchIndex] = updatedMatch;
+
+    const updatedDivision = { ...activeDivision, matches: updatedMatches };
+    const updatedRanking = {
+      ...ranking,
+      divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
+    };
+
+    onUpdateRanking(updatedRanking);
+  };
 
   // Auto-select first division if activeDivisionId is invalid
   useEffect(() => {
@@ -337,59 +365,87 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       )}
 
       {activeTab === 'matches' && activeDivision && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {activeDivision.matches.map((m) => {
-            // Graceful fallback if player data is missing/deleted
-            const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-            const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
-            const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
-            const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
+        <div className="space-y-8">
+          {Object.entries(
+            activeDivision.matches.reduce((acc, m) => {
+              if (!acc[m.jornada]) acc[m.jornada] = [];
+              acc[m.jornada].push(m);
+              return acc;
+            }, {} as Record<number, Match[]>)
+          ).sort((a, b) => Number(a[0]) - Number(b[0])).map(([round, matches]) => (
+            <div key={round} className="animate-fade-in">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                <Calendar size={20} className="text-primary" /> Jornada {round}
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {matches.map((m) => {
+                  // Graceful fallback if player data is missing/deleted
+                  const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
+                  const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
+                  const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
+                  const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
 
-            return (
-              <div
-                key={m.id}
-                onClick={() => isAdmin && onMatchClick && onMatchClick(m)}
-                className={`bg-white p-4 rounded-xl border transition-all ${isAdmin ? 'cursor-pointer hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                  {m.status === 'finalizado' ? (
-                    <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
-                      {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
-                    </Badge>
-                  ) : (
-                    <Badge>Pendiente</Badge>
-                  )}
-                </div>
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => isAdmin && handleMatchClick(m)}
+                      className={`bg-white p-4 rounded-xl border transition-all ${isAdmin ? 'cursor-pointer hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
+                    >
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
+                        {m.status === 'finalizado' ? (
+                          <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
+                            {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
+                          </Badge>
+                        ) : (
+                          <Badge>Pendiente</Badge>
+                        )}
+                      </div>
 
-                <div className="text-center mb-4">
-                  <div className="text-sm font-medium text-gray-900">
-                    <span className="block mb-1">{p1.nombre} - {p2.nombre}</span>
-                    <span className="text-primary font-black text-xs uppercase tracking-widest my-1 block">VS</span>
-                    <span className="block mt-1">{p3.nombre} - {p4.nombre}</span>
-                  </div>
-                </div>
+                      <div className="text-center mb-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          <span className="block mb-1">{p1.nombre} - {p2.nombre}</span>
+                          <span className="text-primary font-black text-xs uppercase tracking-widest my-1 block">VS</span>
+                          <span className="block mt-1">{p3.nombre} - {p4.nombre}</span>
+                        </div>
+                      </div>
 
-                {m.status === 'finalizado' && (
-                  <div className="bg-gray-50 rounded-lg p-2 text-center mb-2">
-                    <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
-                      {m.score?.set1.p1}-{m.score?.set1.p2}
-                      {m.score?.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
-                      {m.score?.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
-                    </span>
-                  </div>
-                )}
+                      {m.status === 'finalizado' && (
+                        <div className="bg-gray-50 rounded-lg p-2 text-center mb-2">
+                          <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
+                            {m.score?.set1.p1}-{m.score?.set1.p2}
+                            {m.score?.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
+                            {m.score?.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
+                          </span>
+                        </div>
+                      )}
 
-                {m.status === 'finalizado' && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
-                    <span>Puntos: {m.points.p1} - {m.points.p2}</span>
-                    <span>{m.score?.description}</span>
-                  </div>
-                )}
+                      {m.status === 'finalizado' && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
+                          <span>Puntos: {m.points.p1} - {m.points.p2}</span>
+                          <span>{m.score?.description}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Match Result Modal */}
+      {selectedMatch && (
+        <MatchModal
+          isOpen={!!selectedMatch}
+          onClose={() => setSelectedMatch(null)}
+          match={selectedMatch}
+          players={players}
+          onSave={handleSaveMatchResult}
+          rankingConfig={ranking.config}
+          format={ranking.format}
+        />
       )}
 
       {/* Add Division Modal */}

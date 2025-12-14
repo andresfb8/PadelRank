@@ -11,20 +11,28 @@ interface Props {
   players: Record<string, Player>;
   onSave: (matchId: string, result: any) => void;
   rankingConfig?: RankingConfig;
+  // New prop
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual';
 }
 
-export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingConfig }: Props) => {
+export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingConfig, format }: Props) => {
   const [s1, setS1] = useState({ p1: '', p2: '' });
   const [s2, setS2] = useState({ p1: '', p2: '' });
   const [s3, setS3] = useState({ p1: '', p2: '' });
   const [isIncomplete, setIsIncomplete] = useState(false);
 
+
   useEffect(() => {
     if (match && match.score) {
-      setS1({ p1: match.score.set1.p1.toString(), p2: match.score.set1.p2.toString() });
-      setS2(match.score.set2 ? { p1: match.score.set2.p1.toString(), p2: match.score.set2.p2.toString() } : { p1: '', p2: '' });
-      setS3(match.score.set3 ? { p1: match.score.set3.p1.toString(), p2: match.score.set3.p2.toString() } : { p1: '', p2: '' });
-      setIsIncomplete(match.score.isIncomplete);
+      if (match.score.finalizationType === 'empate_manual') {
+        // Legacy manual draw support if opened. reset scores.
+        setS1({ p1: '', p2: '' });
+      } else {
+        setS1({ p1: match.score.set1.p1.toString(), p2: match.score.set1.p2.toString() });
+        setS2(match.score.set2 ? { p1: match.score.set2.p1.toString(), p2: match.score.set2.p2.toString() } : { p1: '', p2: '' });
+        setS3(match.score.set3 ? { p1: match.score.set3.p1.toString(), p2: match.score.set3.p2.toString() } : { p1: '', p2: '' });
+        setIsIncomplete(match.score.isIncomplete);
+      }
     } else {
       resetForm();
     }
@@ -35,15 +43,17 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
     setS2({ p1: '', p2: '' });
     setS3({ p1: '', p2: '' });
     setIsIncomplete(false);
+    setIsIncomplete(false);
   };
 
   const calculatePreview = () => {
+
     const v1 = { p1: parseInt(s1.p1) || 0, p2: parseInt(s1.p2) || 0 };
     const v2 = (s2.p1 !== '' && s2.p2 !== '') ? { p1: parseInt(s2.p1), p2: parseInt(s2.p2) } : undefined;
     const v3 = (s3.p1 !== '' && s3.p2 !== '') ? { p1: parseInt(s3.p1), p2: parseInt(s3.p2) } : undefined;
 
     try {
-      if (!v2 && isIncomplete) return null; // Need set 2 for incomplete
+      if (!v2 && isIncomplete && format !== 'individual') return null; // Need set 2 for incomplete (unless individual)
       // Only pass fields if config exists
       const configClean = rankingConfig ? {
         pointsPerWin2_0: rankingConfig.pointsPerWin2_0,
@@ -52,7 +62,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
         pointsPerLoss2_1: rankingConfig.pointsPerLoss2_1,
         pointsPerLoss2_0: rankingConfig.pointsPerLoss2_0
       } : undefined;
-      return calculateMatchPoints(v1, v2, v3, isIncomplete, configClean);
+      return calculateMatchPoints(v1, v2, v3, isIncomplete, configClean, false, format === 'individual');
     } catch (e) {
       return null;
     }
@@ -66,7 +76,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
       set1: { p1: parseInt(s1.p1), p2: parseInt(s1.p2) },
       set2: s2.p1 ? { p1: parseInt(s2.p1), p2: parseInt(s2.p2) } : undefined,
       set3: s3.p1 ? { p1: parseInt(s3.p1), p2: parseInt(s3.p2) } : undefined,
-      isIncomplete,
+      isIncomplete: isIncomplete,
       ...preview
     });
     onClose();
@@ -80,8 +90,9 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Resultado: Jornada ${match.jornada}`}>
       <div className="space-y-6">
-        {/* Score Inputs */}
-        <div className="grid grid-cols-3 gap-4 text-center">
+
+        {/* Score Inputs - Disable if Draw */}
+        <div className={`grid grid-cols-3 gap-4 text-center`}>
           <div className="col-span-1"></div>
           <div className="font-bold text-sm text-gray-600 truncate px-1">{p1Name}</div>
           <div className="font-bold text-sm text-gray-600 truncate px-1">{p2Name}</div>
@@ -102,19 +113,21 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
           <input type="number" value={s3.p2} onChange={e => setS3({ ...s3, p2: e.target.value })} className="border p-2 rounded text-center" disabled={isIncomplete} />
         </div>
 
-        {/* Incomplete Toggle */}
-        <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
-          <input
-            type="checkbox"
-            id="incomplete"
-            checked={isIncomplete}
-            onChange={e => setIsIncomplete(e.target.checked)}
-            className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
-          />
-          <label htmlFor="incomplete" className="text-sm font-medium text-orange-900 cursor-pointer">
-            Finalizar partido aquí (Set Incompleto)
-          </label>
-        </div>
+        {/* Incomplete Toggle - Hide for Individual */}
+        {format !== 'individual' && (
+          <div className={`flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100`}>
+            <input
+              type="checkbox"
+              id="incomplete"
+              checked={isIncomplete}
+              onChange={e => setIsIncomplete(e.target.checked)}
+              className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+            />
+            <label htmlFor="incomplete" className="text-sm font-medium text-orange-900 cursor-pointer">
+              Finalizar partido aquí (Set Incompleto)
+            </label>
+          </div>
+        )}
 
         {/* Analysis Result */}
         {preview && (
@@ -124,7 +137,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
             </h4>
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-600">Estado:</span>
-              <Badge type={preview.finalizationType === 'completo' ? 'success' : 'warning'}>
+              <Badge type={preview.finalizationType === 'completo' ? 'success' : (preview.finalizationType === 'empate_manual' ? 'default' : 'warning')}>
                 {preview.description}
               </Badge>
             </div>

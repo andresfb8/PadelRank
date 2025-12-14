@@ -13,7 +13,9 @@ export function calculateMatchPoints(
     pointsDraw: number;
     pointsPerLoss2_1: number;
     pointsPerLoss2_0: number;
-  }
+  },
+  forceDraw?: boolean,
+  isIndividual?: boolean
 ): {
   points: { p1: number; p2: number };
   finalizationType: 'completo' | 'victoria_incompleta' | 'empate_diferencia' | 'empate_manual' | 'derrota_incompleta';
@@ -28,10 +30,36 @@ export function calculateMatchPoints(
     pointsPerLoss2_0: 0
   };
 
+  // Force Draw (Manual)
+  if (forceDraw) {
+    return { points: { p1: cfg.pointsDraw, p2: cfg.pointsDraw }, finalizationType: 'empate_manual', description: 'Empate Acordado' };
+  }
+
   // Logic mostly for Pair 1 perspective, mirrored for Pair 2 if needed
   const p1WonS1 = s1.p1 > s1.p2;
 
-  // If complete match
+  // --- SPECIAL LOGIC FOR INDIVIDUAL RANKING ---
+  if (isIndividual) {
+    // Case 1: Only 1 Set Played -> Winner of set wins match (treated as 2-0 win points wise usually, or simple win)
+    if (!s2) {
+      if (p1WonS1) return { points: { p1: cfg.pointsPerWin2_0, p2: cfg.pointsPerLoss2_0 }, finalizationType: 'completo', description: 'Victoria (1 Set)' };
+      else return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota (1 Set)' };
+    }
+
+    // Case 2: 2 Sets Played
+    if (s2 && !s3) {
+      const p1WonS2 = s2.p1 > s2.p2;
+      // If 1-1 in sets -> DRAW
+      if (p1WonS1 !== p1WonS2) {
+        return { points: { p1: cfg.pointsDraw, p2: cfg.pointsDraw }, finalizationType: 'completo', description: 'Empate (1-1)' };
+      }
+      // If 2-0 -> Win
+      if (p1WonS1 && p1WonS2) return { points: { p1: cfg.pointsPerWin2_0, p2: cfg.pointsPerLoss2_0 }, finalizationType: 'completo', description: 'Victoria 2-0' };
+      if (!p1WonS1 && !p1WonS2) return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota 0-2' };
+    }
+  }
+
+  // If complete match (Standard Logic)
   if (!isIncomplete) {
     let p1Sets = 0;
     let p2Sets = 0;
@@ -50,12 +78,7 @@ export function calculateMatchPoints(
     }
   }
 
-  // Incomplete Logic (PRD 4.4.2) - Maintaining hardcoded incomplete logic for now or mapping it?
-  // Mapping incomplete to draw or specific rules? 
-  // For now let's map "Empate" to pointsDraw and "Victoria Incompleta" to 2-0 points?
-  // Or keep incomplete logic fixed instructions but use values?
-  // Original logic used 2 for draw. cfg.pointsDraw is good.
-
+  // Incomplete Logic (PRD 4.4.2)
   if (!s2) throw new Error("Set 2 is required for incomplete calculation");
 
   const p1LeadsS2 = s2.p1 > s2.p2;

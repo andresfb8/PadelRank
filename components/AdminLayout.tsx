@@ -392,14 +392,13 @@ export const AdminLayout = () => {
                     {view === 'players' && <PlayerList players={players} onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }} onEditPlayer={(p) => { setEditingPlayer(p); setIsPlayerModalOpen(true) }} onDeletePlayer={handleDeletePlayer} onDeletePlayers={handleDeletePlayers} onImportPlayers={handleImportPlayers} />}
                     {view === 'ranking_list' && <RankingList rankings={rankings} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} />}
                     {view === 'ranking_create' && <RankingWizard players={players} onCancel={() => setView('ranking_list')} onSave={handleSaveRanking} />}
-                    {view === 'ranking_detail' && activeRanking && <RankingView ranking={activeRanking} players={players} isAdmin={true} onMatchClick={(m) => { setSelectedMatch(m); setIsMatchModalOpen(true) }} onBack={() => setView('ranking_list')} onAddDivision={handleAddDivision} onUpdateRanking={handleUpdateRanking} />}
+                    {view === 'ranking_detail' && activeRanking && <RankingView ranking={activeRanking} players={players} isAdmin={true} onBack={() => setView('ranking_list')} onAddDivision={handleAddDivision} onUpdateRanking={handleUpdateRanking} />}
                     {view === 'admin_management' && currentUser?.role === 'superadmin' && <AdminManagement users={users} onApprove={(id) => updateUser({ id, status: 'active' })} onReject={(id) => updateUser({ id, status: 'rejected' })} onDelete={(id) => deleteUserDB(id)} onBlock={(id) => updateUser({ id, status: 'blocked' })} onUnblock={(id) => updateUser({ id, status: 'active' })} onCreate={handleCreateAdmin} onClearDB={clearDatabase} />}
                     {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} />}
                 </main>
             </div>
 
             {/* Modals */}
-            <MatchModal isOpen={isMatchModalOpen} onClose={() => setIsMatchModalOpen(false)} match={selectedMatch} players={players} onSave={handleMatchSave} rankingConfig={activeRanking?.config} />
             <PlayerModal isOpen={isPlayerModalOpen} onClose={() => setIsPlayerModalOpen(false)} onSave={handleSavePlayer} playerToEdit={editingPlayer} />
             {credentialsModal?.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
