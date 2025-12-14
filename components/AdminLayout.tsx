@@ -393,49 +393,52 @@ export const AdminLayout = () => {
                         <div className="space-y-6">
                             {/* KPI Cards */}
                             <div className="grid gap-6 md:grid-cols-3">
-                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
                                     <div>
-                                        <h3 className="text-gray-500 text-sm font-medium mb-1">Torneos Activos</h3>
-                                        <p className="text-3xl font-bold text-gray-900">{rankings.filter(r => r.status === 'activo').length}</p>
+                                        <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Torneos Activos</h3>
+                                        <p className="text-4xl font-bold text-gray-900">{rankings.filter(r => r.status === 'activo').length}</p>
                                     </div>
-                                    <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-                                        <Trophy size={24} />
+                                    <div className="h-14 w-14 bg-blue-50/80 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm">
+                                        <Trophy size={28} />
                                     </div>
                                 </div>
-                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
                                     <div>
-                                        <h3 className="text-gray-500 text-sm font-medium mb-1">Jugadores</h3>
-                                        <p className="text-3xl font-bold text-gray-900">{Object.keys(players).length}</p>
+                                        <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Jugadores</h3>
+                                        <p className="text-4xl font-bold text-gray-900">{Object.keys(players).length}</p>
                                     </div>
-                                    <div className="h-12 w-12 bg-green-50 rounded-full flex items-center justify-center text-green-600">
-                                        <Users size={24} />
+                                    <div className="h-14 w-14 bg-green-50/80 rounded-2xl flex items-center justify-center text-green-600 shadow-sm">
+                                        <Users size={28} />
                                     </div>
                                 </div>
-                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
                                     <div>
-                                        <h3 className="text-gray-500 text-sm font-medium mb-1">Pendientes</h3>
-                                        <p className="text-3xl font-bold text-gray-900">{rankings.reduce((acc, r) => acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.filter(m => m.status === 'pendiente').length, 0), 0)}</p>
+                                        <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Pendientes</h3>
+                                        <p className="text-4xl font-bold text-gray-900">{rankings.reduce((acc, r) => acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.filter(m => m.status === 'pendiente').length, 0), 0)}</p>
                                     </div>
-                                    <div className="h-12 w-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-600">
-                                        <ShieldCheck size={24} />
+                                    <div className="h-14 w-14 bg-orange-50/80 rounded-2xl flex items-center justify-center text-orange-600 shadow-sm">
+                                        <ShieldCheck size={28} />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 {/* Tournament Progress */}
-                                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4">Progreso de Torneos</h3>
-                                    <div className="space-y-4">
+                                <div className="lg:col-span-2 bg-white rounded-2xl shadow-soft border border-gray-100 p-8">
+                                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                        <Trophy className="text-primary-600" size={24} />
+                                        Progreso de Torneos
+                                    </h3>
+                                    <div className="space-y-6">
                                         {rankings.filter(r => r.status === 'activo').map(ranking => {
                                             const totalMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.length, 0);
                                             const completedMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'finalizado').length, 0);
                                             const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
 
                                             // Determine color based on type
-                                            const colorClass = ranking.format === 'mexicano' ? 'bg-green-500' :
-                                                ranking.format === 'americano' ? 'bg-purple-500' :
-                                                    'bg-blue-600';
+                                            const colorClass = ranking.format === 'mexicano' ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
+                                                ranking.format === 'americano' ? 'bg-gradient-to-r from-purple-400 to-indigo-500' :
+                                                    'bg-gradient-to-r from-blue-400 to-cyan-500';
 
                                             return (
                                                 <div key={ranking.id} className="bg-gray-50 rounded-lg p-4">
@@ -460,42 +463,45 @@ export const AdminLayout = () => {
                                 </div>
 
                                 {/* Top Players */}
-                                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4">Top Jugadores (Winrate)</h3>
-                                    <div className="space-y-3">
+                                <div className="bg-white rounded-2xl shadow-soft border border-gray-100 p-8">
+                                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                        <Users className="text-accent-500" size={24} />
+                                        Top Jugadores (Winrate)
+                                    </h3>
+                                    <div className="space-y-4">
                                         {(Object.values(players) as Player[])
                                             .filter(p => p.stats && p.stats.pj >= 5) // Min 5 games
                                             .sort((a, b) => b.stats.winrate - a.stats.winrate)
                                             .slice(0, 5)
                                             .map((player, idx) => (
-                                                <div key={player.id} className="flex items-center justify-between border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                                                            ${idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                                idx === 1 ? 'bg-gray-100 text-gray-600' :
-                                                                    idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-gray-400'}`}>
+                                                <div key={player.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-sm
+                                                            ${idx === 0 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-50' :
+                                                                idx === 1 ? 'bg-gray-100 text-gray-600 ring-2 ring-gray-50' :
+                                                                    idx === 2 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-50' : 'bg-gray-50 text-gray-400'}`}>
                                                             {idx + 1}
                                                         </div>
-                                                        <div className="text-sm font-medium text-gray-700 truncate max-w-[120px]" title={`${player.nombre} ${player.apellidos}`}>
+                                                        <div className="text-sm font-semibold text-gray-700 truncate max-w-[140px]" title={`${player.nombre} ${player.apellidos}`}>
                                                             {player.nombre} {player.apellidos}
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <div className="text-sm font-bold text-gray-900">{player.stats.winrate}%</div>
-                                                        <div className="text-[10px] text-gray-400">{player.stats.pg}W - {player.stats.pp}L</div>
+                                                        <div className="text-base font-bold text-gray-900">{player.stats.winrate}%</div>
+                                                        <div className="text-xs text-secondary-400 font-medium">{player.stats.pg}W - {player.stats.pp}L</div>
                                                     </div>
                                                 </div>
                                             ))}
                                         {(Object.values(players) as Player[]).filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
-                                            <p className="text-sm text-gray-400 text-center py-4">Faltan datos (mín 5 partidos)</p>
+                                            <p className="text-sm text-gray-400 text-center py-6 italic">Faltan datos (mín 5 partidos)</p>
                                         )}
                                     </div>
-                                    <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                                    <div className="mt-6 pt-4 border-t border-gray-100 text-center">
                                         <button
                                             onClick={() => setView('players')}
-                                            className="text-primary text-sm font-medium hover:underline"
+                                            className="text-primary-600 text-sm font-semibold hover:text-primary-700 hover:underline transition-colors"
                                         >
-                                            Ver todos
+                                            Ver Ranking Completo &rarr;
                                         </button>
                                     </div>
                                 </div>

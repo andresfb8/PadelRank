@@ -43,9 +43,9 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200 my-auto">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
                     <h3 className="text-xl font-bold text-gray-900">
                         {playerToEdit ? 'Editar Jugador' : 'Nuevo Jugador'}
                     </h3>
@@ -54,7 +54,7 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -112,7 +112,7 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
                         </div>
                     </div>
 
-                    <div className="pt-4 flex gap-3">
+                    <div className="pt-4 flex gap-3 sticky bottom-0 bg-white pb-2">
                         <Button variant="secondary" onClick={onClose} type="button" className="flex-1">
                             Cancelar
                         </Button>
