@@ -57,6 +57,7 @@ export interface Ranking {
   format?: RankingFormat; // Optional for backward compatibility (default 'classic')
   config?: RankingConfig;
   rules?: string; // Markdown or text rules
+  history?: Match[]; // Historical matches from previous phases (for global stats)
 }
 
 export interface Division {

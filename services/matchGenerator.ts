@@ -34,57 +34,97 @@ export const MatchGenerator = {
         return matches;
     },
 
-    // --- AMERICANO (All vs All) ---
-    // Simple algorithm for N players. Ideally N should be multiple of 4.
-    // If not, we need 'byes' (descansos).
-    // This is a complex rotation. For now, we implement a basic random mixer or specific logic for 4, 8, 12, 16.
-    // A true Americano for X players requires a specific mathematical rotation (like a Whist drive).
-    // For MVP: We will implement a "Random Fair Mixer" if N > 4, or strict Americano for 4/8.
-    generateAmericano: (players: Player[], courts: number, previousMatches: Match[] = []): Match[] => {
-        // Collect partner history
-        const partnerHistory = new Set<string>();
-        previousMatches.forEach(m => {
-            const p1 = [m.pair1.p1Id, m.pair1.p2Id].sort().join('-');
-            const p2 = [m.pair2.p1Id, m.pair2.p2Id].sort().join('-');
-            partnerHistory.add(p1);
-            partnerHistory.add(p2);
-        });
+    generateAmericano: (players: Player[], courts: number): Match[] => {
+        const n = players.length;
+        // Only robustly support N divisible by 4 for now (Standard Americano)
+        // If not div by 4, we might need byes. The randomized logic handles it if we define "valid pairing".
+        // For N=8, rounds=7. For N=12, rounds=11.
 
-        // Optimization: Try multiple shuffles to minimize history overlap
+        // Target rounds: N-1 (Everyone partners everyone else once)
+        // If N is not even, this loop concept changes. 
+        // Let's assume N % 4 === 0 based on typical Americano rules.
+        // If 5, 6, 7... we use best effort or fallback.
+
+        const targetRounds = n - 1;
         const ids = players.map(p => p.id);
-        let bestMatches: Match[] = [];
-        let minRepeats = Infinity;
+        const matchesPerRound = Math.floor(n / 4);
 
-        // Try 50 iterations to find best combination
-        for (let i = 0; i < 50; i++) {
-            const currentMatches = MatchGenerator.generateIndividualRound(ids, 0, 1);
-            let repeats = 0;
-            currentMatches.forEach(m => {
-                const p1 = [m.pair1.p1Id, m.pair1.p2Id].sort().join('-');
-                const p2 = [m.pair2.p1Id, m.pair2.p2Id].sort().join('-');
-                if (partnerHistory.has(p1)) repeats++;
-                if (partnerHistory.has(p2)) repeats++;
-            });
+        // Optimization: Randomized Backtracking with Retries
+        // 500 attempts should be enough for N=8, 12. N=16 might be tougher but fast enough.
 
-            if (repeats === 0) {
-                bestMatches = currentMatches;
-                minRepeats = 0;
-                break;
+        for (let attempt = 0; attempt < 500; attempt++) {
+            const schedule: Match[] = [];
+            const partnerHistory = new Set<string>();
+            let validSchedule = true;
+
+            for (let r = 1; r <= targetRounds; r++) {
+                // Try to generate a round 100 times before failing the schedule
+                let roundMatches: Match[] = [];
+                let roundFound = false;
+
+                for (let roundAttempt = 0; roundAttempt < 100; roundAttempt++) {
+                    // Shuffle players
+                    const shuf = [...ids].sort(() => Math.random() - 0.5);
+                    const pairs: string[][] = [];
+                    let pIndex = 0;
+
+                    // Form pairs
+                    while (pIndex + 1 < shuf.length) {
+                        pairs.push([shuf[pIndex], shuf[pIndex + 1]]);
+                        pIndex += 2;
+                    }
+
+                    // Check if pairs are valid (never played together)
+                    let pairsOk = true;
+                    for (const p of pairs) {
+                        const k = [p[0], p[1]].sort().join('-');
+                        if (partnerHistory.has(k)) {
+                            pairsOk = false;
+                            break;
+                        }
+                    }
+
+                    if (pairsOk) {
+                        // Create matches from pairs
+                        // Pair 0 vs Pair 1, Pair 2 vs Pair 3...
+                        // If odd pairs (e.g. 5 pairs), last one sits? Or N % 4 != 0 logic.
+                        // Ideally N % 4 == 0 for Perfect Americano.
+
+                        // Register history
+                        pairs.forEach(p => partnerHistory.add([p[0], p[1]].sort().join('-')));
+
+                        for (let i = 0; i < pairs.length; i += 2) {
+                            if (i + 1 < pairs.length) {
+                                const court = courts > 0 ? ((i / 2) % courts) + 1 : undefined;
+                                roundMatches.push(createMatch(0, r,
+                                    pairs[i][0], pairs[i][1],
+                                    pairs[i + 1][0], pairs[i + 1][1],
+                                    court
+                                ));
+                            }
+                        }
+                        roundFound = true;
+                        break;
+                    }
+                }
+
+                if (!roundFound) {
+                    validSchedule = false;
+                    break;
+                }
+                schedule.push(...roundMatches);
             }
 
-            if (repeats < minRepeats) {
-                minRepeats = repeats;
-                bestMatches = currentMatches;
+            if (validSchedule) {
+                return schedule;
             }
         }
 
-        // Assign courts to the best batch found
-        if (courts > 0) {
-            bestMatches.forEach((m, index) => {
-                m.court = (index % courts) + 1;
-            });
-        }
-        return bestMatches;
+        // Fallback: If perfect schedule not found, return at least one valid round?
+        // Or empty array?
+        // Let's return a simple random single round to avoid crash, but warn?
+        console.warn("Could not generate perfect Americano schedule. Returning simple round.");
+        return MatchGenerator.generateIndividualRound(ids, 0, 1);
     },
 
     // --- MEXICANO (Skill Based) ---

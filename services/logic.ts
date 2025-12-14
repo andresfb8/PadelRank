@@ -183,6 +183,20 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
     div.players.forEach(p => allPlayers.add(p));
   });
 
+  // Include historical matches if any
+  if (ranking.history) {
+    ranking.history.forEach(m => allMatches.push(m));
+    // We assume players in history are already covered or we don't strictly need to add them to 'allPlayers'
+    // for the table if they are no longer in any division, BUT if we want to show them in global
+    // even if they dropped out, we should extract IDs from history match pairs too.
+    ranking.history.forEach(m => {
+      allPlayers.add(m.pair1.p1Id);
+      allPlayers.add(m.pair1.p2Id);
+      allPlayers.add(m.pair2.p1Id);
+      allPlayers.add(m.pair2.p2Id);
+    });
+  }
+
   // Re-use logic but with a flat list
   return generateStandings('global', allMatches, Array.from(allPlayers));
 }

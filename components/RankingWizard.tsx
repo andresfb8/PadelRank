@@ -57,7 +57,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             {[
                 {
                     id: 'classic',
-                    label: 'Liga Clásica (Parejas Fijas)',
+                    label: 'Ranking clásica CPSJ (Parejas Fijas)',
                     desc: 'Grupos de 4 jugadores. Todos contra todos en cada división. Ascensos y descensos.',
                     color: 'blue'
                 },
@@ -155,14 +155,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                         </select>
 
                         {/* Custom Points Input */}
-                        {config.scoringMode === 'custom' && (
-                            <Input
-                                type="number"
-                                label="Puntos Totales"
-                                value={config.customPoints || 24}
-                                onChange={(e: any) => setConfig({ ...config, customPoints: parseInt(e.target.value) || 24 })}
-                            />
-                        )}
+                        {/* Custom Points Input REMOVED - Free Text Mode now enabled */}
 
                         <p className="text-xs text-gray-500 mt-1">
                             {config.scoringMode === 'per-game'

@@ -367,8 +367,8 @@ export const AdminLayout = () => {
                             <div className="text-sm font-bold text-gray-900">{currentUser?.name || currentUser?.email}</div>
                             <div className="mt-0.5 flex justify-end">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${currentUser?.role === 'superadmin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                        currentUser?.role === 'admin' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                            'bg-gray-100 text-gray-600 border-gray-200'
+                                    currentUser?.role === 'admin' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                        'bg-gray-100 text-gray-600 border-gray-200'
                                     }`}>
                                     {currentUser?.role}
                                 </span>
@@ -380,26 +380,147 @@ export const AdminLayout = () => {
 
                 <main className="flex-1 p-6 overflow-y-auto">
                     {view === 'dashboard' && (
-                        <div className="grid gap-6 md:grid-cols-3">
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                <h3 className="text-gray-500 text-sm font-medium mb-1">Torneos Activos</h3>
-                                <p className="text-3xl font-bold text-gray-900">{rankings.filter(r => r.status === 'activo').length}</p>
+                        <div className="space-y-6">
+                            {/* KPI Cards */}
+                            <div className="grid gap-6 md:grid-cols-3">
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-gray-500 text-sm font-medium mb-1">Torneos Activos</h3>
+                                        <p className="text-3xl font-bold text-gray-900">{rankings.filter(r => r.status === 'activo').length}</p>
+                                    </div>
+                                    <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
+                                        <Trophy size={24} />
+                                    </div>
+                                </div>
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-gray-500 text-sm font-medium mb-1">Jugadores</h3>
+                                        <p className="text-3xl font-bold text-gray-900">{Object.keys(players).length}</p>
+                                    </div>
+                                    <div className="h-12 w-12 bg-green-50 rounded-full flex items-center justify-center text-green-600">
+                                        <Users size={24} />
+                                    </div>
+                                </div>
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-gray-500 text-sm font-medium mb-1">Pendientes</h3>
+                                        <p className="text-3xl font-bold text-gray-900">{rankings.reduce((acc, r) => acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.filter(m => m.status === 'pendiente').length, 0), 0)}</p>
+                                    </div>
+                                    <div className="h-12 w-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-600">
+                                        <ShieldCheck size={24} />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                <h3 className="text-gray-500 text-sm font-medium mb-1">Jugadores</h3>
-                                <p className="text-3xl font-bold text-gray-900">{Object.keys(players).length}</p>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Tournament Progress */}
+                                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4">Progreso de Torneos</h3>
+                                    <div className="space-y-4">
+                                        {rankings.filter(r => r.status === 'activo').map(ranking => {
+                                            const totalMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.length, 0);
+                                            const completedMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'finalizado').length, 0);
+                                            const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
+
+                                            // Determine color based on type
+                                            const colorClass = ranking.format === 'mexicano' ? 'bg-green-500' :
+                                                ranking.format === 'americano' ? 'bg-purple-500' :
+                                                    'bg-blue-600';
+
+                                            return (
+                                                <div key={ranking.id} className="bg-gray-50 rounded-lg p-4">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="font-medium text-gray-800">{ranking.nombre}</span>
+                                                        <span className="text-xs font-semibold text-gray-500">{percentage}% Completado</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                                        <div className={`h-2.5 rounded-full ${colorClass}`} style={{ width: `${percentage}%` }}></div>
+                                                    </div>
+                                                    <div className="mt-2 text-xs text-gray-400 flex justify-between">
+                                                        <span>{completedMatches} / {totalMatches} Partidos</span>
+                                                        <span className="uppercase">{ranking.format}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {rankings.filter(r => r.status === 'activo').length === 0 && (
+                                            <p className="text-center text-gray-400 py-4">No hay torneos activos</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Top Players */}
+                                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4">Top Jugadores (Winrate)</h3>
+                                    <div className="space-y-3">
+                                        {Object.values(players)
+                                            .filter(p => p.stats && p.stats.pj >= 5) // Min 5 games
+                                            .sort((a, b) => b.stats.winrate - a.stats.winrate)
+                                            .slice(0, 5)
+                                            .map((player, idx) => (
+                                                <div key={player.id} className="flex items-center justify-between border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                                                            ${idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                idx === 1 ? 'bg-gray-100 text-gray-600' :
+                                                                    idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-gray-400'}`}>
+                                                            {idx + 1}
+                                                        </div>
+                                                        <div className="text-sm font-medium text-gray-700 truncate max-w-[120px]" title={`${player.nombre} ${player.apellidos}`}>
+                                                            {player.nombre} {player.apellidos}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-sm font-bold text-gray-900">{player.stats.winrate}%</div>
+                                                        <div className="text-[10px] text-gray-400">{player.stats.pg}W - {player.stats.pp}L</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        {Object.values(players).filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
+                                            <p className="text-sm text-gray-400 text-center py-4">Faltan datos (mín 5 partidos)</p>
+                                        )}
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                                        <button
+                                            onClick={() => setView('players')}
+                                            className="text-primary text-sm font-medium hover:underline"
+                                        >
+                                            Ver todos
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                <h3 className="text-gray-500 text-sm font-medium mb-1">Pendientes</h3>
-                                <p className="text-3xl font-bold text-gray-900">{rankings.reduce((acc, r) => acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.filter(m => m.status === 'pendiente').length, 0), 0)}</p>
+
+                            {/* Quick Actions */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <Button onClick={() => setView('ranking_create')} className="bg-indigo-600 hover:bg-indigo-700 h-auto py-4 flex flex-col items-center gap-2">
+                                    <Trophy size={24} />
+                                    <span>Nuevo Torneo</span>
+                                </Button>
+                                <Button onClick={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }} className="bg-emerald-600 hover:bg-emerald-700 h-auto py-4 flex flex-col items-center gap-2">
+                                    <Users size={24} />
+                                    <span>Nuevo Jugador</span>
+                                </Button>
+                                {/* Placeholders for potential future actions */}
                             </div>
                         </div>
                     )}
 
                     {view === 'players' && <PlayerList players={players} onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }} onEditPlayer={(p) => { setEditingPlayer(p); setIsPlayerModalOpen(true) }} onDeletePlayer={handleDeletePlayer} onDeletePlayers={handleDeletePlayers} onImportPlayers={handleImportPlayers} />}
-                    {view === 'ranking_list' && <RankingList rankings={rankings} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} />}
+                    {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} />}
                     {view === 'ranking_create' && <RankingWizard players={players} onCancel={() => setView('ranking_list')} onSave={handleSaveRanking} />}
-                    {view === 'ranking_detail' && activeRanking && <RankingView ranking={activeRanking} players={players} isAdmin={true} onBack={() => setView('ranking_list')} onAddDivision={handleAddDivision} onUpdateRanking={handleUpdateRanking} />}
+                    {view === 'ranking_detail' && activeRanking && <RankingView
+                        ranking={activeRanking}
+                        players={players}
+                        isAdmin={true}
+                        onBack={() => setView('ranking_list')}
+                        onAddDivision={handleAddDivision}
+                        onUpdateRanking={handleUpdateRanking}
+                        onUpdatePlayerStats={async (pid, result) => {
+                            const { updatePlayerStatsFull } = await import('../services/db');
+                            await updatePlayerStatsFull(pid, result);
+                        }}
+                    />}
                     {view === 'admin_management' && currentUser?.role === 'superadmin' && <AdminManagement users={users} onApprove={(id) => updateUser({ id, status: 'active' })} onReject={(id) => updateUser({ id, status: 'rejected' })} onDelete={(id) => deleteUserDB(id)} onBlock={(id) => updateUser({ id, status: 'blocked' })} onUnblock={(id) => updateUser({ id, status: 'active' })} onCreate={handleCreateAdmin} onClearDB={clearDatabase} />}
                     {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} />}
                 </main>

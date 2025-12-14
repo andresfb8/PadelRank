@@ -17,9 +17,10 @@ interface Props {
   onAddDivision?: (division: Division) => void;
   onUpdateRanking?: (ranking: Ranking) => void;
   isAdmin?: boolean;
+  onUpdatePlayerStats?: (playerId: string, won: boolean) => void;
 }
 
-export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin }: Props) => {
+export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats }: Props) => {
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules'>('standings');
   const [copied, setCopied] = useState(false);
@@ -52,6 +53,53 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     };
 
     onUpdateRanking(updatedRanking);
+
+    // GLOBAL STATS UPDATE (Fire and Forget)
+    // ONLY for Classic (Ranking) and Individual formats. Exclude Americano/Mexicano.
+    const isRankedFormat = ranking.format === 'classic' || ranking.format === 'individual';
+
+    if (updatedMatch.status === 'finalizado' && onUpdatePlayerStats && activeDivision && isRankedFormat) {
+      // Determine winner
+      // P1 vs P2
+      // For simplicity in Classic/Individual (Set based)
+      let p1Won = false;
+      let p2Won = false; // Pair 2 won
+
+      if (ranking.format === 'mexicano' || ranking.format === 'americano') {
+        // Points based
+        if (updatedMatch.points.p1 > updatedMatch.points.p2) p1Won = true;
+        else if (updatedMatch.points.p2 > updatedMatch.points.p1) p2Won = true;
+      } else {
+        // Set based
+        // Check setsWon via Logic service or simplistic check
+        // We can use the pts in 'points' which for Classic are 4,3,2,1,0.
+        // If p1 points > p2 points -> Pair 1 Won.
+        if (updatedMatch.points.p1 > updatedMatch.points.p2) p1Won = true;
+        else if (updatedMatch.points.p2 > updatedMatch.points.p1) p2Won = true;
+        // Draw -> No winner (no increment of PG/PP? usually draw is 0.5 or just PJ++)
+        // Existing stats logic: PG is win, PP is loss. Draw increments neither? 
+        // Let's check logic: PG is only if won.
+      }
+
+      const p1Ids = [updatedMatch.pair1.p1Id, updatedMatch.pair1.p2Id];
+      const p2Ids = [updatedMatch.pair2.p1Id, updatedMatch.pair2.p2Id];
+
+      // Update P1 Pair
+      p1Ids.forEach(pid => {
+        if (!pid) return;
+        if (p1Won) onUpdatePlayerStats(pid, 'win');
+        else if (p2Won) onUpdatePlayerStats(pid, 'loss');
+        else onUpdatePlayerStats(pid, 'draw');
+      });
+
+      // Update P2 Pair
+      p2Ids.forEach(pid => {
+        if (!pid) return;
+        if (p2Won) onUpdatePlayerStats(pid, 'win');
+        else if (p1Won) onUpdatePlayerStats(pid, 'loss');
+        else onUpdatePlayerStats(pid, 'draw');
+      });
+    }
   };
 
   // Auto-select first division if activeDivisionId is invalid
@@ -92,7 +140,12 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     if (!promotionData || !onUpdateRanking) return;
     const updatedRanking = {
       ...ranking,
-      divisions: promotionData.newDivisions
+      divisions: promotionData.newDivisions,
+      // Archive History
+      history: [
+        ...(ranking.history || []),
+        ...ranking.divisions.flatMap(d => d.matches.filter(m => m.status === 'finalizado'))
+      ]
     };
     onUpdateRanking(updatedRanking);
     setIsPromotionModalOpen(false);
@@ -206,8 +259,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       </div>
 
       {/* Division Tabs */}
-      {/* Division Tabs - Hide for Mexicano/Americano and Single Division */}
-      {ranking.format !== 'mexicano' && ranking.format !== 'americano' && ranking.divisions.length > 1 && (
+      {/* Division Tabs - Hide for Mexicano/Americano and Single Division UNLESS History exists */}
+      {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic') && (
         <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
           <button
             onClick={() => setActiveTab('global')}
@@ -261,8 +314,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         </div>
       )}
 
-      {/* Single Group Tabs (Mexicano/Americano OR Single Div Classic/Individual) */}
-      {(ranking.format === 'mexicano' || ranking.format === 'americano' || ranking.divisions.length === 1) && (
+      {/* Single Group Tabs (Mexicano/Americano ONLY) - Classic/Individual handled above now to show Global */}
+      {(ranking.format === 'mexicano' || ranking.format === 'americano') && (
         <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 mb-4">
           <button
             onClick={() => setActiveTab('standings')}
@@ -294,7 +347,41 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             </h3>
           </div>
 
-          {isAdmin && onUpdateRanking ? (
+          {ranking.format === 'classic' ? (
+            <div className="prose max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed">
+              <p className="font-bold text-gray-900 mb-2">3. PUNTUACIÓN Y CLASIFICACIÓN</p>
+              <p>Se premia cada set conseguido para fomentar la competitividad:</p>
+              <ul className="list-disc pl-5 mb-4 space-y-1">
+                <li>Victoria 2-0: 4 Puntos.</li>
+                <li>Victoria 2-1: 3 Puntos.</li>
+                <li>Empate: 2 Puntos.</li>
+                <li>Derrota 1-2: 1 Punto.</li>
+                <li>Derrota 0-2: 0 Puntos.</li>
+              </ul>
+              <p className="italic text-sm text-gray-500 mb-4">(Nota: Si un partido no se juega, ningún jugador recibe puntos).</p>
+
+              <p className="font-bold text-gray-900 mb-2">Criterios de desempate:</p>
+              <p>En caso de igualdad a puntos, el orden se decide por:</p>
+              <ol className="list-decimal pl-5 mb-6 space-y-1">
+                <li>Puntos totales.</li>
+                <li>Diferencia de sets.</li>
+                <li>Diferencia de juegos.</li>
+                <li>Sets ganados.</li>
+                <li>Juegos ganados.</li>
+                <li>Sorteo.</li>
+              </ol>
+
+              <p className="font-bold text-gray-900 mb-2">4. FORMATO DE PARTIDO Y REGLAMENTO</p>
+              <p className="mb-2"><span className="font-semibold">Estructura:</span> Partidos al mejor de 3 sets con Punto de Oro. Los dos primeros sets se juega Tie Break si se llega al 5-5. El tercer set, si fuera necesario, sería un Súper Tie-Break a 11 puntos. Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.</p>
+
+              <p className="font-semibold text-gray-900 mb-2">Regla de la "Alarma" (Partidos de 1 hora):</p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>Los jugadores deben poner una alarma de 1 hora al inicio de la reserva (recomendamos llegar antes del inicio para calentar y jugar la hora completa).</li>
+                <li>Si suena la alarma y hay reserva posterior: gana quien vaya por delante en el marcador en ese instante. (Ej: si el Equipo A gana el primer set y luego va ganando el segundo set cuando acaba la hora, gana el equipo A, pero si el equipo A gana el primer set pero el segundo set va ganando el equipo B por 3 o más juegos al acabar la hora, se considera ganado el segundo set por el equipo B y el partido quedaría empate).</li>
+                <li>Si hay empate al sonar la alarma, se juega un último punto decisivo.</li>
+              </ul>
+            </div>
+          ) : isAdmin && onUpdateRanking ? (
             <div className="space-y-4">
               <textarea
                 className="w-full h-64 p-4 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-700 leading-relaxed bg-gray-50"

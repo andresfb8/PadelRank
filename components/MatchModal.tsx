@@ -29,12 +29,14 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
   const getTotalPoints = () => {
     if (!rankingConfig?.scoringMode) return null;
     if (rankingConfig.scoringMode === 'per-game') return null; // Use traditional sets
-    if (rankingConfig.scoringMode === 'custom') return rankingConfig.customPoints || 24;
+    if (rankingConfig.scoringMode === 'custom') return null; // No fixed total for custom
     return parseInt(rankingConfig.scoringMode);
   };
 
   const totalPoints = getTotalPoints();
   const isCustomMode = rankingConfig?.scoringMode === 'custom';
+  // If not custom and totalPoints exists, P2 is auto-calculated.
+  // If custom, P2 is manual (or 0 if empty).
   const pointsP2 = isCustomMode ? (parseInt(pointsP2Manual) || 0) : ((totalPoints && pointsP1) ? totalPoints - parseInt(pointsP1) : 0);
 
 
@@ -96,9 +98,17 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
     if (!match) return;
 
     // Point-based scoring (Mexicano/Americano)
-    if ((format === 'mexicano' || format === 'americano') && totalPoints) {
-      const p1 = parseInt(pointsP1) || 0;
-      const p2 = totalPoints - p1;
+    if ((format === 'mexicano' || format === 'americano') && (totalPoints || isCustomMode)) {
+      let p1 = 0;
+      let p2 = 0;
+
+      if (isCustomMode) {
+        p1 = parseInt(pointsP1) || 0;
+        p2 = parseInt(pointsP2Manual) || 0;
+      } else if (totalPoints) {
+        p1 = parseInt(pointsP1) || 0;
+        p2 = totalPoints - p1;
+      }
 
       onSave(match.id, {
         pointsScored: { p1, p2 },
