@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../services/firebase';
+import { auth, db, secondaryAuth } from '../services/firebase';
 import { Player, Ranking, Match, Division, User } from '../types';
 import { onSnapshot, collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { RankingView } from './RankingView';
@@ -279,9 +279,36 @@ export const AdminLayout = () => {
 
     // Admin Mgmt
     // Admin Mgmt
-    const handleCreateAdmin = async (d: { name: string, email: string, clubName: string }) => {
-        alert("Creación de administradores deshabilitada temporalmente en modo estricto.");
-        // implement if needed later
+    const handleCreateAdmin = async (d: { name: string, email: string, clubName: string, password?: string }) => {
+        const tempPassword = d.password || "PadelPro2025!";
+        try {
+            // 1. Create User in Auth (Secondary App to avoid logout)
+            const userCred = await createUserWithEmailAndPassword(secondaryAuth, d.email, tempPassword);
+            const newUid = userCred.user.uid;
+
+            // 2. Create User Profile in Firestore
+            await setDoc(doc(db, "users", newUid), {
+                email: d.email,
+                name: d.name,
+                clubName: d.clubName,
+                role: 'admin',
+                status: 'active',
+                createdAt: new Date(),
+                ownerId: firebaseUser?.uid // SuperAdmin is the creator
+            });
+
+            // 3. Force logout of the secondary auth
+            await signOut(secondaryAuth);
+
+            alert(`✅ Administrador creado correctamente.\n\n📧 Email: ${d.email}\n🔑 Clave: ${tempPassword}\n\nPor favor, entrega estas credenciales al usuario.`);
+        } catch (error: any) {
+            console.error("Error creating admin:", error);
+            if (error.code === 'auth/email-already-in-use') {
+                alert("Error: El email ya está registrado.");
+            } else {
+                alert("Error creando administrador: " + error.message);
+            }
+        }
     };
 
     // Match
