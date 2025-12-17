@@ -134,8 +134,13 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
 
   if (!match) return null;
 
-  const p1Name = players[match.pair1.p1Id]?.nombre + ' & ' + players[match.pair1.p2Id]?.nombre;
-  const p2Name = players[match.pair2.p1Id]?.nombre + ' & ' + players[match.pair2.p2Id]?.nombre;
+  const getName = (id?: string) => {
+    const p = id ? players[id] : null;
+    return p ? `${p.nombre} ${p.apellidos}` : '';
+  };
+
+  const p1Name = getName(match.pair1.p1Id) + (match.pair1.p2Id ? ' & ' + getName(match.pair1.p2Id) : '');
+  const p2Name = getName(match.pair2.p1Id) + (match.pair2.p2Id ? ' & ' + getName(match.pair2.p2Id) : '');
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Resultado: Jornada ${match.jornada}`}>

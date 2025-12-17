@@ -15,6 +15,7 @@ export interface Player {
   apellidos: string;
   email: string;
   telefono: string;
+  fechaNacimiento?: string;
   stats: {
     pj: number;
     pg: number;

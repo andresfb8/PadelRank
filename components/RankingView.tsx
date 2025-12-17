@@ -180,7 +180,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     // Americano Logic
     else if (ranking.format === 'americano') {
       const pObjs = activeDivision.players.map(id => players[id] || { id } as Player);
-      newMatches = MatchGenerator.generateAmericano(pObjs, ranking.config?.courts || 2, activeDivision.matches);
+      newMatches = MatchGenerator.generateAmericano(pObjs, ranking.config?.courts || 2);
       newMatches.forEach(m => m.jornada = nextRound);
     }
 
@@ -217,8 +217,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                 <button
                   onClick={() => setIsStatusModalOpen(true)}
                   className={`uppercase font-medium text-xs px-3 py-1 rounded-full flex items-center gap-1.5 transition-all hover:scale-105 shadow-sm border ${ranking.status === 'activo' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
-                      ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
-                        'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                    ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
+                      'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
                     }`}
                   title="Cambiar estado del torneo"
                 >
@@ -229,8 +229,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                 </button>
               ) : (
                 <span className={`uppercase font-medium text-xs px-2 py-0.5 rounded-full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
-                    ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
-                      'bg-gray-100 text-gray-600'
+                  ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
+                    'bg-gray-100 text-gray-600'
                   }`}>
                   {ranking.status}
                 </span>
@@ -627,9 +627,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
                       <div className="text-center mb-4">
                         <div className="text-sm font-medium text-gray-900">
-                          <span className="block mb-1">{p1.nombre} - {p2.nombre}</span>
+                          <span className="block mb-1">{p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}</span>
                           <span className="text-primary font-black text-xs uppercase tracking-widest my-1 block">VS</span>
-                          <span className="block mt-1">{p3.nombre} - {p4.nombre}</span>
+                          <span className="block mt-1">{p3.nombre} {p3.apellidos} - {p4.nombre} {p4.apellidos}</span>
                         </div>
                       </div>
 
@@ -713,8 +713,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           <button
             onClick={() => { onUpdateRanking && onUpdateRanking({ ...ranking, status: 'activo' }); setIsStatusModalOpen(false); }}
             className={`p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${ranking.status === 'activo'
-                ? 'border-green-500 bg-green-50'
-                : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
+              ? 'border-green-500 bg-green-50'
+              : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
               }`}
           >
             <div className={`p-3 rounded-full ${ranking.status === 'activo' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -730,8 +730,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           <button
             onClick={() => { onUpdateRanking && onUpdateRanking({ ...ranking, status: 'pausado' }); setIsStatusModalOpen(false); }}
             className={`p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${ranking.status === 'pausado'
-                ? 'border-orange-500 bg-orange-50'
-                : 'border-gray-200 hover:border-orange-300 hover:bg-gray-50'
+              ? 'border-orange-500 bg-orange-50'
+              : 'border-gray-200 hover:border-orange-300 hover:bg-gray-50'
               }`}
           >
             <div className={`p-3 rounded-full ${ranking.status === 'pausado' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -752,8 +752,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               }
             }}
             className={`p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${ranking.status === 'finalizado'
-                ? 'border-gray-500 bg-gray-50'
-                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              ? 'border-gray-500 bg-gray-50'
+              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
           >
             <div className={`p-3 rounded-full ${ranking.status === 'finalizado' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-400'}`}>

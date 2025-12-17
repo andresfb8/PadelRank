@@ -16,6 +16,7 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
         apellidos: '',
         email: '',
         telefono: '',
+        fechaNacimiento: '',
     });
 
     useEffect(() => {
@@ -25,9 +26,10 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
                 apellidos: playerToEdit.apellidos,
                 email: playerToEdit.email,
                 telefono: playerToEdit.telefono,
+                fechaNacimiento: playerToEdit.fechaNacimiento || '',
             });
         } else {
-            setFormData({ nombre: '', apellidos: '', email: '', telefono: '' });
+            setFormData({ nombre: '', apellidos: '', email: '', telefono: '', fechaNacimiento: '' });
         }
     }, [playerToEdit, isOpen]);
 
@@ -110,6 +112,16 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
                                 onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                             />
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Nacimiento</label>
+                        <input
+                            type="date"
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                            value={formData.fechaNacimiento}
+                            onChange={(e) => setFormData({ ...formData, fechaNacimiento: e.target.value })}
+                        />
                     </div>
 
                     <div className="pt-4 flex gap-3 sticky bottom-0 bg-white pb-2">

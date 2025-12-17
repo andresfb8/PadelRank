@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Button } from './ui/Components';
 import { Player } from '../types';
 import { Trash2, ArrowUpDown, ArrowUp, ArrowDown, Edit, Download, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface Props {
   players: Record<string, Player>;
@@ -21,59 +22,60 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const handleExportCSV = () => {
-    const headers = ['Nombre,Apellidos,Email,Telefono'];
-    const rows = Object.values(players).map(p =>
-      `"${p.nombre}","${p.apellidos}","${p.email}","${p.telefono}"`
-    );
-    const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "jugadores_padel.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportExcel = () => {
+    const data = Object.values(players).map(p => ({
+      Nombre: p.nombre,
+      Apellidos: p.apellidos,
+      Email: p.email,
+      Telefono: p.telefono,
+      "Fecha Nacimiento": p.fechaNacimiento || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Jugadores");
+    XLSX.writeFile(workbook, "jugadores_padel.xlsx");
   };
 
   const handleImportClick = () => {
-    document.getElementById('csvInput')?.click();
+    document.getElementById('excelInput')?.click();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const rows = text.split('\n').map(row => row.trim()).filter(Boolean);
-      // Skip header if present (simple check if first row contains "Nombre")
-      const startIndex = rows[0]?.toLowerCase().includes('nombre') ? 1 : 0;
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
 
-      const newPlayers = [];
-      for (let i = startIndex; i < rows.length; i++) {
-        // Handle quotes if exported from Excel, simplistic CSV parser
-        const cols = rows[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
-        if (cols.length >= 2) {
-          newPlayers.push({
-            nombre: cols[0],
-            apellidos: cols[1],
-            email: cols[2] || '',
-            telefono: cols[3] || ''
-          });
-        }
-      }
+      const newPlayers = jsonData.map((row: any) => {
+        // Map common column names to our schema
+        return {
+          nombre: row.Nombre || row.nombre || row.Name || row.name || '',
+          apellidos: row.Apellidos || row.apellidos || row.Surname || row.surname || '',
+          email: row.Email || row.email || '',
+          telefono: row.Telefono || row.telefono || row.Phone || row.phone || '',
+          fechaNacimiento: row['Fecha Nacimiento'] || row.fechaNacimiento || row.Birthdate || row.birthdate || ''
+        };
+      }).filter(p => p.nombre); // Filter out empty rows or rows without name
 
       if (newPlayers.length > 0) {
         onImportPlayers(newPlayers);
+        alert(`✅ Se han detectado ${newPlayers.length} jugadores para importar.`);
       } else {
-        alert('No se encontraron datos válidos en el CSV.');
+        alert('⚠️ No se encontraron datos válidos en el archivo. Asegúrate de tener columnas con encabezados "Nombre", "Apellidos", "Email", etc.');
       }
-      // Reset input
-      event.target.value = '';
-    };
-    reader.readAsText(file);
+    } catch (error) {
+      console.error("Error importing file:", error);
+      alert('❌ Error al leer el archivo. Asegúrate de que es un archivo Excel válido.');
+    }
+
+    // Reset input
+    event.target.value = '';
   };
 
   const handleSort = (field: SortField) => {
@@ -168,16 +170,16 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
             <input
               type="file"
-              id="csvInput"
-              accept=".csv"
+              id="excelInput"
+              accept=".xlsx, .xls, .csv"
               className="hidden"
               onChange={handleFileChange}
             />
-            <Button variant="secondary" onClick={handleImportClick} title="Importar CSV" className="whitespace-nowrap">
-              <Upload size={18} /> <span className="hidden sm:inline">Importar</span>
+            <Button variant="secondary" onClick={handleImportClick} title="Importar Excel" className="whitespace-nowrap">
+              <Upload size={18} /> <span className="hidden sm:inline">Importar Excel</span>
             </Button>
-            <Button variant="secondary" onClick={handleExportCSV} title="Exportar CSV" className="whitespace-nowrap">
-              <Download size={18} /> <span className="hidden sm:inline">Exportar</span>
+            <Button variant="secondary" onClick={handleExportExcel} title="Exportar Excel" className="whitespace-nowrap">
+              <Download size={18} /> <span className="hidden sm:inline">Exportar Excel</span>
             </Button>
             {selectedIds.size > 0 && (
               <Button variant="danger" onClick={handleDeleteSelected} className="whitespace-nowrap">
@@ -211,6 +213,7 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
                 <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('nombre')}>
                   Nombre <SortIcon field="nombre" />
                 </th>
+                <th className="px-6 py-4">F. Nacimiento</th>
                 <th className="px-6 py-4">Contacto</th>
                 <th className="px-6 py-4 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pj')}>
                   PJ <SortIcon field="pj" />
@@ -240,6 +243,9 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
                   </td>
                   <td className="px-6 py-4">
                     <div className="font-semibold text-gray-900">{p.nombre} {p.apellidos}</div>
+                  </td>
+                  <td className="px-6 py-4 text-gray-600">
+                    {p.fechaNacimiento ? new Date(p.fechaNacimiento).toLocaleDateString('es-ES') : '-'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-600">{p.email}</div>
