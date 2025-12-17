@@ -10,23 +10,24 @@ interface Props {
   onDelete: (id: string) => void;
   onBlock?: (id: string) => void; // Optional for now to avoid breaking if parent not updated immediately
   onUnblock?: (id: string) => void;
-  onCreate: (userData: { name: string; email: string; clubName: string }) => void;
+  onCreate: (userData: { name: string; email: string; clubName: string; password?: string }) => void;
   onClearDB?: () => void;
 }
 
 export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate, onClearDB }: Props) => {
   const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', clubName: '' });
+  const [newAdmin, setNewAdmin] = useState({ name: '', email: '', clubName: '', password: '' });
 
   const pendingUsers = users.filter(u => u.status === 'pending');
   const activeUsers = users.filter(u => (u.status === 'active' || u.status === 'blocked') && u.role !== 'superadmin');
 
   const handleCreateSubmit = () => {
-    if (!newAdmin.name || !newAdmin.email || !newAdmin.clubName) return alert("Todos los campos son obligatorios");
+    if (!newAdmin.name || !newAdmin.email || !newAdmin.clubName || !newAdmin.password) return alert("Todos los campos son obligatorios");
+    if (newAdmin.password.length < 6) return alert("La contraseña debe tener al menos 6 caracteres");
     onCreate(newAdmin);
     setIsModalOpen(false);
-    setNewAdmin({ name: '', email: '', clubName: '' });
+    setNewAdmin({ name: '', email: '', clubName: '', password: '' });
   };
 
   return (
@@ -161,10 +162,18 @@ export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate
             placeholder="Ej: Padel Center Madrid"
           />
 
+          <Input
+            label="Clave de Acceso"
+            type="text"
+            value={newAdmin.password}
+            onChange={(e: any) => setNewAdmin({ ...newAdmin, password: e.target.value })}
+            placeholder="Mínimo 6 caracteres"
+          />
+
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
             <Button onClick={handleCreateSubmit} className="flex items-center gap-2">
-              <Mail size={16} /> Crear y Enviar Acceso
+              <Mail size={16} /> Crear Admin
             </Button>
           </div>
         </div>

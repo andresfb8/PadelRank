@@ -1,45 +1,72 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PadelRank Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PadelRank Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            primary: {
+              DEFAULT: '#4F46E5', // Indigo 600
+              50: '#EEF2FF',
+              100: '#E0E7FF',
+              600: '#4F46E5',
+              700: '#4338CA',
             },
-            colors: {
-              primary: '#2196F3',
-              secondary: '#F5F5F5',
-              accent: '#FF9800',
-              success: '#E8F5E9',
-              danger: '#FFEBEE',
-              warning: '#FFF9C4',
-              incomplete: '#FFE0B2',
-            }
+            secondary: {
+              DEFAULT: '#64748B', // Slate 500
+              50: '#F8FAFC', // Slate 50
+              100: '#F1F5F9', // Slate 100
+              200: '#E2E8F0', // Slate 200
+              800: '#1E293B', // Slate 800
+              900: '#0F172A', // Slate 900
+            },
+            accent: {
+              DEFAULT: '#0EA5E9', // Sky 500
+              500: '#0EA5E9',
+            },
+            success: '#10B981', // Emerald 500
+            danger: '#EF4444', // Red 500
+            warning: '#F59E0B', // Amber 500
+          },
+          boxShadow: {
+            'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+            'glow': '0 0 15px rgba(79, 70, 229, 0.3)',
           }
         }
       }
-    </script>
-    <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f8fafc;
-      }
-      /* Custom scrollbar for tables */
-      .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-      }
-      .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      }
-    </style>
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC;
+      /* Slate 50 */
+      color: #1E293B;
+      /* Slate 800 */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Custom scrollbar for tables */
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
   <script type="importmap">
 {
   "imports": {
@@ -52,8 +79,10 @@
 }
 </script>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>

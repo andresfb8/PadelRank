@@ -1,16 +1,17 @@
 import {
     collection,
-    onSnapshot,
     addDoc,
     updateDoc,
     deleteDoc,
     doc,
+    onSnapshot,
     query,
     orderBy,
-    setDoc,
-    getDocs,
+    where,
+    limit,
     writeBatch,
-    where
+    setDoc, // Kept from original, not in user's example but not explicitly removed
+    getDocs // Kept from original, not in user's example but not explicitly removed
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Player, Ranking, User } from "../types";
@@ -25,8 +26,23 @@ export const subscribeToUsers = (callback: (users: User[]) => void) => {
             usersList.push({ id: doc.id, ...doc.data() } as User);
         });
         callback(usersList);
+    }, (error) => {
+        // Silent failure if permission denied (normal for non-superadmins now)
+        console.warn("Could not subscribe to users list (likely permission denied implies not superadmin):", error.message);
     });
 };
+
+export const subscribeToUserProfile = (userId: string, callback: (user: User | null) => void) => {
+    return onSnapshot(doc(db, "users", userId), (docSnap) => {
+        if (docSnap.exists()) {
+            callback({ id: docSnap.id, ...docSnap.data() } as User);
+        } else {
+            callback(null);
+        }
+    });
+};
+
+
 
 export const addUser = async (user: Omit<User, "id">) => {
     return await addDoc(collection(db, "users"), user);
@@ -81,6 +97,61 @@ export const deletePlayer = async (id: string) => {
     return await deleteDoc(doc(db, "players", id));
 };
 
+export const updatePlayerStats = async (playerId: string, won: boolean) => {
+    // We need to read the player first to increment stats safely
+    // Transaction would be better, but for now standard read-write
+    // Note: We use the 'updatePlayer' logic but specifically for stats
+    // Ideally we subscribe, but here we just want a one-off update.
+    // We can use 'getDoc' here (need to import it if not available, or use a helper)
+    // db.ts currently exports 'updatePlayer'.
+    // We'll trust the UI to pass the current player object context if possible?
+    // No, 'AdminLayout' doesn't necessarily have the latest snapshot of *every* player in a reliable way for atomic updates?
+    // Actually, Firestore 'increment' is best.
+    // Let's use Firestore 'increment' operator for atomicity.
+    const { increment } = await import("firebase/firestore");
+
+    const playerRef = doc(db, "players", playerId);
+    await updateDoc(playerRef, {
+        "stats.pj": increment(1),
+        "stats.pg": increment(won ? 1 : 0),
+        "stats.pp": increment(won ? 0 : 1),
+        // Winrate needs to be recalculated. Firestore can't calc winrate in DB.
+        // We will just update counters. A Cloud Function is best for WinRate, 
+        // OR we just accept WinRate might be calculated on read (client side).
+        // But `stats` field has `winrate`. We should try to update it.
+        // If we only increment, we can't update winrate atomically.
+        // For MVP: Just increment counters. Client calculates winrate on display?
+        // Existing code expects `stats.winrate` in DB.
+        // Let's just do a Read-Modify-Write.
+    });
+
+    // Read-Modify-Write for Winrate (Separate Step, slight race condition risk but acceptable for MVP)
+    // We can't easily import 'getDoc' if not top-level imported.
+    // We can rely on 'App.tsx' to update full object? No, AdminLayout calls this.
+    // Let's stick to simple increment for now. Winrate might drift if we don't recalculate.
+    // User asked for stats persistence.
+    // Let's import getDoc to do it right.
+};
+
+// Enhanced updatePlayerStats with GetDoc
+import { getDoc } from "firebase/firestore";
+
+export const updatePlayerStatsFull = async (playerId: string, won: boolean) => {
+    const playerRef = doc(db, "players", playerId);
+    const snap = await getDoc(playerRef);
+    if (!snap.exists()) return;
+
+    const data = snap.data() as Player;
+    const stats = data.stats || { pj: 0, pg: 0, pp: 0, winrate: 0 };
+
+    stats.pj += 1;
+    if (won) stats.pg += 1;
+    else stats.pp += 1;
+    stats.winrate = Math.round((stats.pg / stats.pj) * 100);
+
+    await updateDoc(playerRef, { stats });
+};
+
 export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
     const batch = writeBatch(db);
     players.forEach(p => {
@@ -94,13 +165,8 @@ export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
 // --- RANKINGS (TOURNAMENTS) ---
 
 export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
-    // Order by creation or name? Name for now.
-    let q;
-    if (ownerId) {
-        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId), orderBy("nombre"));
-    } else {
-        q = query(collection(db, "rankings"), orderBy("nombre"));
-    }
+    // Always fetch all, filter on client (like players) to support Legacy/Mixed views
+    const q = query(collection(db, "rankings"), orderBy("nombre"));
 
     return onSnapshot(q, (snapshot) => {
         const rankingsList: Ranking[] = [];
@@ -114,13 +180,36 @@ export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, own
 };
 
 export const addRanking = async (ranking: Omit<Ranking, "id">) => {
-    return await addDoc(collection(db, "rankings"), ranking);
+    // Sanitize data to remove undefined values before adding
+    const sanitizedData = sanitizeForFirestore(ranking);
+    return await addDoc(collection(db, "rankings"), sanitizedData);
+};
+
+// Helper function to remove undefined values from objects (Firestore doesn't accept undefined)
+const sanitizeForFirestore = (obj: any): any => {
+    if (obj === null || obj === undefined) return null;
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeForFirestore(item));
+    }
+    if (typeof obj === 'object') {
+        const sanitized: any = {};
+        Object.keys(obj).forEach(key => {
+            const value = obj[key];
+            if (value !== undefined) {
+                sanitized[key] = sanitizeForFirestore(value);
+            }
+        });
+        return sanitized;
+    }
+    return obj;
 };
 
 export const updateRanking = async (ranking: Ranking) => {
     const { id, ...data } = ranking;
     const rankingRef = doc(db, "rankings", id);
-    return await updateDoc(rankingRef, data);
+    // Sanitize data to remove undefined values
+    const sanitizedData = sanitizeForFirestore(data);
+    return await updateDoc(rankingRef, sanitizedData);
 };
 
 export const deleteRanking = async (id: string) => {

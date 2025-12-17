@@ -1,18 +1,77 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // --- Helper Functions ---
+    
+    // Check if user is logged in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Check if user matches a specific ID
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Check if user is SuperAdmin
+    // (We look up their user document to see if role == 'superadmin')
+    function isSuperAdmin() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+    }
+
+    // Check if user OWNS the resource (e.g. Ranking or Player)
+    // Warning: On CREATE, we must check request.resource.data.ownerId
+    // On UPDATE/DELETE, we must check resource.data.ownerId
+    function isOwnerOfResource() {
+      return isSignedIn() && (
+        (resource == null && request.resource.data.ownerId == request.auth.uid) || 
+        (resource != null && resource.data.ownerId == request.auth.uid)
+      );
+    }
+    
+    // --- Collection Rules ---
+
+    // 1. Users Collection
+    // - SuperAdmins can read/write all.
+    // - Users can read their own profile.
+    // - Users CANNOT modify their own profile (status/role managed by SuperAdmin), 
+    //   BUT we might allow them to edit name/clubName? 
+    //   For simplicity in strict mode: Only SuperAdmin edits users, or 'status' is protected.
+    //   Let's allow users to Read themselves.
+    match /users/{userId} {
+      allow read: if isUser(userId) || isSuperAdmin();
+      // Allow create only if it's the user themselves (initial signup) OR SuperAdmin
+      allow create: if isUser(userId) || isSuperAdmin();
+      // Update/Delete only by SuperAdmin (status management) or maybe Name editing?
+      // Let's restrict to SuperAdmin for management critical fields. 
+      // Safe generic rule: SuperAdmin does everything. Self can Update non-critical?
+      allow write: if isSuperAdmin();
+    }
+
+    // 2. Rankings (Torneos)
+    match /rankings/{rankingId} {
+      // Public Read (Anyone can view rankings via link)
+      allow read: if true;
+      
+      // Write: Strictly Owners or SuperAdmins
+      allow write: if isOwnerOfResource() || isSuperAdmin();
+    }
+
+    // 3. Players
+    match /players/{playerId} {
+      // Public Read (Anyone can see players in a tournament)
+      allow read: if true;
+      
+      // Write: Strictly Owners or SuperAdmins
+      allow write: if isOwnerOfResource() || isSuperAdmin();
+    }
+    
+    // Default Deny
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 1, 10);
+      allow read, write: if false;
     }
   }
 }
