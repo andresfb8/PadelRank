@@ -12,7 +12,7 @@ interface Props {
   onSave: (matchId: string, result: any) => void;
   rankingConfig?: RankingConfig;
   // New prop
-  format?: 'classic' | 'americano' | 'mexicano' | 'individual';
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs';
 }
 
 export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingConfig, format }: Props) => {

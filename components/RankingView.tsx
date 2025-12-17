@@ -17,7 +17,7 @@ interface Props {
   onAddDivision?: (division: Division) => void;
   onUpdateRanking?: (ranking: Ranking) => void;
   isAdmin?: boolean;
-  onUpdatePlayerStats?: (playerId: string, won: boolean) => void;
+  onUpdatePlayerStats?: (playerId: string, result: 'win' | 'loss' | 'draw') => void;
 }
 
 export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats }: Props) => {
@@ -113,7 +113,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const isLastDivision = activeDivision && activeDivision.numero === ranking.divisions.length;
 
   // Data for current view
-  const standings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format) : [];
+  const standings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any) : [];
   const globalStandings = activeTab === 'global' ? generateGlobalStandings(ranking) : [];
 
   // Calculate players already in the tournament to prevent duplicates in new divisions
@@ -260,7 +260,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
       {/* Division Tabs */}
       {/* Division Tabs - Hide for Mexicano/Americano and Single Division UNLESS History exists */}
-      {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic') && (
+      {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs') && (
         <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
           <button
             onClick={() => setActiveTab('global')}
@@ -383,10 +383,39 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             </div>
           ) : isAdmin && onUpdateRanking ? (
             <div className="space-y-4">
+              {ranking.format === 'pairs' && (
+                <div className="flex justify-end mb-2">
+                  <Button
+                    onClick={() => {
+                      const defaultRules = `**3. PUNTUACIÓN Y CLASIFICACIÓN (PAREJAS)**\n\n` +
+                        `La clasificación se basa en el rendimiento de la **Pareja Fija**:\n` +
+                        `- Victoria 2-0: ${ranking.config?.pointsPerWin2_0 ?? 3} Puntos.\n` +
+                        `- Victoria 2-1: ${ranking.config?.pointsPerWin2_1 ?? 2} Puntos.\n` +
+                        `- Empate: ${ranking.config?.pointsDraw ?? 1} Punto.\n` +
+                        `- Derrota 1-2: ${ranking.config?.pointsPerLoss2_1 ?? 1} Punto.\n` +
+                        `- Derrota 0-2: ${ranking.config?.pointsPerLoss2_0 ?? 0} Puntos.\n\n` +
+                        `**Criterios de desempate:**\n` +
+                        `1. Puntos totales.\n` +
+                        `2. Diferencia de sets.\n` +
+                        `3. Diferencia de juegos.\n` +
+                        `4. Sets ganados.\n` +
+                        `5. Juegos ganados.\n\n` +
+                        `**4. FORMATO**\n` +
+                        `Partidos al mejor de 3 sets. Las parejas son fijas durante toda la liga.`;
+                      onUpdateRanking({ ...ranking, rules: defaultRules });
+                    }}
+                    variant="secondary"
+                    className="text-indigo-600 bg-indigo-50 border-indigo-100 hover:bg-indigo-100 flex items-center gap-2 text-sm"
+                  >
+                    <Edit2 size={16} /> Cargar Normas Estándar
+                  </Button>
+                </div>
+              )}
               <textarea
                 className="w-full h-64 p-4 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-700 leading-relaxed bg-gray-50"
                 placeholder="Escribe aquí las normas del torneo (puntuación, desempates, comportamiento, etc.)"
                 defaultValue={ranking.rules || ''}
+                key={ranking.rules} // Force re-render if rules change (e.g. via button)
                 onBlur={(e) => {
                   const newRules = e.target.value;
                   if (newRules !== ranking.rules) {
@@ -508,8 +537,19 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {standings.map((row) => {
-                  const player = players[row.playerId];
-                  if (!player) return null;
+                  const isPair = row.playerId.includes('-');
+                  let playerName = 'Desconocido';
+
+                  if (isPair) {
+                    const [p1Id, p2Id] = row.playerId.split('-');
+                    const p1 = players[p1Id];
+                    const p2 = players[p2Id];
+                    playerName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
+                  } else {
+                    const player = players[row.playerId];
+                    if (!player) return null;
+                    playerName = `${player.nombre} ${player.apellidos}`;
+                  }
 
                   let posClass = "bg-white text-gray-700";
                   // Promotion zone: Pos 1-2, but not for Div 1
@@ -523,7 +563,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                       <td className={`px-4 py-3 text-center font-bold sticky left-0 z-10 ${posClass}`}>{row.pos}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        <div className="truncate max-w-[120px] sm:max-w-none">{player.nombre} {player.apellidos}</div>
+                        <div className="truncate max-w-[200px] sm:max-w-none" title={playerName}>{playerName}</div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
                       <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>

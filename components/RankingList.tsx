@@ -83,7 +83,8 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                           <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-50 text-blue-700 uppercase tracking-wider">
                             {ranking.format === 'americano' ? 'Americano' :
                               ranking.format === 'mexicano' ? 'Mexicano' :
-                                ranking.format === 'individual' ? 'Individual' : 'Ranking clásica CPSJ'}
+                                ranking.format === 'individual' ? 'Individual' :
+                                  ranking.format === 'pairs' ? 'Ranking por Parejas' : 'Ranking clásica CPSJ'}
                           </span>
                         </div>
                         <button

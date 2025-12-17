@@ -352,5 +352,62 @@ export const MatchGenerator = {
         }
 
         return matches;
+    },
+    // --- PAIRS LEAGUE (Fixed Teams A vs B) ---
+    generatePairsLeague: (pairs: string[][], divIndex: number): Match[] => {
+        // pairs is array of [p1Id, p2Id]
+        const n = pairs.length;
+        if (n < 2) return [];
+
+        const matches: Match[] = [];
+
+        // PAIRS LEAGUE: Round Robin for Teams
+        // Input: pairs array [[p1, p2], [p3, p4], ...]
+        // We treat each pair as a "Participant".
+        // Standard RR Algorithm (Polygon method)
+
+        const nPairs = pairs.length;
+        if (nPairs < 2) return [];
+
+        // If odd number of pairs, add a "dummy" pair for byes
+        const participants = [...pairs];
+        if (nPairs % 2 !== 0) {
+            participants.push(['Bye', 'Bye']);
+        }
+
+        const numParticipants = participants.length;
+        const numRounds = numParticipants - 1;
+        const half = numParticipants / 2;
+
+
+
+        // Generate Rounds
+        for (let r = 0; r < numRounds; r++) {
+            const roundIndex = r + 1;
+
+            // Generate pairings for this round
+            for (let i = 0; i < half; i++) {
+                const home = participants[i];
+                const away = participants[numParticipants - 1 - i];
+
+                // Check for Bye
+                if (home[0] === 'Bye' || away[0] === 'Bye') continue; // One pair sits out
+
+                matches.push(createMatch(divIndex, roundIndex,
+                    home[0], home[1],
+                    away[0], away[1],
+                    undefined // No Court assigned automatically
+                ));
+            }
+
+            // Rotate participants for next round (keep index 0 fixed)
+            // [0, 1, 2, 3] -> [0, 3, 1, 2] (Standard rotation)
+            // participants array mutation:
+            // Remove last, insert at index 1
+            const last = participants.pop();
+            if (last) participants.splice(1, 0, last);
+        }
+
+        return matches;
     }
 };

@@ -71,10 +71,14 @@ export function calculateMatchPoints(
       // Win
       if (p2Sets === 0) return { points: { p1: cfg.pointsPerWin2_0, p2: cfg.pointsPerLoss2_0 }, finalizationType: 'completo', description: 'Victoria 2-0' };
       return { points: { p1: cfg.pointsPerWin2_1, p2: cfg.pointsPerLoss2_1 }, finalizationType: 'completo', description: 'Victoria 2-1' };
-    } else {
+    } else if (p1Sets < p2Sets) {
       // Lost (P2 won)
       if (p1Sets === 0) return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota 0-2' };
       return { points: { p1: cfg.pointsPerLoss2_1, p2: cfg.pointsPerWin2_1 }, finalizationType: 'completo', description: 'Derrota 1-2' };
+    } else {
+      // Draw (1-1) - Standard Logic when no Tie Break is played or recorded, or forced draw in league.
+      // Often leagues enforce a Tie Break. But if logic allows 1-1 final:
+      return { points: { p1: cfg.pointsDraw, p2: cfg.pointsDraw }, finalizationType: 'completo', description: 'Empate 1-1' };
     }
   }
 
@@ -114,11 +118,77 @@ export function generateStandings(
   divisionId: string,
   matches: Match[],
   playerIds: string[],
-  format?: 'classic' | 'americano' | 'mexicano' | 'individual'
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs'
 ): StandingRow[] {
   const map: Record<string, StandingRow> = {};
 
   // Init
+  if (format === 'pairs') {
+    // PAIRS LOGIC: We track TEAMS, not individual players.
+    // Key is "p1Id-p2Id". We assume pairs are consistent.
+
+    // 1. Initialize map for all pairs found in ANY match (active or pending)
+    matches.forEach(m => {
+      const pair1Key = `${m.pair1.p1Id}-${m.pair1.p2Id}`;
+      const pair2Key = `${m.pair2.p1Id}-${m.pair2.p2Id}`;
+
+      if (!map[pair1Key]) map[pair1Key] = { playerId: pair1Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
+      if (!map[pair2Key]) map[pair2Key] = { playerId: pair2Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
+    });
+
+    // 2. Process Stats for finalized matches
+    matches.forEach(m => {
+      if (m.status !== 'finalizado' && m.status !== 'no_disputado') return;
+
+      const pair1Key = `${m.pair1.p1Id}-${m.pair1.p2Id}`;
+      const pair2Key = `${m.pair2.p1Id}-${m.pair2.p2Id}`;
+
+      // P1 Stats
+      map[pair1Key].pts += m.points.p1;
+      map[pair1Key].pj += 1;
+
+      // P2 Stats
+      map[pair2Key].pts += m.points.p2;
+      map[pair2Key].pj += 1;
+
+      // Win/Loss
+      if (m.points.p1 > m.points.p2) map[pair1Key].pg += 1;
+      else if (m.points.p2 > m.points.p1) map[pair2Key].pg += 1;
+
+      // Sets/Games
+      if (m.status === 'finalizado' && m.score && m.score.set1) {
+        const sets = [m.score.set1, m.score.set2, m.score.set3].filter(s => !!s) as { p1: number, p2: number }[];
+        sets.forEach(s => {
+          const g1 = s.p1;
+          const g2 = s.p2;
+          map[pair1Key].gamesWon += g1;
+          map[pair1Key].gamesDiff += (g1 - g2);
+          map[pair2Key].gamesWon += g2;
+          map[pair2Key].gamesDiff += (g2 - g1);
+
+          if (g1 > g2) {
+            map[pair1Key].setsWon += 1;
+            map[pair1Key].setsDiff += 1;
+            map[pair2Key].setsDiff -= 1;
+          } else if (g2 > g1) {
+            map[pair2Key].setsWon += 1;
+            map[pair2Key].setsDiff += 1;
+            map[pair1Key].setsDiff -= 1;
+          }
+        });
+      }
+    });
+
+    // Sort and Return
+    return Object.values(map).sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
+      if (b.gamesDiff !== a.gamesDiff) return b.gamesDiff - a.gamesDiff;
+      return b.gamesWon - a.gamesWon;
+    }).map((row, idx) => ({ ...row, pos: idx + 1 }));
+  }
+
+  // STANDARD LOGIC (INDIVIDUALS)
   playerIds.forEach(pid => {
     map[pid] = { playerId: pid, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
   });

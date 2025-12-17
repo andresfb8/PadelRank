@@ -24,7 +24,7 @@ export interface Player {
   ownerId?: string;
 }
 
-export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual';
+export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs';
 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
 

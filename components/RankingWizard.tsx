@@ -28,9 +28,9 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
     // Config
     const [config, setConfig] = useState<RankingConfig>({
-        pointsPerWin2_0: 3,
-        pointsPerWin2_1: 2,
-        pointsDraw: 1,
+        pointsPerWin2_0: 4,
+        pointsPerWin2_1: 3,
+        pointsDraw: 2,
         pointsPerLoss2_1: 1,
         pointsPerLoss2_0: 0,
         promotionCount: 2,
@@ -57,7 +57,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             {[
                 {
                     id: 'classic',
-                    label: 'Ranking clásica CPSJ (Parejas Fijas)',
+                    label: 'Ranking clásica CPSJ',
                     desc: 'Grupos de 4 jugadores. Todos contra todos en cada división. Ascensos y descensos.',
                     color: 'blue'
                 },
@@ -66,6 +66,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     label: 'Ranking Individual',
                     desc: 'Liga individual con divisiones. Partidos con parejas rotatorias o aleatorias.',
                     color: 'purple'
+                },
+                {
+                    id: 'pairs',
+                    label: 'Ranking por Parejas',
+                    desc: 'Liga de Parejas Fijas. 2 vs 2. Partidos Round Robin.',
+                    color: 'indigo'
                 },
                 {
                     id: 'americano',
@@ -88,6 +94,44 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                         // Reset assignments when changing format
                         setAssignments({});
                         setNumDivisions(1);
+
+                        // Pairs Defaults
+                        if (f.id === 'pairs') {
+                            setIndividualMaxPlayers(0);
+                            setConfig(prev => ({
+                                ...prev,
+                                promotionCount: 0,
+                                relegationCount: 0,
+                                pointsPerWin2_0: 3,
+                                pointsPerWin2_1: 2,
+                                pointsDraw: 1,
+                                pointsPerLoss2_1: 1,
+                                pointsPerLoss2_0: 0
+                            }));
+                        }
+                        // Update Config Points if Classic
+                        else if (f.id === 'classic') {
+                            setIndividualMaxPlayers(4); // Reset if coming from pairs
+                            setConfig(prev => ({
+                                ...prev,
+                                pointsPerWin2_0: 4,
+                                pointsPerWin2_1: 3,
+                                pointsDraw: 2,
+                                pointsPerLoss2_1: 1,
+                                pointsPerLoss2_0: 0
+                            }));
+                        } else {
+                            // Reset to defaults for other formats
+                            setIndividualMaxPlayers(12); // Default
+                            setConfig(prev => ({
+                                ...prev,
+                                pointsPerWin2_0: 3,
+                                pointsPerWin2_1: 2,
+                                pointsDraw: 1,
+                                pointsPerLoss2_1: 1,
+                                pointsPerLoss2_0: 0
+                            }));
+                        }
                     }}
                 >
                     <div className="flex justify-between items-start mb-2">
@@ -166,15 +210,23 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 </div>
             )}
 
-            {/* Individual Configuration */}
-            {format === 'individual' && (
+            {/* Individual/Pairs Configuration */}
+            {(format === 'individual' || format === 'pairs') && (
                 <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Configuración de Liga</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Sistema de Puntuación</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                        <Input type="number" label="Victoria 2-0" value={config.pointsPerWin2_0} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Victoria 2-1" value={config.pointsPerWin2_1} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_1: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Empate" value={config.pointsDraw} onChange={(e: any) => setConfig({ ...config, pointsDraw: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Derrota 1-2" value={config.pointsPerLoss2_1} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_1: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Derrota 0-2" value={config.pointsPerLoss2_0} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_0: parseInt(e.target.value) || 0 })} />
+                    </div>
+
                     <div className="grid md:grid-cols-4 gap-4">
                         <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
-                        <Input type="number" label="Max Jugadores/Div" value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(2, parseInt(e.target.value) || 2))} />
-                        <Input type="number" label="Ascienden" value={config.promotionCount || 2} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) })} />
-                        <Input type="number" label="Descienden" value={config.relegationCount || 2} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) })} />
+                        <Input type="number" label={format === 'pairs' ? "Parejas/Div" : "Jugadores/Div"} value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(0, parseInt(e.target.value) || 0))} />
+                        <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
                     </div>
                 </div>
             )}
@@ -259,6 +311,94 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             )
         }
 
+        if (format === 'pairs') {
+            // For Pairs, assignments map Div -> Pair Index -> Pair String (p1Id-p2Id)
+            // maxP is max number of PAIRS per division
+            const maxPairs = individualMaxPlayers;
+
+            // Ensure assignments structure
+            // (We reuse 'assignments' dict but values are "p1-p2")
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <span className="font-bold">Número de Divisiones:</span>
+                        <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => {
+                            const n = parseInt(e.target.value) || 1;
+                            setNumDivisions(n);
+                        }} className="border p-1 w-16 text-center rounded" />
+                    </div>
+
+                    {Array.from({ length: numDivisions }).map((_, divIdx) => (
+                        <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border">
+                            <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
+                            <div className="grid gap-4">
+                                {Array.from({ length: maxPairs }).map((_, pairIdx) => {
+                                    const currentList = assignments[divIdx] || [];
+                                    const val = currentList[pairIdx] || '';
+                                    const [p1Id, p2Id] = val ? val.split('-') : ['', ''];
+
+                                    // Filter used
+                                    const used = new Set<string>();
+                                    Object.values(assignments).forEach((arr: string[]) => arr?.forEach(pairStr => {
+                                        if (pairStr && pairStr !== val) {
+                                            const [u1, u2] = pairStr.split('-');
+                                            if (u1) used.add(u1);
+                                            if (u2) used.add(u2);
+                                        }
+                                    }));
+                                    // Also filter current pair selection cross-check
+                                    if (p1Id) used.add(p1Id);
+                                    if (p2Id) used.add(p2Id);
+
+                                    // Options for P1 (exclude used)
+                                    // Options for P2 (exclude used AND p1)
+                                    const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({
+                                        id: p.id, label: `${p.nombre} ${p.apellidos}`
+                                    }));
+
+                                    return (
+                                        <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border">
+                                            <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
+                                            <div className="flex-1 grid grid-cols-2 gap-2">
+                                                <SearchableSelect
+                                                    options={getOpts(p1Id)}
+                                                    value={p1Id}
+                                                    onChange={(v) => {
+                                                        const newP2 = p2Id === v ? '' : p2Id; // clear if same
+                                                        const newVal = v && newP2 ? `${v}-${newP2}` : v ? `${v}-` : newP2 ? `-${newP2}` : ''; // partial or full
+                                                        // Wait, we need robust handling.
+                                                        // If v is empty, remove p1.
+                                                        // Let's simplified: If we construct a string "p1-p2".
+                                                        const currentP1 = v;
+                                                        const currentP2 = p2Id;
+                                                        const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                        handleAssignment(divIdx, pairIdx, finalVal, maxPairs);
+                                                    }}
+                                                    placeholder="Jugador A"
+                                                />
+                                                <SearchableSelect
+                                                    options={getOpts(p2Id)}
+                                                    value={p2Id}
+                                                    onChange={(v) => {
+                                                        const currentP1 = p1Id;
+                                                        const currentP2 = v;
+                                                        const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                        handleAssignment(divIdx, pairIdx, finalVal, maxPairs);
+                                                    }}
+                                                    placeholder="Jugador B"
+                                                />
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
         // For Americano/Mexicano: Select Pool from List with Search
         return (
             <div className="space-y-4">
@@ -329,19 +469,46 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
         const divisions: Division[] = [];
 
-        if (format === 'classic' || format === 'individual') {
+        if (format === 'classic' || format === 'individual' || format === 'pairs') {
             for (let i = 0; i < numDivisions; i++) {
                 const p = assignments[i] || [];
                 // Filter empty players
                 const activePlayers = p.filter(x => x);
 
-                const minP = 4;
-                if (activePlayers.length < minP) return alert(`Mínimo ${minP} jugadores en Div ${i + 1}`);
+                const minP = format === 'pairs' ? 2 : 4;
+                if (activePlayers.length < minP) return alert(`Mínimo ${format === 'pairs' ? '2 Parejas' : '4 Jugadores'} en Div ${i + 1}`);
 
                 let matches: any[] = [];
                 if (format === 'classic') {
                     if (activePlayers.length !== 4) return alert(`La División ${i + 1} debe tener exactamente 4 jugadores en liga clásica`);
                     matches = MatchGenerator.generateClassic4(activePlayers, i);
+                } else if (format === 'pairs') {
+                    // Pairs Generation
+                    const pairStrings = p.filter(x => x && x.includes('-') && !x.startsWith('-') && !x.endsWith('-'));
+                    if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
+
+                    const pairs = pairStrings.map(s => s.split('-'));
+                    // Flatten players for division.players
+                    const flatPlayers = pairs.flat();
+
+                    // RE-assign activePlayers to flatPlayers so the division object is correct? 
+                    // NO, 'activePlayers' variable above is used? 
+                    // Let's override the 'activePlayers' usage or just create division object with it.
+                    // Actually, 'activePlayers' calculated earlier was just filtering 'p'. 
+                    // For pairs, 'p' contains "id-id".
+                    // So 'activePlayers' (the var) contains ["id-id", "id-id"].
+                    // Division expects FLAT list of IDs.
+
+                    matches = MatchGenerator.generatePairsLeague(pairs, i);
+
+                    divisions.push({
+                        id: `div-${Date.now()}-${i}`,
+                        numero: i + 1,
+                        status: 'activa',
+                        players: flatPlayers, // Store flat list of IDs
+                        matches: matches
+                    });
+                    continue; // Skip the default push below
                 } else {
                     // Individual matches (League generation)
                     matches = MatchGenerator.generateIndividualLeague(activePlayers, i);
