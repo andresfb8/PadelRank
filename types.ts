@@ -50,7 +50,7 @@ export interface Ranking {
   nombre: string;
   categoria: 'Masculino' | 'Femenino' | 'Mixto';
   fechaInicio: string;
-  status: 'activo' | 'finalizado';
+  status: 'activo' | 'finalizado' | 'pausado';
   divisions: Division[];
   publicUrl?: string;
   ownerId?: string;

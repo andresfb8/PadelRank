@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon } from 'lucide-react';
 import { Button } from './ui/Components';
 import { Ranking, User } from '../types';
@@ -12,21 +13,27 @@ interface Props {
 
 export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete }: Props) => {
 
+  const [tab, setTab] = React.useState<'activos' | 'historial'>('activos');
+
+  const filteredRankings = rankings.filter(r => {
+    if (tab === 'activos') return r.status === 'activo' || r.status === 'pausado';
+    return r.status === 'finalizado';
+  });
+
   // Helper to group by owner
   const groupedRankings = () => {
-    if (!users || users.length === 0) return { 'Mis Torneos': rankings };
+    if (!users || users.length === 0) return { 'Mis Torneos': filteredRankings };
 
     const groups: Record<string, Ranking[]> = {};
     const ownerMap = new Map(users.map(u => [u.id, u.name || u.email || 'Usuario Desconocido']));
 
-    rankings.forEach(r => {
+    filteredRankings.forEach(r => {
       const ownerName = r.ownerId ? (ownerMap.get(r.ownerId) || 'Desconocido') : 'Sin Propietario';
       const key = r.ownerId ? ownerName : 'Públicos / Sin Asignar';
       if (!groups[key]) groups[key] = [];
       groups[key].push(r);
     });
 
-    // Sort keys? Or just return
     return groups;
   };
 
@@ -34,22 +41,38 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
   const hasMultipleGroups = Object.keys(groups).length > 1;
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Torneos</h2>
           <p className="text-gray-500">Gestiona las competiciones y rankings</p>
         </div>
-        <Button onClick={onCreateClick} className="flex items-center gap-2">
-          <Plus size={18} /> Nuevo Ranking
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="bg-gray-100 p-1 rounded-lg flex text-sm font-medium">
+            <button
+              onClick={() => setTab('activos')}
+              className={`px-4 py-1.5 rounded-md transition-all ${tab === 'activos' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Activos
+            </button>
+            <button
+              onClick={() => setTab('historial')}
+              className={`px-4 py-1.5 rounded-md transition-all ${tab === 'historial' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Historial
+            </button>
+          </div>
+          <Button onClick={onCreateClick} className="flex items-center gap-2">
+            <Plus size={18} /> Nuevo Ranking
+          </Button>
+        </div>
       </div>
 
-      {rankings.length === 0 ? (
+      {filteredRankings.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
           <Trophy size={48} className="mx-auto text-gray-300 mb-3" />
-          <h3 className="text-lg font-medium text-gray-900">No hay torneos creados</h3>
-          <p className="text-gray-500 mb-4">Crea tu primer ranking para comenzar</p>
+          <h3 className="text-lg font-medium text-gray-900">No hay torneos en esta sección</h3>
+          <p className="text-gray-500 mb-4">{tab === 'activos' ? 'Crea un nuevo torneo para comenzar' : 'Los torneos finalizados aparecerán aquí'}</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -77,8 +100,11 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                     <div className="relative z-10">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex gap-2">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {ranking.status === 'activo' ? 'Activo' : 'Finalizado'}
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
+                            ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                            {ranking.status === 'activo' ? 'Activo' : ranking.status === 'pausado' ? 'Pausado' : 'Finalizado'}
                           </span>
                           <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-50 text-blue-700 uppercase tracking-wider">
                             {ranking.format === 'americano' ? 'Americano' :

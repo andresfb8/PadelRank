@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save } from 'lucide-react';
-import { Button, Card, Badge } from './ui/Components';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle } from 'lucide-react';
+import { Button, Card, Badge, Modal } from './ui/Components';
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
@@ -26,6 +26,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [copied, setCopied] = useState(false);
   const [isAddDivModalOpen, setIsAddDivModalOpen] = useState(false);
   const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
@@ -71,14 +72,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         else if (updatedMatch.points.p2 > updatedMatch.points.p1) p2Won = true;
       } else {
         // Set based
-        // Check setsWon via Logic service or simplistic check
-        // We can use the pts in 'points' which for Classic are 4,3,2,1,0.
-        // If p1 points > p2 points -> Pair 1 Won.
         if (updatedMatch.points.p1 > updatedMatch.points.p2) p1Won = true;
         else if (updatedMatch.points.p2 > updatedMatch.points.p1) p2Won = true;
-        // Draw -> No winner (no increment of PG/PP? usually draw is 0.5 or just PJ++)
-        // Existing stats logic: PG is win, PP is loss. Draw increments neither? 
-        // Let's check logic: PG is only if won.
       }
 
       const p1Ids = [updatedMatch.pair1.p1Id, updatedMatch.pair1.p2Id];
@@ -205,8 +200,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     alert(`✅ Roda ${nextRound} generada (${newMatches.length} partidos).`);
   };
 
-  const showGenerateRound = isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || (ranking.format === 'individual' && ranking.config?.courts)); // Individual usually pre-generated? Or round by round? User said "random", can be round by round.
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -220,9 +213,28 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           <div className="flex-1">
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">{ranking.nombre}</h2>
             <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mt-1">
-              <span className={`uppercase font-medium text-xs px-2 py-0.5 rounded-full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                {ranking.status}
-              </span>
+              {isAdmin && onUpdateRanking ? (
+                <button
+                  onClick={() => setIsStatusModalOpen(true)}
+                  className={`uppercase font-medium text-xs px-3 py-1 rounded-full flex items-center gap-1.5 transition-all hover:scale-105 shadow-sm border ${ranking.status === 'activo' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
+                      ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
+                        'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                    }`}
+                  title="Cambiar estado del torneo"
+                >
+                  {ranking.status === 'activo' ? <Play size={10} fill="currentColor" /> :
+                    ranking.status === 'pausado' ? <PauseCircle size={10} /> : <CheckCircle size={10} />}
+                  {ranking.status}
+                  <Settings size={12} className="ml-1 opacity-50" />
+                </button>
+              ) : (
+                <span className={`uppercase font-medium text-xs px-2 py-0.5 rounded-full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
+                    ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
+                      'bg-gray-100 text-gray-600'
+                  }`}>
+                  {ranking.status}
+                </span>
+              )}
               <span>•</span>
               <span>{ranking.categoria}</span>
             </div>
@@ -246,20 +258,15 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             title="Copiar URL Pública"
           >
             {copied ? (
-              <>
-                <Check size={18} /> <span className="text-sm font-medium">Copiado</span>
-              </>
+              <> <Check size={18} /> <span className="text-sm font-medium">Copiado</span> </>
             ) : (
-              <div className="flex items-center gap-2">
-                <Share2 size={18} /> <span className="md:hidden text-sm">Compartir</span>
-              </div>
+              <div className="flex items-center gap-2"> <Share2 size={18} /> <span className="md:hidden text-sm">Compartir</span> </div>
             )}
           </Button>
         </div>
       </div>
 
       {/* Division Tabs */}
-      {/* Division Tabs - Hide for Mexicano/Americano and Single Division UNLESS History exists */}
       {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs') && (
         <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
           <button
@@ -301,7 +308,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <Plus size={16} />
             </button>
           )}
-          {/* Rules Tab for Multi-Division */}
           <button
             onClick={() => setActiveTab('rules')}
             className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 flex items-center gap-2 ${activeTab === 'rules'
@@ -314,7 +320,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         </div>
       )}
 
-      {/* Single Group Tabs (Mexicano/Americano ONLY) - Classic/Individual handled above now to show Global */}
+      {/* Single Group Tabs */}
       {(ranking.format === 'mexicano' || ranking.format === 'americano') && (
         <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 mb-4">
           <button
@@ -415,7 +421,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                 className="w-full h-64 p-4 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-700 leading-relaxed bg-gray-50"
                 placeholder="Escribe aquí las normas del torneo (puntuación, desempates, comportamiento, etc.)"
                 defaultValue={ranking.rules || ''}
-                key={ranking.rules} // Force re-render if rules change (e.g. via button)
+                key={ranking.rules}
                 onBlur={(e) => {
                   const newRules = e.target.value;
                   if (newRules !== ranking.rules) {
@@ -552,9 +558,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                   }
 
                   let posClass = "bg-white text-gray-700";
-                  // Promotion zone: Pos 1-2, but not for Div 1
                   if (activeDivision && activeDivision.numero > 1 && row.pos <= 2) posClass = "bg-green-100 text-green-800 border-r border-green-200";
-                  // Relegation zone: Pos 3-4, BUT NOT for the LAST division
                   if (!isLastDivision && row.pos >= 3) posClass = "bg-red-100 text-red-800 border-r border-red-200";
 
                   const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
@@ -598,7 +602,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {matches.map((m) => {
-                  // Graceful fallback if player data is missing/deleted
                   const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
                   const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
                   const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
@@ -699,6 +702,74 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           onConfirm={handleConfirmPromotion}
         />
       )}
+
+      {/* Status Management Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title="Gestión del Estado del Torneo"
+      >
+        <div className="grid grid-cols-1 gap-4">
+          <button
+            onClick={() => { onUpdateRanking && onUpdateRanking({ ...ranking, status: 'activo' }); setIsStatusModalOpen(false); }}
+            className={`p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${ranking.status === 'activo'
+                ? 'border-green-500 bg-green-50'
+                : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
+              }`}
+          >
+            <div className={`p-3 rounded-full ${ranking.status === 'activo' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              <Play size={24} fill="currentColor" />
+            </div>
+            <div className="text-left">
+              <h4 className="font-bold text-gray-900">Activo</h4>
+              <p className="text-sm text-gray-500">El torneo está en curso. Los jugadores pueden ver resultados y clasificaciones.</p>
+            </div>
+            {ranking.status === 'activo' && <CheckCircle className="ml-auto text-green-500" />}
+          </button>
+
+          <button
+            onClick={() => { onUpdateRanking && onUpdateRanking({ ...ranking, status: 'pausado' }); setIsStatusModalOpen(false); }}
+            className={`p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${ranking.status === 'pausado'
+                ? 'border-orange-500 bg-orange-50'
+                : 'border-gray-200 hover:border-orange-300 hover:bg-gray-50'
+              }`}
+          >
+            <div className={`p-3 rounded-full ${ranking.status === 'pausado' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              <PauseCircle size={24} />
+            </div>
+            <div className="text-left">
+              <h4 className="font-bold text-gray-900">Pausado</h4>
+              <p className="text-sm text-gray-500">Detener temporalmente. No se pueden introducir nuevos resultados.</p>
+            </div>
+            {ranking.status === 'pausado' && <CheckCircle className="ml-auto text-orange-500" />}
+          </button>
+
+          <button
+            onClick={() => {
+              if (confirm('¿Estás seguro de finalizar el torneo? Se moverá al historial.')) {
+                onUpdateRanking && onUpdateRanking({ ...ranking, status: 'finalizado' });
+                setIsStatusModalOpen(false);
+              }
+            }}
+            className={`p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${ranking.status === 'finalizado'
+                ? 'border-gray-500 bg-gray-50'
+                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+          >
+            <div className={`p-3 rounded-full ${ranking.status === 'finalizado' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              <CheckCircle size={24} />
+            </div>
+            <div className="text-left">
+              <h4 className="font-bold text-gray-900">Finalizado</h4>
+              <p className="text-sm text-gray-500">Torneo concluido. Se archiva en el historial y es de solo lectura.</p>
+            </div>
+            {ranking.status === 'finalizado' && <CheckCircle className="ml-auto text-gray-800" />}
+          </button>
+        </div>
+        <div className="mt-6 flex justify-end">
+          <Button variant="secondary" onClick={() => setIsStatusModalOpen(false)}>Cancelar</Button>
+        </div>
+      </Modal>
     </div>
   );
 };
