@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db, secondaryAuth } from '../services/firebase';
 import { Player, Ranking, Match, Division, User } from '../types';
@@ -37,6 +37,7 @@ import { migratePlayersStats } from '../services/migration';
 
 export const AdminLayout = () => {
     const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management'>('login');
+    const [isRegistering, setIsRegistering] = useState(false);
 
     // Auth
     const [firebaseUser, setFirebaseUser] = useState<any>(null);
@@ -311,7 +312,6 @@ export const AdminLayout = () => {
         if (!activeRanking) return;
         // ... Copy logic from App.tsx ...
         const updatedDivisions = activeRanking.divisions.map(div => {
-            if (!div.matches.some(m => m.id === matchId)) return div;
             const updatedMatches = div.matches.map(m => {
                 if (m.id === matchId) {
                     return {
@@ -336,32 +336,75 @@ export const AdminLayout = () => {
         updateRanking(updatedR);
     };
 
+    // Handle Register
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const email = (document.getElementById('email') as HTMLInputElement).value;
+        const pass = (document.getElementById('password') as HTMLInputElement).value;
+        const name = (document.getElementById('name') as HTMLInputElement)?.value || email.split('@')[0];
 
-    // --- Render ---
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+            // Create User Profile in Firestore
+            await setDoc(doc(db, "users", userCredential.user.uid), {
+                email,
+                name,
+                role: 'public', // Default role for self-registration
+                status: 'active',
+                createdAt: new Date()
+            });
+            alert("Cuenta creada con éxito. Bienvenido.");
+        } catch (error: any) {
+            console.error(error);
+            alert("Error al registrarse: " + error.message);
+        }
+    };
 
-    if (view === 'login') {
+
+    // Render Login if no User
+    if (!firebaseUser) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-                    <div className="bg-primary p-8 text-center">
-                        <h1 className="text-3xl font-bold text-white mb-2">PadelRank Pro</h1>
-                        <p className="text-blue-100">Acceso Administrativo</p>
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-gray-100">
+                    <div className="text-center mb-6">
+                        <div className="h-16 w-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary-600">
+                            <Trophy size={32} />
+                        </div>
+                        <h1 className="text-2xl font-bold text-gray-900">PadelRank Pro</h1>
+                        <p className="text-gray-500 mt-2">{isRegistering ? 'Crear cuenta de Jugador' : 'Acceso a Gestión'}</p>
                     </div>
-                    <form onSubmit={handleLogin} className="p-8 space-y-4" autoComplete="off">
+
+                    <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+                        <button onClick={() => setIsRegistering(false)} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${!isRegistering ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Iniciar Sesión</button>
+                        <button onClick={() => setIsRegistering(true)} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${isRegistering ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Registrarse</button>
+                    </div>
+
+                    <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4" autoComplete="off">
+                        {isRegistering && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+                                <input type="text" id="name" required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" placeholder="Ej. Juan Pérez" />
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                            <input type="email" id="email" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" />
+                            <input type="email" id="email" required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" placeholder="tu@email.com" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                            <input type="password" id="password" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" />
+                            <input type="password" id="password" required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" placeholder="••••••••" />
                         </div>
-                        <Button className="w-full py-3 text-lg" onClick={() => { }}>Iniciar Sesión</Button>
+                        <Button className="w-full py-3 text-lg">{isRegistering ? 'Crear Cuenta' : 'Entrar'}</Button>
                     </form>
                 </div>
             </div>
         );
     }
+
+
+    const isPublicUser = currentUser?.role === 'public';
+    const playerList = Object.values(players) as Player[];
+    const activeRankings = rankings.filter(r => r.status === 'activo');
 
     return (
         <div className="min-h-screen flex bg-gray-50 text-gray-900 relative">
@@ -374,9 +417,22 @@ export const AdminLayout = () => {
                         </h2>
                     </div>
                     <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                        <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'dashboard' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
-                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Trophy size={20} /> Mis Torneos</button>
-                        <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'players' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
+                        {!isPublicUser && (
+                            <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'dashboard' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
+                        )}
+
+                        <button onClick={() => {
+                            const myPlayer = playerList.find(p => p.email === currentUser?.email);
+                            if (myPlayer) handleSelectPlayer(myPlayer);
+                            else alert("No se encontró tu perfil. Asegúrate de registrarte con el mismo email que te asignó el administrador.");
+                        }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'player_detail' && selectedPlayerForDetail?.email === currentUser?.email ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><UserIcon size={20} /> Mi Perfil</button>
+
+                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Trophy size={20} /> {isPublicUser ? 'Torneos' : 'Mis Torneos'}</button>
+
+                        {!isPublicUser && (
+                            <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'players' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
+                        )}
+
                         {currentUser?.role === 'superadmin' && (
                             <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'admin_management' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
                         )}
@@ -386,9 +442,6 @@ export const AdminLayout = () => {
                     </div>
                 </div>
             </aside>
-
-            {/* Mobile Overlay */}
-            {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
 
             {/* Main */}
             <div className="flex-1 flex flex-col min-w-0">
@@ -402,26 +455,47 @@ export const AdminLayout = () => {
                                     currentUser?.role === 'admin' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                                         'bg-gray-100 text-gray-600 border-gray-200'
                                     }`}>
-                                    {currentUser?.role}
+                                    {isPublicUser ? 'Jugador' : currentUser?.role}
                                 </span>
                             </div>
                         </div>
-                        <button onClick={() => setView('profile')} className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold hover:opacity-90">{currentUser?.role === 'superadmin' ? 'SA' : 'A'}</button>
+                        <button onClick={() => !isPublicUser && setView('profile')} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold hover:opacity-90 ${isPublicUser ? 'bg-gray-200 text-gray-600 cursor-default' : 'bg-primary text-white'}`}>
+                            {currentUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
+                        </button>
                     </div>
                 </header>
 
                 <main className="flex-1 p-6 overflow-y-auto">
-                    {view === 'dashboard' && (
+                    {/* Welcome / Dashboard */}
+                    {isPublicUser && view === 'dashboard' && (
+                        <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+                            <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center text-primary-600 mb-2">
+                                <Trophy size={48} />
+                            </div>
+                            <h2 className="text-3xl font-bold text-gray-900">¡Bienvenido, {currentUser?.name}!</h2>
+                            <p className="text-gray-500 max-w-md">
+                                Selecciona <strong>"Mi Perfil"</strong> en el menú para ver tus estadísticas o explora los <strong>"Torneos"</strong> disponibles.
+                            </p>
+                            <Button onClick={() => {
+                                const myPlayer = playerList.find(p => p.email === currentUser?.email);
+                                if (myPlayer) handleSelectPlayer(myPlayer);
+                                else alert("Aún no tienes un perfil de jugador vinculado. Contacta a un administrador.");
+                            }}>
+                                Ver Mi Perfil
+                            </Button>
+                        </div>
+                    )}
+
+                    {view === 'dashboard' && !isPublicUser && (
                         <div className="space-y-6">
-                            {/* KPI Cards */}
                             <div className="grid gap-6 md:grid-cols-3">
                                 <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
                                     <div>
                                         <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Torneos Activos</h3>
-                                        <p className="text-4xl font-bold text-gray-900">{rankings.filter(r => r.status === 'activo').length}</p>
-                                    </div>
-                                    <div className="h-14 w-14 bg-blue-50/80 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm">
-                                        <Trophy size={28} />
+                                        <p className="text-4xl font-bold text-gray-900">{activeRankings.length}</p>
+                                        <div className="h-14 w-14 bg-blue-50/80 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm">
+                                            <Trophy size={28} />
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
@@ -445,23 +519,19 @@ export const AdminLayout = () => {
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                {/* Tournament Progress */}
                                 <div className="lg:col-span-2 bg-white rounded-2xl shadow-soft border border-gray-100 p-8">
                                     <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                                         <Trophy className="text-primary-600" size={24} />
                                         Progreso de Torneos
                                     </h3>
                                     <div className="space-y-6">
-                                        {rankings.filter(r => r.status === 'activo').map(ranking => {
+                                        {activeRankings.map(ranking => {
                                             const totalMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.length, 0);
                                             const completedMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'finalizado').length, 0);
                                             const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
-
-                                            // Determine color based on type
                                             const colorClass = ranking.format === 'mexicano' ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
                                                 ranking.format === 'americano' ? 'bg-gradient-to-r from-purple-400 to-indigo-500' :
                                                     'bg-gradient-to-r from-blue-400 to-cyan-500';
-
                                             return (
                                                 <div key={ranking.id} className="bg-gray-50 rounded-lg p-4">
                                                     <div className="flex justify-between items-center mb-2">
@@ -478,30 +548,26 @@ export const AdminLayout = () => {
                                                 </div>
                                             );
                                         })}
-                                        {rankings.filter(r => r.status === 'activo').length === 0 && (
+                                        {activeRankings.length === 0 && (
                                             <p className="text-center text-gray-400 py-4">No hay torneos activos</p>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Top Players */}
                                 <div className="bg-white rounded-2xl shadow-soft border border-gray-100 p-8">
                                     <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                                         <Users className="text-accent-500" size={24} />
                                         Top Jugadores (Winrate)
                                     </h3>
                                     <div className="space-y-4">
-                                        {(Object.values(players) as Player[])
-                                            .filter(p => p.stats && p.stats.pj >= 5) // Min 5 games
+                                        {playerList
+                                            .filter(p => p.stats && p.stats.pj >= 5)
                                             .sort((a, b) => b.stats.winrate - a.stats.winrate)
                                             .slice(0, 5)
                                             .map((player, idx) => (
                                                 <div key={player.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
                                                     <div className="flex items-center gap-4">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-sm
-                                                            ${idx === 0 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-50' :
-                                                                idx === 1 ? 'bg-gray-100 text-gray-600 ring-2 ring-gray-50' :
-                                                                    idx === 2 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-50' : 'bg-gray-50 text-gray-400'}`}>
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${idx === 0 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-50' : idx === 1 ? 'bg-gray-100 text-gray-600 ring-2 ring-gray-50' : idx === 2 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-50' : 'bg-gray-50 text-gray-400'}`}>
                                                             {idx + 1}
                                                         </div>
                                                         <div className="text-sm font-semibold text-gray-700 truncate max-w-[140px]" title={`${player.nombre} ${player.apellidos}`}>
@@ -514,7 +580,7 @@ export const AdminLayout = () => {
                                                     </div>
                                                 </div>
                                             ))}
-                                        {(Object.values(players) as Player[]).filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
+                                        {playerList.filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
                                             <p className="text-sm text-gray-400 text-center py-6 italic">Faltan datos (mín 5 partidos)</p>
                                         )}
                                     </div>
@@ -529,7 +595,6 @@ export const AdminLayout = () => {
                                 </div>
                             </div>
 
-                            {/* Quick Actions */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <Button onClick={() => setView('ranking_create')} className="bg-indigo-600 hover:bg-indigo-700 h-auto py-4 flex flex-col items-center gap-2">
                                     <Trophy size={24} />
@@ -539,7 +604,6 @@ export const AdminLayout = () => {
                                     <Users size={24} />
                                     <span>Nuevo Jugador</span>
                                 </Button>
-                                {/* Placeholders for potential future actions */}
                             </div>
                         </div>
                     )}
@@ -576,17 +640,28 @@ export const AdminLayout = () => {
                         onUpdateRanking={handleUpdateRanking}
                         onUpdatePlayerStats={async (pid, result) => {
                             const { updatePlayerStatsFull } = await import('../services/db');
-                            // Map 'win' -> true, 'loss' -> false. Draw is not supported by legacy db function yet.
                             if (result === 'draw') return;
                             await updatePlayerStatsFull(pid, result === 'win');
                         }}
                     />}
-                    {view === 'admin_management' && currentUser?.role === 'superadmin' && <AdminManagement users={users} onApprove={(id) => updateUser({ id, status: 'active' })} onReject={(id) => updateUser({ id, status: 'rejected' })} onDelete={(id) => deleteUserDB(id)} onBlock={(id) => updateUser({ id, status: 'blocked' })} onUnblock={(id) => updateUser({ id, status: 'active' })} onCreate={handleCreateAdmin} onClearDB={clearDatabase} />}
+
+                    {view === 'admin_management' && currentUser?.role === 'superadmin' && (
+                        <AdminManagement
+                            users={users}
+                            onApprove={(id) => updateUser({ id, status: 'active' })}
+                            onReject={(id) => updateUser({ id, status: 'rejected' })}
+                            onDelete={(id) => deleteUserDB(id)}
+                            onBlock={(id) => updateUser({ id, status: 'blocked' })}
+                            onUnblock={(id) => updateUser({ id, status: 'active' })}
+                            onCreate={handleCreateAdmin}
+                            onClearDB={clearDatabase}
+                        />
+                    )}
+
                     {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} />}
                 </main>
             </div>
 
-            {/* Modals */}
             <PlayerModal isOpen={isPlayerModalOpen} onClose={() => setIsPlayerModalOpen(false)} onSave={handleSavePlayer} playerToEdit={editingPlayer} />
             {credentialsModal?.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
