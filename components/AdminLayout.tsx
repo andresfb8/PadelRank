@@ -10,6 +10,7 @@ import { RankingList } from './RankingList';
 import { RankingWizard } from './RankingWizard';
 import { MatchModal } from './MatchModal';
 import { PlayerList } from './PlayerList';
+import { PlayerDetailView } from './PlayerDetailView';
 import { AdminProfile } from './AdminProfile';
 import { AdminManagement } from './AdminManagement';
 import { PlayerModal } from './PlayerModal';
@@ -166,6 +167,7 @@ export const AdminLayout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+    const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState<Player | null>(null); // New state
     const [credentialsModal, setCredentialsModal] = useState<{ isOpen: boolean, email: string, pass: string } | null>(null);
 
     // Resize Listener
@@ -191,6 +193,11 @@ export const AdminLayout = () => {
     };
 
     const handleLogout = () => signOut(auth);
+
+    const handleSelectPlayer = (player: Player) => {
+        setSelectedPlayerForDetail(player);
+        setView('player_detail');
+    };
 
     const handleNavClick = (viewName: any) => {
         setView(viewName);
@@ -537,7 +544,27 @@ export const AdminLayout = () => {
                         </div>
                     )}
 
-                    {view === 'players' && <PlayerList players={players} onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }} onEditPlayer={(p) => { setEditingPlayer(p); setIsPlayerModalOpen(true) }} onDeletePlayer={handleDeletePlayer} onDeletePlayers={handleDeletePlayers} onImportPlayers={handleImportPlayers} />}
+                    {view === 'player_detail' && selectedPlayerForDetail && (
+                        <PlayerDetailView
+                            player={selectedPlayerForDetail}
+                            players={players}
+                            rankings={rankings}
+                            onBack={() => {
+                                setView('players');
+                                setSelectedPlayerForDetail(null);
+                            }}
+                        />
+                    )}
+
+                    {view === 'players' && <PlayerList
+                        players={players}
+                        onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
+                        onEditPlayer={(p) => { setEditingPlayer(p); setIsPlayerModalOpen(true) }}
+                        onDeletePlayer={handleDeletePlayer}
+                        onDeletePlayers={handleDeletePlayers}
+                        onImportPlayers={handleImportPlayers}
+                        onSelectPlayer={handleSelectPlayer}
+                    />}
                     {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} />}
                     {view === 'ranking_create' && <RankingWizard players={players} onCancel={() => setView('ranking_list')} onSave={handleSaveRanking} />}
                     {view === 'ranking_detail' && activeRanking && <RankingView

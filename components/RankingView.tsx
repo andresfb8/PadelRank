@@ -62,7 +62,13 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     // ONLY for Classic (Ranking) and Individual formats. Exclude Americano/Mexicano.
     const isRankedFormat = ranking.format === 'classic' || ranking.format === 'individual';
 
-    if (updatedMatch.status === 'finalizado' && onUpdatePlayerStats && activeDivision && isRankedFormat) {
+    // Only update stats if the match was NOT already finished (prevents double counting on edits)
+    // Note: If a user edits a result (e.g. changes winner), stats won't auto-correct with this simple check.
+    // They would need manual adjustment or a full recalculation feature.
+    const previousStatus = activeDivision.matches[matchIndex].status;
+    const isFirstTimeFinalizing = updatedMatch.status === 'finalizado' && previousStatus !== 'finalizado';
+
+    if (isFirstTimeFinalizing && onUpdatePlayerStats && activeDivision && isRankedFormat) {
       // Determine winner
       // P1 vs P2
       // For simplicity in Classic/Individual (Set based)
@@ -546,7 +552,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                 <tr>
                   <th className="px-4 py-3 text-center w-12 sticky left-0 bg-gray-50 z-10">#</th>
-                  <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Jugador</th>
+                  <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">Jugador</th>
                   <th className="px-4 py-3 text-center">Partidos</th>
                   <th className="px-4 py-3 text-center">PTS</th>
                   <th className="px-4 py-3 text-center">PG</th>
@@ -565,7 +571,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10">{row.pos}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        <div className="truncate max-w-[120px] sm:max-w-none">{player.nombre} {player.apellidos}</div>
+                        <div className="truncate max-w-[260px]" title={`${player.nombre} ${player.apellidos}`}>{player.nombre} {player.apellidos}</div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
                       <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>
@@ -597,7 +603,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                 <tr>
                   <th className="px-4 py-3 text-center w-12 sticky left-0 bg-gray-50 z-10">Pos</th>
-                  <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Jugador</th>
+                  <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">Jugador</th>
                   <th className="px-4 py-3 text-center">PJ</th>
                   <th className="px-4 py-3 text-center">PTS</th>
                   <th className="px-4 py-3 text-center">% Vic</th>
@@ -631,7 +637,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                       <td className={`px-4 py-3 text-center font-bold sticky left-0 z-10 ${posClass}`}>{row.pos}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        <div className="truncate max-w-[200px] sm:max-w-none" title={playerName}>{playerName}</div>
+                        <div className="truncate max-w-[260px]" title={playerName}>{playerName}</div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
                       <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>

@@ -18,6 +18,7 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
         telefono: '',
         fechaNacimiento: '',
     });
+    const [stats, setStats] = useState({ pj: 0, pg: 0, pp: 0 });
 
     useEffect(() => {
         if (playerToEdit) {
@@ -28,16 +29,22 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
                 telefono: playerToEdit.telefono,
                 fechaNacimiento: playerToEdit.fechaNacimiento || '',
             });
+            setStats(playerToEdit.stats || { pj: 0, pg: 0, pp: 0 });
         } else {
             setFormData({ nombre: '', apellidos: '', email: '', telefono: '', fechaNacimiento: '' });
+            setStats({ pj: 0, pg: 0, pp: 0 });
         }
     }, [playerToEdit, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const winrate = stats.pj > 0 ? Math.round((stats.pg / stats.pj) * 100) : 0;
+
         onSave({
             ...formData,
             id: playerToEdit?.id,
+            // @ts-ignore - We are extending the type dynamically here to support stats editing
+            stats: { ...stats, winrate }
         });
         onClose();
     };
@@ -123,6 +130,42 @@ export const PlayerModal = ({ isOpen, onClose, onSave, playerToEdit }: Props) =>
                             onChange={(e) => setFormData({ ...formData, fechaNacimiento: e.target.value })}
                         />
                     </div>
+
+                    {/* Stats Editing (Admin Only - Implicit via user role but visible here for simplicity) */}
+                    {playerToEdit && (
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-2">Estadísticas (Manual)</h4>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Jugados</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-primary outline-none text-center"
+                                        value={stats.pj}
+                                        onChange={(e) => setStats({ ...stats, pj: parseInt(e.target.value) || 0 })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Ganados</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-primary outline-none text-center"
+                                        value={stats.pg}
+                                        onChange={(e) => setStats({ ...stats, pg: parseInt(e.target.value) || 0 })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Perdidos</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-primary outline-none text-center"
+                                        value={stats.pp}
+                                        onChange={(e) => setStats({ ...stats, pp: parseInt(e.target.value) || 0 })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pt-4 flex gap-3 sticky bottom-0 bg-white pb-2">
                         <Button variant="secondary" onClick={onClose} type="button" className="flex-1">

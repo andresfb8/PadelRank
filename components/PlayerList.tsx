@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from './ui/Components';
 import { Player } from '../types';
-import { Trash2, ArrowUpDown, ArrowUp, ArrowDown, Edit, Download, Upload } from 'lucide-react';
+import { Trash2, ArrowUpDown, ArrowUp, ArrowDown, Edit, Download, Upload, User } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Props {
@@ -11,12 +11,13 @@ interface Props {
   onDeletePlayer: (id: string) => void;
   onDeletePlayers: (ids: string[]) => void;
   onImportPlayers: (players: any[]) => void;
+  onSelectPlayer: (player: Player) => void;
 }
 
 type SortField = 'nombre' | 'pj' | 'pg' | 'pp' | 'winrate';
 type SortDirection = 'asc' | 'desc';
 
-export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer, onDeletePlayers, onImportPlayers }: Props) => {
+export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer, onDeletePlayers, onImportPlayers, onSelectPlayer }: Props) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('nombre');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -242,7 +243,12 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
                     />
                   </td>
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-gray-900">{p.nombre} {p.apellidos}</div>
+                    <button
+                      onClick={() => onSelectPlayer(p)}
+                      className="font-semibold text-gray-900 hover:text-primary-600 hover:underline text-left"
+                    >
+                      {p.nombre} {p.apellidos}
+                    </button>
                   </td>
                   <td className="px-6 py-4 text-gray-600">
                     {p.fechaNacimiento ? new Date(p.fechaNacimiento).toLocaleDateString('es-ES') : '-'}
@@ -300,7 +306,10 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
                 </div>
               </div>
               <div className="flex flex-col gap-2 ml-4">
-                <button onClick={() => onEditPlayer(p)} className="p-2 bg-gray-50 text-gray-600 rounded-xl hover:bg-blue-50 hover:text-primary-600">
+                <button onClick={() => onSelectPlayer(p)} className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100">
+                  <User size={20} />
+                </button>
+                <button onClick={() => onEditPlayer(p)} className="p-2 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 hover:text-primary-600">
                   <Edit size={20} />
                 </button>
               </div>
