@@ -10,7 +10,7 @@ const createMatch = (
     p4Id: string,
     court?: number
 ): Match => ({
-    id: `m-${Date.now()}-${divIndex}-${jornada}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `m-${crypto.randomUUID()}`,
     jornada,
     pair1: { p1Id, p2Id },
     pair2: { p1Id: p3Id, p2Id: p4Id },
@@ -52,70 +52,97 @@ export const MatchGenerator = {
         // Optimization: Randomized Backtracking with Retries
         // 500 attempts should be enough for N=8, 12. N=16 might be tougher but fast enough.
 
-        for (let attempt = 0; attempt < 500; attempt++) {
+        // Improved Americano Generator: High-Volume Randomized Greedy with Backtracking
+        // This is much more robust for N > 12 than simple shuffling.
+        const maxAttempts = 5000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
             const schedule: Match[] = [];
             const partnerHistory = new Set<string>();
-            let validSchedule = true;
+            let scheduleValid = true;
 
+            // We need to generate 'targetRounds' rounds
             for (let r = 1; r <= targetRounds; r++) {
-                // Try to generate a round 100 times before failing the schedule
                 let roundMatches: Match[] = [];
-                let roundFound = false;
 
-                for (let roundAttempt = 0; roundAttempt < 100; roundAttempt++) {
-                    // Shuffle players
-                    const shuf = [...ids].sort(() => Math.random() - 0.5);
-                    const pairs: string[][] = [];
-                    let pIndex = 0;
+                // For this round, we need to pair up all players directly
+                // Candidates pool
+                let roundPlayers = [...ids];
+                // Shuffle for randomness
+                roundPlayers.sort(() => Math.random() - 0.5);
 
-                    // Form pairs
-                    while (pIndex + 1 < shuf.length) {
-                        pairs.push([shuf[pIndex], shuf[pIndex + 1]]);
-                        pIndex += 2;
+                let roundPairs: string[][] = [];
+                let roundValid = true;
+
+                // Try to pair them up greedily
+                while (roundPlayers.length > 0) {
+                    if (roundPlayers.length === 1) {
+                        // Odd player out? Should not happen if N is even.
+                        // If N is odd, this logic needs "Bye" handling which is not fully scoped here.
+                        // Assuming N is even for standard Americano.
+                        roundValid = false;
+                        break;
                     }
 
-                    // Check if pairs are valid (never played together)
-                    let pairsOk = true;
-                    for (const p of pairs) {
-                        const k = [p[0], p[1]].sort().join('-');
-                        if (partnerHistory.has(k)) {
-                            pairsOk = false;
+                    const p1 = roundPlayers[0];
+                    // Find a valid partner for p1 from the rest
+                    let validPartnerIndex = -1;
+
+                    // Simple search for first valid partner
+                    for (let i = 1; i < roundPlayers.length; i++) {
+                        const p2 = roundPlayers[i];
+                        const k = [p1, p2].sort().join('-');
+                        if (!partnerHistory.has(k)) {
+                            validPartnerIndex = i;
                             break;
                         }
                     }
 
-                    if (pairsOk) {
-                        // Create matches from pairs
-                        // Pair 0 vs Pair 1, Pair 2 vs Pair 3...
-                        // If odd pairs (e.g. 5 pairs), last one sits? Or N % 4 != 0 logic.
-                        // Ideally N % 4 == 0 for Perfect Americano.
-
-                        // Register history
-                        pairs.forEach(p => partnerHistory.add([p[0], p[1]].sort().join('-')));
-
-                        for (let i = 0; i < pairs.length; i += 2) {
-                            if (i + 1 < pairs.length) {
-                                const court = courts > 0 ? ((i / 2) % courts) + 1 : undefined;
-                                roundMatches.push(createMatch(0, r,
-                                    pairs[i][0], pairs[i][1],
-                                    pairs[i + 1][0], pairs[i + 1][1],
-                                    court
-                                ));
-                            }
-                        }
-                        roundFound = true;
+                    if (validPartnerIndex !== -1) {
+                        const p2 = roundPlayers[validPartnerIndex];
+                        roundPairs.push([p1, p2]);
+                        // Remove p1 and p2
+                        roundPlayers.splice(validPartnerIndex, 1); // Remove p2 first to keep index 0 valid
+                        roundPlayers.shift(); // Remove p1
+                    } else {
+                        // Dead end for this round
+                        roundValid = false;
                         break;
                     }
                 }
 
-                if (!roundFound) {
-                    validSchedule = false;
+                if (!roundValid) {
+                    scheduleValid = false;
                     break;
                 }
+
+                // Create matches for this round from the pairs
+                // 4 players -> 1 match. 2 Pairs.
+                // We need to pair the PAIRS now. (Opponents do not matter for "Partner" validity).
+                // Just group pairs 0-1, 2-3...
+                for (let i = 0; i < roundPairs.length; i += 2) {
+                    if (i + 1 < roundPairs.length) {
+                        // Register History ONLY when match is confirmed
+                        const pair1 = roundPairs[i];
+                        const pair2 = roundPairs[i + 1];
+
+                        partnerHistory.add([pair1[0], pair1[1]].sort().join('-'));
+                        partnerHistory.add([pair2[0], pair2[1]].sort().join('-'));
+
+                        const court = courts > 0 ? ((i / 2) % courts) + 1 : undefined;
+                        roundMatches.push(createMatch(0, r,
+                            pair1[0], pair1[1],
+                            pair2[0], pair2[1],
+                            court
+                        ));
+                    }
+                }
+
                 schedule.push(...roundMatches);
             }
 
-            if (validSchedule) {
+            if (scheduleValid) {
+                console.log(`Americano schedule generated efficiently in ${attempt + 1} attempts`);
                 return schedule;
             }
         }

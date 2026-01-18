@@ -48,7 +48,7 @@ service cloud.firestore {
       // Update/Delete only by SuperAdmin (status management) or maybe Name editing?
       // Let's restrict to SuperAdmin for management critical fields. 
       // Safe generic rule: SuperAdmin does everything. Self can Update non-critical?
-      allow write: if isSuperAdmin();
+      allow write: if isUser(userId) || isSuperAdmin();
     }
 
     // 2. Rankings (Torneos)

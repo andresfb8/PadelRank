@@ -292,8 +292,33 @@ export function calculatePromotions(ranking: Ranking): {
     if (!nextPhasePlayers[divNum - 1] && !isFirst) nextPhasePlayers[divNum - 1] = [];
     if (!nextPhasePlayers[divNum + 1] && !isLast) nextPhasePlayers[divNum + 1] = [];
 
+    // Exclude retired players from current division list for promotion calculations
+    // But keep them in the loop to identify their position if needed, or better, just filter them out from 'nextPhasePlayers' logic?
+    // If we filter them out BEFORE standings, the pos index changes. We want them to APPEAR in standings but NOT Move to next phase.
+
+    // We already have 'standings' which includes everyone who played.
+    // Check if player is retired
+    const retiredSet = new Set(div.retiredPlayers || []);
+
     standings.forEach((row, posIndex) => {
+      // If retired, do not add to next phase, do not generate movement (or generate 'retired' movement?)
+      if (retiredSet.has(row.playerId)) {
+        return;
+      }
+
+      // We need to re-calculate "effective position" excluding retired players above them?
+      // Or we just stick to their actual position? 
+      // User said: "el jugador retirado debe desaparecer de las divisiones...".
+      // Let's stick effectively to: simply NOT pushing them to nextPhasePlayers.
+
       const pos = posIndex + 1; // 1-based position
+
+      // CAUTION: If a top player retires, does the 3rd place promote? 
+      // Usually yes. But implementing that dynamic "sliding" logic is complex.
+      // MVP Approach: Stick to fixed positions. If pos 1 retires, only pos 2 promotes. 
+      // (User didn't specify dynamic filling).
+      // However, to ensure division size consistency (4), we might need to be smarter.
+      // But let's start simple as requested: "el jugador retirado... debe desaparecer".
 
       // Promotion Logic (Top 2 go up, except in Div 1)
       if (pos <= 2 && !isFirst) {

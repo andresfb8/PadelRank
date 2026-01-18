@@ -63,37 +63,25 @@ export const AdminLayout = () => {
             return;
         }
 
-        const unsubscribeProfile = subscribeToUserProfile(firebaseUser.uid, async (user) => {
+        const unsubscribeProfile = subscribeToUserProfile(firebaseUser.uid, (user) => {
             if (user) {
                 // FORCE SUPERADMIN: Setup self-healing for owner
                 if (user.email === 'andresfb8@gmail.com' && user.role !== 'superadmin') {
                     console.log("Healing Superadmin Role...");
-                    // We need to call updateUser but it's async and we are in a sync callback.
-                    // We can just fire it. 
-                    // Note: 'updateUser' takes {id, ...partial}.
                     updateUser({ id: user.id, role: 'superadmin' } as any);
                 }
                 setCurrentUser(user);
             } else {
                 // AUTO-FIX: If we have an Auth User but no Firestore Profile, CREATE IT.
-                // This handles "Start from 0" by establishing a valid profile for the Auth ID.
                 console.warn("User Profile missing for Auth ID. Auto-creating...");
-                try {
-                    // We can't use 'addUser' because it generates a random ID. 
-                    // We must use strict ID matching Auth UID.
-                    // We need to import setDoc/doc from firestore or add a helper in db.ts.
-                    // Let's assume we can use the 'setDoc' exported from db.ts (which I need to check if exported).
-                    // Actually, db.ts exports setDoc. 
-                    await setDoc(doc(db, "users", firebaseUser.uid), {
-                        email: firebaseUser.email || "",
-                        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuario",
-                        role: firebaseUser.email === 'andresfb8@gmail.com' ? 'superadmin' : 'admin',
-                        status: 'pending',
-                        createdAt: new Date()
-                    });
-                } catch (err) {
-                    console.error("Auto-creation failed:", err);
-                }
+                // Fire and forget to avoid async callback issues
+                setDoc(doc(db, "users", firebaseUser.uid), {
+                    email: firebaseUser.email || "",
+                    name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Usuario",
+                    role: firebaseUser.email === 'andresfb8@gmail.com' ? 'superadmin' : 'admin',
+                    status: 'pending',
+                    createdAt: new Date()
+                }).catch(err => console.error("Auto-creation failed:", err));
             }
         });
         return () => unsubscribeProfile();
@@ -151,7 +139,7 @@ export const AdminLayout = () => {
                 });
             }
             setPlayers(visibleData);
-        }, undefined);
+        }, ownerIdFilter);
 
         // Sub Rankings
         // Sub Rankings
@@ -561,7 +549,9 @@ export const AdminLayout = () => {
                         onUpdateRanking={handleUpdateRanking}
                         onUpdatePlayerStats={async (pid, result) => {
                             const { updatePlayerStatsFull } = await import('../services/db');
-                            await updatePlayerStatsFull(pid, result);
+                            // Map 'win' -> true, 'loss' -> false. Draw is not supported by legacy db function yet.
+                            if (result === 'draw') return;
+                            await updatePlayerStatsFull(pid, result === 'win');
                         }}
                     />}
                     {view === 'admin_management' && currentUser?.role === 'superadmin' && <AdminManagement users={users} onApprove={(id) => updateUser({ id, status: 'active' })} onReject={(id) => updateUser({ id, status: 'rejected' })} onDelete={(id) => deleteUserDB(id)} onBlock={(id) => updateUser({ id, status: 'blocked' })} onUnblock={(id) => updateUser({ id, status: 'active' })} onCreate={handleCreateAdmin} onClearDB={clearDatabase} />}

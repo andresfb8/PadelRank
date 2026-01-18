@@ -61,15 +61,26 @@ export const deleteUser = async (id: string) => {
 // --- PLAYERS ---
 
 export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void, ownerId?: string) => {
-    // Hybrid Approach: Always fetch ALL players (ordered by name)
-    // We will filter them on the client side (App.tsx) to show Own + Unowned.
-    const q = query(collection(db, "players"), orderBy("nombre"));
+    let q;
+
+    if (ownerId) {
+        // Optimized: Only fetch players owned by this user
+        // Note: orderBy requires an index if mixed with where(). 
+        // If sorting by 'nombre', we need a composite index "ownerId ASC, nombre ASC".
+        // Use 'orderBy' only if index exists, otherwise let client sort?
+        // Safe bet: Query by ownerId, filter/sort client side if index missing.
+        // But user request implies optimizing *fetching*.
+        // Let's try simple query first.
+        q = query(collection(db, "players"), where("ownerId", "==", ownerId));
+    } else {
+        // Fallback or Superadmin: Fetch all (careful with scale)
+        q = query(collection(db, "players"), orderBy("nombre"));
+    }
 
     return onSnapshot(q, (snapshot) => {
         const playersMap: Record<string, Player> = {};
         snapshot.forEach((doc) => {
             const data = doc.data();
-            // Defensive: ensure stats exists for backward compatibility
             const player: Player = {
                 id: doc.id,
                 ...data,
@@ -134,22 +145,35 @@ export const updatePlayerStats = async (playerId: string, won: boolean) => {
 };
 
 // Enhanced updatePlayerStats with GetDoc
-import { getDoc } from "firebase/firestore";
+import { getDoc, runTransaction } from "firebase/firestore";
 
 export const updatePlayerStatsFull = async (playerId: string, won: boolean) => {
     const playerRef = doc(db, "players", playerId);
-    const snap = await getDoc(playerRef);
-    if (!snap.exists()) return;
 
-    const data = snap.data() as Player;
-    const stats = data.stats || { pj: 0, pg: 0, pp: 0, winrate: 0 };
+    try {
+        await runTransaction(db, async (transaction) => {
+            const sfDoc = await transaction.get(playerRef);
+            if (!sfDoc.exists()) {
+                throw "Player does not exist!";
+            }
 
-    stats.pj += 1;
-    if (won) stats.pg += 1;
-    else stats.pp += 1;
-    stats.winrate = Math.round((stats.pg / stats.pj) * 100);
+            const data = sfDoc.data() as Player;
+            // Initialize stats if missing (defensive)
+            const stats = data.stats || { pj: 0, pg: 0, pp: 0, winrate: 0 };
 
-    await updateDoc(playerRef, { stats });
+            stats.pj += 1;
+            if (won) stats.pg += 1;
+            else stats.pp += 1;
+
+            // Recalculate winrate safely
+            stats.winrate = stats.pj > 0 ? Math.round((stats.pg / stats.pj) * 100) : 0;
+
+            transaction.update(playerRef, { stats });
+        });
+        console.log("Stats updated successfully via transaction.");
+    } catch (e) {
+        console.error("Transaction failed: ", e);
+    }
 };
 
 export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {

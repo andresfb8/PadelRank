@@ -25,7 +25,7 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
     const matches: Match[] = [];
     const [p0, p1, p2, p3] = playerIds;
     const createMatch = (jornada: number, p1Id: string, p2Id: string, p3Id: string, p4Id: string): Match => ({
-      id: `m-new-${Date.now()}-${jornada}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `m-new-${crypto.randomUUID()}`,
       jornada,
       pair1: { p1Id, p2Id },
       pair2: { p1Id: p3Id, p2Id: p4Id },
@@ -43,7 +43,7 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
     if (new Set(selectedPlayers).size !== 4) return alert("Hay jugadores duplicados");
 
     const newDivision: Division = {
-      id: `div-new-${Date.now()}`,
+      id: `div-new-${crypto.randomUUID()}`,
       numero: nextDivisionNumber,
       status: 'activa',
       players: selectedPlayers,

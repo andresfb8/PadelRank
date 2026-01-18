@@ -24,49 +24,71 @@ export const PromotionModal = ({ isOpen, onClose, movements, players, onConfirm 
     <Modal isOpen={isOpen} onClose={onClose} title="Finalizar Fase y Ejecutar Ascensos">
       <div className="space-y-6">
         <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex gap-3">
-           <AlertTriangle className="text-yellow-600 flex-shrink-0" />
-           <p className="text-sm text-yellow-800">
-             Al confirmar, se cerrará la fase actual, se moverán los jugadores según sus resultados y se generará un nuevo calendario de partidos. Esta acción no se puede deshacer.
-           </p>
+          <AlertTriangle className="text-yellow-600 flex-shrink-0" />
+          <div className="text-sm text-yellow-800">
+            <p className="mb-2">
+              Al confirmar, se cerrará la fase actual, se moverán los jugadores según sus resultados y se generará un nuevo calendario.
+            </p>
+            {(() => {
+              // Validation: Check resulting division sizes
+              const counts: Record<number, number> = {};
+              movements.forEach(m => {
+                counts[m.toDiv] = (counts[m.toDiv] || 0) + 1;
+              });
+              const badDivs = Object.entries(counts)
+                .filter(([div, count]) => count !== 4)
+                .map(([div]) => div);
+
+              if (badDivs.length > 0) {
+                return (
+                  <div className="font-bold text-red-600 mt-2">
+                    ⚠️ Atención: Las siguientes divisiones no tendrán 4 jugadores: {badDivs.map(d => `Div ${d}`).join(', ')}.
+                    Esto puede romper el formato Clásico.
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </div>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto pr-2">
-           <h4 className="font-bold text-gray-700 mb-3">Vista Previa de Movimientos</h4>
-           <div className="space-y-1">
-             {sortedMovements.map((mov, idx) => {
-                const player = players[mov.playerId];
-                if (!player) return null;
-                
-                let icon = <Minus size={16} className="text-gray-400" />;
-                let textClass = "text-gray-600";
-                let bgClass = "bg-white";
-                let actionText = "Mantiene categoría";
+          <h4 className="font-bold text-gray-700 mb-3">Vista Previa de Movimientos</h4>
+          <div className="space-y-1">
+            {sortedMovements.map((mov, idx) => {
+              const player = players[mov.playerId];
+              if (!player) return null;
 
-                if (mov.type === 'up') {
-                    icon = <ArrowUp size={16} className="text-green-600" />;
-                    textClass = "text-green-700 font-medium";
-                    bgClass = "bg-green-50 border-green-100";
-                    actionText = `Asciende a Div ${mov.toDiv}`;
-                } else if (mov.type === 'down') {
-                    icon = <ArrowDown size={16} className="text-red-600" />;
-                    textClass = "text-red-700 font-medium";
-                    bgClass = "bg-red-50 border-red-100";
-                    actionText = `Desciende a Div ${mov.toDiv}`;
-                }
+              let icon = <Minus size={16} className="text-gray-400" />;
+              let textClass = "text-gray-600";
+              let bgClass = "bg-white";
+              let actionText = "Mantiene categoría";
 
-                return (
-                  <div key={idx} className={`flex items-center justify-between p-3 rounded border ${bgClass} text-sm`}>
-                     <div className="flex items-center gap-3">
-                        <span className="text-gray-400 font-mono text-xs w-12">Div {mov.fromDiv}</span>
-                        <span className="font-medium text-gray-900">{player.nombre} {player.apellidos}</span>
-                     </div>
-                     <div className={`flex items-center gap-2 ${textClass}`}>
-                        {actionText} {icon}
-                     </div>
+              if (mov.type === 'up') {
+                icon = <ArrowUp size={16} className="text-green-600" />;
+                textClass = "text-green-700 font-medium";
+                bgClass = "bg-green-50 border-green-100";
+                actionText = `Asciende a Div ${mov.toDiv}`;
+              } else if (mov.type === 'down') {
+                icon = <ArrowDown size={16} className="text-red-600" />;
+                textClass = "text-red-700 font-medium";
+                bgClass = "bg-red-50 border-red-100";
+                actionText = `Desciende a Div ${mov.toDiv}`;
+              }
+
+              return (
+                <div key={idx} className={`flex items-center justify-between p-3 rounded border ${bgClass} text-sm`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-400 font-mono text-xs w-12">Div {mov.fromDiv}</span>
+                    <span className="font-medium text-gray-900">{player.nombre} {player.apellidos}</span>
                   </div>
-                );
-             })}
-           </div>
+                  <div className={`flex items-center gap-2 ${textClass}`}>
+                    {actionText} {icon}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t">

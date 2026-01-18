@@ -37,7 +37,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
   const isCustomMode = rankingConfig?.scoringMode === 'custom';
   // If not custom and totalPoints exists, P2 is auto-calculated.
   // If custom, P2 is manual (or 0 if empty).
-  const pointsP2 = isCustomMode ? (parseInt(pointsP2Manual) || 0) : ((totalPoints && pointsP1) ? totalPoints - parseInt(pointsP1) : 0);
+  const pointsP2 = isCustomMode ? (parseInt(pointsP2Manual) || 0) : ((totalPoints && pointsP1) ? totalPoints - (parseInt(pointsP1) || 0) : 0);
 
 
   useEffect(() => {

@@ -7,10 +7,6 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import * as admin from "firebase-admin";
-
-admin.initializeApp();
-
 // Cloud Functions can be added here as needed
 // Example:
 // export const helloWorld = functions.https.onRequest((request, response) => {

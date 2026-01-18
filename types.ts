@@ -66,6 +66,7 @@ export interface Division {
   numero: number;
   status: 'activa' | 'finalizada';
   players: string[]; // Player IDs
+  retiredPlayers?: string[]; // IDs of players who left during the phase
   matches: Match[];
 }
 

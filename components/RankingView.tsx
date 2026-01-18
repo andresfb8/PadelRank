@@ -1,7 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle } from 'lucide-react';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
+import { SearchableSelect } from './SearchableSelect';
+
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
@@ -29,6 +30,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
+  const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '' });
 
   const handleMatchClick = (m: Match) => {
     setSelectedMatch(m);
@@ -153,6 +156,72 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
   if (!ranking) return <div className="p-8 text-center text-gray-500">Torneo no encontrado</div>;
 
+  const handleSubstitutePlayer = () => {
+    if (!activeDivision || !onUpdateRanking || !substituteData.oldPlayerId || !substituteData.newPlayerId) return;
+
+    if (!confirm(`¿Estás seguro de sustituir a este jugador? 
+      - El jugador saliente se marcará como retirado (mantendrá sus puntos jugados).
+      - El jugador entrante empezará con 0 puntos y jugará los partidos pendientes.`)) {
+      return;
+    }
+
+    const { oldPlayerId, newPlayerId } = substituteData;
+
+    // 1. Update Division Players: Keep old (for history), Add new
+    const updatedPlayers = [...activeDivision.players];
+    if (!updatedPlayers.includes(newPlayerId)) {
+      updatedPlayers.push(newPlayerId);
+    }
+
+    // 2. Mark old as retired
+    const updatedRetired = [...(activeDivision.retiredPlayers || []), oldPlayerId];
+
+    // 3. Update Pending Matches
+    const updatedMatches = activeDivision.matches.map(m => {
+      if (m.status !== 'pendiente') return m; // Don't touch finished matches
+
+      let p1Changed = false;
+      let p2Changed = false;
+
+      let newPair1 = { ...m.pair1 };
+      let newPair2 = { ...m.pair2 };
+
+      // Check Pair 1
+      if (newPair1.p1Id === oldPlayerId) { newPair1.p1Id = newPlayerId; p1Changed = true; }
+      if (newPair1.p2Id === oldPlayerId) { newPair1.p2Id = newPlayerId; p1Changed = true; }
+
+      // Check Pair 2
+      if (newPair2.p1Id === oldPlayerId) { newPair2.p1Id = newPlayerId; p2Changed = true; }
+      if (newPair2.p2Id === oldPlayerId) { newPair2.p2Id = newPlayerId; p2Changed = true; }
+
+      if (p1Changed || p2Changed) {
+        return {
+          ...m,
+          pair1: newPair1,
+          pair2: newPair2
+        };
+      }
+      return m;
+    });
+
+    const updatedDivision = {
+      ...activeDivision,
+      players: updatedPlayers,
+      retiredPlayers: updatedRetired,
+      matches: updatedMatches
+    };
+
+    const updatedRanking = {
+      ...ranking,
+      divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
+    };
+
+    onUpdateRanking(updatedRanking);
+    setIsSubstituteModalOpen(false);
+    setSubstituteData({ oldPlayerId: '', newPlayerId: '' });
+    alert("Jugador sustituido correctamente.");
+  };
+
   const handleGenerateNextRound = () => {
     if (!onUpdateRanking || !activeDivision) return;
 
@@ -251,6 +320,11 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <Flag size={16} /> <span className="hidden sm:inline">Finalizar Fase</span>
             </Button>
           )}
+          {isAdmin && onUpdateRanking && activeDivision && (
+            <Button onClick={() => setIsSubstituteModalOpen(true)} className="bg-gray-600 hover:bg-gray-700 text-white flex items-center gap-2 text-sm px-3 py-2">
+              <Users size={16} /> <span className="hidden sm:inline">Sustituir</span>
+            </Button>
+          )}
           <Button
             variant="secondary"
             className={`!p-2 text-primary flex items-center gap-2 transition-all ${copied ? 'bg-green-50 !text-green-600' : ''}`}
@@ -308,15 +382,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <Plus size={16} />
             </button>
           )}
-          <button
-            onClick={() => setActiveTab('rules')}
-            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 flex items-center gap-2 ${activeTab === 'rules'
-              ? 'border-primary text-primary bg-white'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            <BookOpen size={16} /> Normas
-          </button>
         </div>
       )}
 
@@ -353,44 +418,43 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             </h3>
           </div>
 
-          {ranking.format === 'classic' ? (
-            <div className="prose max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed">
-              <p className="font-bold text-gray-900 mb-2">3. PUNTUACIÓN Y CLASIFICACIÓN</p>
-              <p>Se premia cada set conseguido para fomentar la competitividad:</p>
-              <ul className="list-disc pl-5 mb-4 space-y-1">
-                <li>Victoria 2-0: 4 Puntos.</li>
-                <li>Victoria 2-1: 3 Puntos.</li>
-                <li>Empate: 2 Puntos.</li>
-                <li>Derrota 1-2: 1 Punto.</li>
-                <li>Derrota 0-2: 0 Puntos.</li>
-              </ul>
-              <p className="italic text-sm text-gray-500 mb-4">(Nota: Si un partido no se juega, ningún jugador recibe puntos).</p>
-
-              <p className="font-bold text-gray-900 mb-2">Criterios de desempate:</p>
-              <p>En caso de igualdad a puntos, el orden se decide por:</p>
-              <ol className="list-decimal pl-5 mb-6 space-y-1">
-                <li>Puntos totales.</li>
-                <li>Diferencia de sets.</li>
-                <li>Diferencia de juegos.</li>
-                <li>Sets ganados.</li>
-                <li>Juegos ganados.</li>
-                <li>Sorteo.</li>
-              </ol>
-
-              <p className="font-bold text-gray-900 mb-2">4. FORMATO DE PARTIDO Y REGLAMENTO</p>
-              <p className="mb-2"><span className="font-semibold">Estructura:</span> Partidos al mejor de 3 sets con Punto de Oro. Los dos primeros sets se juega Tie Break si se llega al 5-5. El tercer set, si fuera necesario, sería un Súper Tie-Break a 11 puntos. Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.</p>
-
-              <p className="font-semibold text-gray-900 mb-2">Regla de la "Alarma" (Partidos de 1 hora):</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>Los jugadores deben poner una alarma de 1 hora al inicio de la reserva (recomendamos llegar antes del inicio para calentar y jugar la hora completa).</li>
-                <li>Si suena la alarma y hay reserva posterior: gana quien vaya por delante en el marcador en ese instante. (Ej: si el Equipo A gana el primer set y luego va ganando el segundo set cuando acaba la hora, gana el equipo A, pero si el equipo A gana el primer set pero el segundo set va ganando el equipo B por 3 o más juegos al acabar la hora, se considera ganado el segundo set por el equipo B y el partido quedaría empate).</li>
-                <li>Si hay empate al sonar la alarma, se juega un último punto decisivo.</li>
-              </ul>
-            </div>
-          ) : isAdmin && onUpdateRanking ? (
+          {isAdmin && onUpdateRanking ? (
             <div className="space-y-4">
-              {ranking.format === 'pairs' && (
-                <div className="flex justify-end mb-2">
+              <div className="flex justify-end mb-2 gap-2">
+                {ranking.format === 'classic' && (
+                  <Button
+                    onClick={() => {
+                      const defaultRules = `**3. PUNTUACIÓN Y CLASIFICACIÓN**\n` +
+                        `Se premia cada set conseguido para fomentar la competitividad:\n` +
+                        `- Victoria 2-0: 4 Puntos.\n` +
+                        `- Victoria 2-1: 3 Puntos.\n` +
+                        `- Empate: 2 Puntos.\n` +
+                        `- Derrota 1-2: 1 Punto.\n` +
+                        `- Derrota 0-2: 0 Puntos.\n` +
+                        `*(Nota: Si un partido no se juega, ningún jugador recibe puntos).*\n\n` +
+                        `**Criterios de desempate:**\n` +
+                        `En caso de igualdad a puntos, el orden se decide por:\n` +
+                        `1. Puntos totales.\n` +
+                        `2. Diferencia de sets.\n` +
+                        `3. Diferencia de juegos.\n` +
+                        `4. Sets ganados.\n` +
+                        `5. Juegos ganados.\n` +
+                        `6. Sorteo.\n\n` +
+                        `**4. FORMATO DE PARTIDO Y REGLAMENTO**\n` +
+                        `**Estructura:** Partidos al mejor de 3 sets con Punto de Oro. Los dos primeros sets se juega Tie Break si se llega al 5-5. El tercer set, si fuera necesario, sería un Súper Tie-Break a 11 puntos. Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.\n\n` +
+                        `**Regla de la "Alarma" (Partidos de 1 hora):**\n` +
+                        `- Los jugadores deben poner una alarma de 1 hora al inicio de la reserva (recomendamos llegar antes del inicio para calentar y jugar la hora completa).\n` +
+                        `- Si suena la alarma y hay reserva posterior: gana quien vaya por delante en el marcador en ese instante. (Ej: si el Equipo A gana el primer set y luego va ganando el segundo set cuando acaba la hora, gana el equipo A, pero si el equipo A gana el primer set pero el segundo set va ganando el equipo B por 3 o más juegos al acabar la hora, se considera ganado el segundo set por el equipo B y el partido quedaría empate).\n` +
+                        `- Si hay empate al sonar la alarma, se juega un último punto decisivo.`;
+                      onUpdateRanking({ ...ranking, rules: defaultRules });
+                    }}
+                    variant="secondary"
+                    className="text-indigo-600 bg-indigo-50 border-indigo-100 hover:bg-indigo-100 flex items-center gap-2 text-sm"
+                  >
+                    <Edit2 size={16} /> Cargar Normas Clásicas (CPSJ)
+                  </Button>
+                )}
+                {ranking.format === 'pairs' && (
                   <Button
                     onClick={() => {
                       const defaultRules = `**3. PUNTUACIÓN Y CLASIFICACIÓN (PAREJAS)**\n\n` +
@@ -415,8 +479,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                   >
                     <Edit2 size={16} /> Cargar Normas Estándar
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
               <textarea
                 className="w-full h-64 p-4 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-700 leading-relaxed bg-gray-50"
                 placeholder="Escribe aquí las normas del torneo (puntuación, desempates, comportamiento, etc.)"
@@ -768,6 +832,48 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         </div>
         <div className="mt-6 flex justify-end">
           <Button variant="secondary" onClick={() => setIsStatusModalOpen(false)}>Cancelar</Button>
+        </div>
+      </Modal>
+
+      {/* Substitute Modal */}
+      <Modal
+        isOpen={isSubstituteModalOpen}
+        onClose={() => setIsSubstituteModalOpen(false)}
+        title="Sustituir Jugador (Lesión/Abandono)"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 bg-yellow-50 p-3 rounded border border-yellow-200">
+            Esta acción reemplazará al jugador en todos los partidos <strong>pendientes</strong>.
+            El jugador saliente conservará sus puntos actuales pero no ascenderá/descenderá.
+            El nuevo jugador entrará con 0 puntos.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Jugador que Sale (Retirado)</label>
+            <SearchableSelect
+              options={activeDivision?.players.map(pid => ({ id: pid, label: `${players[pid]?.nombre} ${players[pid]?.apellidos}` })) || []}
+              value={substituteData.oldPlayerId}
+              onChange={(v) => setSubstituteData({ ...substituteData, oldPlayerId: v })}
+              placeholder="Seleccionar jugador..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Jugador que Entra (Nuevo)</label>
+            <SearchableSelect
+              options={Object.values(players).filter(p => !activeDivision?.players.includes(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }))}
+              value={substituteData.newPlayerId}
+              onChange={(v) => setSubstituteData({ ...substituteData, newPlayerId: v })}
+              placeholder="Seleccionar sustituto..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="secondary" onClick={() => setIsSubstituteModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSubstitutePlayer} disabled={!substituteData.oldPlayerId || !substituteData.newPlayerId}>
+              Confirmar Sustitución
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

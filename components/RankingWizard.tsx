@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info } from 'lucide-react';
+import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X } from 'lucide-react';
 import { Button, Card, Input } from './ui/Components';
 import { Player, Ranking, RankingFormat, RankingConfig, Division, ScoringMode } from '../types';
 import { SearchableSelect } from './SearchableSelect';
@@ -97,7 +97,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
                         // Pairs Defaults
                         if (f.id === 'pairs') {
-                            setIndividualMaxPlayers(0);
+                            setIndividualMaxPlayers(6);
                             setConfig(prev => ({
                                 ...prev,
                                 promotionCount: 0,
@@ -502,7 +502,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     matches = MatchGenerator.generatePairsLeague(pairs, i);
 
                     divisions.push({
-                        id: `div-${Date.now()}-${i}`,
+                        id: `div-${crypto.randomUUID()}`,
                         numero: i + 1,
                         status: 'activa',
                         players: flatPlayers, // Store flat list of IDs
@@ -515,7 +515,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 }
 
                 divisions.push({
-                    id: `div-${Date.now()}-${i}`,
+                    id: `div-${crypto.randomUUID()}`,
                     numero: i + 1,
                     status: 'activa',
                     players: activePlayers,
@@ -535,7 +535,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             }
 
             divisions.push({
-                id: `div-${Date.now()}-0`,
+                id: `div-${crypto.randomUUID()}`,
                 numero: 1,
                 status: 'activa',
                 players: selectedPlayerIds,
@@ -544,7 +544,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         }
 
         const newRanking: Ranking = {
-            id: `r-${Date.now()}`,
+            id: `r-${crypto.randomUUID()}`,
             nombre: name,
             categoria: category,
             fechaInicio: startDate,
@@ -609,4 +609,4 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 };
 
 // Missing X definition
-const X = ({ size }: { size: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>;
+

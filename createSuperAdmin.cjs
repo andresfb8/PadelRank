@@ -1,9 +1,7 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('./padelrank-pro-app-2025-firebase-adminsdk-fbsvc-cc9aa0f7b1.json');
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
+// Use GOOGLE_APPLICATION_CREDENTIALS environment variable or default credentials
+admin.initializeApp();
 
 const db = admin.firestore();
 const auth = admin.auth();
