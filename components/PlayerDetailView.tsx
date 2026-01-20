@@ -146,7 +146,84 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
             }
         });
 
-        return { history: history.reverse(), enhancedStats: { bestPartner, biggestNemesis, recentForm: recentForm.slice(-5).reverse() } }; // Most recent first
+        // --- New Stats: Sets/Games & Streaks ---
+        let totalSetsWon = 0;
+        let totalSetsPlayed = 0;
+        let totalGamesWon = 0;
+        let totalGamesPlayed = 0;
+
+        // Iterate history for detailed stats
+        history.forEach(h => {
+            const { match, result } = h;
+            if (match.status !== 'finalizado') return;
+
+            // Check for Sets/Games if Classic/Individual
+            if (match.score) {
+                const sets = [match.score.set1, match.score.set2, match.score.set3].filter(Boolean);
+                if (sets.length > 0) {
+                    // It's a set-based match
+                    sets.forEach(s => {
+                        if (!s) return;
+                        // Determine my side
+                        const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
+                        const myG = p1InPair1 ? s.p1 : s.p2;
+                        const oppG = p1InPair1 ? s.p2 : s.p1;
+
+                        totalGamesPlayed += (myG + oppG);
+                        totalGamesWon += myG;
+
+                        totalSetsPlayed++;
+                        if (myG > oppG) totalSetsWon++;
+                    });
+                } else if (match.score.pointsScored) {
+                    // Americano/Mexicano (Treat points as "Games" for efficiency or just track them)
+                    // For now, let's treat them as Games to have a unified "Scoring Efficiency"
+                    const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
+                    const myPts = p1InPair1 ? match.score.pointsScored.p1 : match.score.pointsScored.p2;
+                    const oppPts = p1InPair1 ? match.score.pointsScored.p2 : match.score.pointsScored.p1;
+
+                    totalGamesPlayed += (myPts + oppPts);
+                    totalGamesWon += myPts;
+                    // These formats don't really have "Sets", usually 1 set.
+                    totalSetsPlayed++;
+                    if (myPts > oppPts) totalSetsWon++;
+                }
+            }
+        });
+
+        // Streaks
+        let currentStreak = 0;
+        let bestStreak = 0;
+        let tempStreak = 0;
+
+        // History is Oldest -> Newest (based on push order)
+        // Check streaks
+        history.forEach(h => {
+            if (h.result === 'Win') {
+                tempStreak++;
+                if (tempStreak > bestStreak) bestStreak = tempStreak;
+            } else if (h.result === 'Loss' || h.result === 'Draw') {
+                tempStreak = 0;
+            }
+        });
+
+        // Current streak is the streak at the end
+        // BUT we need to be careful if the last match was Pending (ignored in the loop above? No, result is based on status)
+        // Let's re-calculate current from the end backwards to be safe or just use tempStreak if we are sure history is ordered
+        // Using tempStreak is correct if history is ordered.
+        currentStreak = tempStreak;
+
+        return {
+            history: history.reverse(),
+            enhancedStats: {
+                bestPartner,
+                biggestNemesis,
+                recentForm: recentForm.slice(-5).reverse(),
+                sets: { won: totalSetsWon, total: totalSetsPlayed },
+                games: { won: totalGamesWon, total: totalGamesPlayed },
+                streaks: { current: currentStreak, best: bestStreak }
+            }
+        }; // Most recent first
     }, [player, rankings]);
 
     return (
@@ -250,6 +327,53 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                     ) : (
                         <div className="text-center py-8 text-gray-400 italic">¡Imparable! (Sin datos)</div>
                     )}
+                </Card>
+            </div>
+
+            {/* Additional Stats Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Sets & Games Efficiency */}
+                <Card className="p-6">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Activity size={18} className="text-blue-500" /> Eficiencia
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                        <div>
+                            <div className="text-2xl font-bold text-gray-800">
+                                {enhancedStats.sets.total > 0 ? Math.round((enhancedStats.sets.won / enhancedStats.sets.total) * 100) : 0}%
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">Sets Ganados</div>
+                            <div className="text-xs text-gray-400">({enhancedStats.sets.won}/{enhancedStats.sets.total})</div>
+                        </div>
+                        <div>
+                            <div className="text-2xl font-bold text-gray-800">
+                                {enhancedStats.games.total > 0 ? Math.round((enhancedStats.games.won / enhancedStats.games.total) * 100) : 0}%
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">Juegos Ganados</div>
+                            <div className="text-xs text-gray-400">({enhancedStats.games.won}/{enhancedStats.games.total})</div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Streaks */}
+                <Card className="p-6">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <TrendingUp size={18} className="text-orange-500" /> Rachas
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                        <div>
+                            <div className="text-2xl font-bold text-gray-800 flex items-center justify-center gap-1">
+                                {enhancedStats.streaks.current} <span className="text-lg">🔥</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">Racha Actual</div>
+                        </div>
+                        <div>
+                            <div className="text-2xl font-bold text-gray-800 flex items-center justify-center gap-1">
+                                {enhancedStats.streaks.best} <span className="text-lg">🏆</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">Mejor Racha</div>
+                        </div>
+                    </div>
                 </Card>
             </div>
 
