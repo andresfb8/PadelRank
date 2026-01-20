@@ -167,10 +167,6 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                     </div>
                     <div className="flex-1 text-center md:text-left">
                         <h1 className="text-3xl font-bold mb-2">{player.nombre} {player.apellidos}</h1>
-                        <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm text-slate-300">
-                            <span className="flex items-center gap-1"><User size={16} /> {player.email}</span>
-                            <span className="flex items-center gap-1"><Calendar size={16} /> {player.fechaNacimiento || 'Fecha N/A'}</span>
-                        </div>
                     </div>
 
                     {/* Key Stats Pill */}

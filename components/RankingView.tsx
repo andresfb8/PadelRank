@@ -19,9 +19,10 @@ interface Props {
   onUpdateRanking?: (ranking: Ranking) => void;
   isAdmin?: boolean;
   onUpdatePlayerStats?: (playerId: string, result: 'win' | 'loss' | 'draw') => void;
+  onPlayerClick?: (playerId: string) => void;
 }
 
-export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats }: Props) => {
+export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick }: Props) => {
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules'>('standings');
   const [copied, setCopied] = useState(false);
@@ -571,7 +572,17 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10">{row.pos}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        <div className="truncate max-w-[260px]" title={`${player.nombre} ${player.apellidos}`}>{player.nombre} {player.apellidos}</div>
+                        {onPlayerClick ? (
+                          <button
+                            onClick={() => onPlayerClick(row.playerId)}
+                            className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
+                            title={`${player.nombre} ${player.apellidos}`}
+                          >
+                            {player.nombre} {player.apellidos}
+                          </button>
+                        ) : (
+                          <div className="truncate max-w-[260px]" title={`${player.nombre} ${player.apellidos}`}>{player.nombre} {player.apellidos}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
                       <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>
@@ -637,7 +648,17 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                       <td className={`px-4 py-3 text-center font-bold sticky left-0 z-10 ${posClass}`}>{row.pos}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        <div className="truncate max-w-[260px]" title={playerName}>{playerName}</div>
+                        {onPlayerClick && !isPair ? (
+                          <button
+                            onClick={() => onPlayerClick(row.playerId)}
+                            className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
+                            title={playerName}
+                          >
+                            {playerName}
+                          </button>
+                        ) : (
+                          <div className="truncate max-w-[260px]" title={playerName}>{playerName}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
                       <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>

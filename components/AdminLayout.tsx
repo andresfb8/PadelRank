@@ -371,21 +371,10 @@ export const AdminLayout = () => {
                             <Trophy size={32} />
                         </div>
                         <h1 className="text-2xl font-bold text-gray-900">PadelRank Pro</h1>
-                        <p className="text-gray-500 mt-2">{isRegistering ? 'Crear cuenta de Jugador' : 'Acceso a Gestión'}</p>
+                        <p className="text-gray-500 mt-2">Acceso a Gestión</p>
                     </div>
 
-                    <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
-                        <button onClick={() => setIsRegistering(false)} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${!isRegistering ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Iniciar Sesión</button>
-                        <button onClick={() => setIsRegistering(true)} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${isRegistering ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Registrarse</button>
-                    </div>
-
-                    <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4" autoComplete="off">
-                        {isRegistering && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-                                <input type="text" id="name" required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" placeholder="Ej. Juan Pérez" />
-                            </div>
-                        )}
+                    <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                             <input type="email" id="email" required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" placeholder="tu@email.com" />
@@ -394,7 +383,7 @@ export const AdminLayout = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
                             <input type="password" id="password" required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-primary" placeholder="••••••••" />
                         </div>
-                        <Button className="w-full py-3 text-lg">{isRegistering ? 'Crear Cuenta' : 'Entrar'}</Button>
+                        <Button className="w-full py-3 text-lg">Entrar</Button>
                     </form>
                 </div>
             </div>
@@ -420,12 +409,6 @@ export const AdminLayout = () => {
                         {!isPublicUser && (
                             <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'dashboard' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
                         )}
-
-                        <button onClick={() => {
-                            const myPlayer = playerList.find(p => p.email === currentUser?.email);
-                            if (myPlayer) handleSelectPlayer(myPlayer);
-                            else alert("No se encontró tu perfil. Asegúrate de registrarte con el mismo email que te asignó el administrador.");
-                        }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'player_detail' && selectedPlayerForDetail?.email === currentUser?.email ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><UserIcon size={20} /> Mi Perfil</button>
 
                         <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Trophy size={20} /> {isPublicUser ? 'Torneos' : 'Mis Torneos'}</button>
 
@@ -474,14 +457,10 @@ export const AdminLayout = () => {
                             </div>
                             <h2 className="text-3xl font-bold text-gray-900">¡Bienvenido, {currentUser?.name}!</h2>
                             <p className="text-gray-500 max-w-md">
-                                Selecciona <strong>"Mi Perfil"</strong> en el menú para ver tus estadísticas o explora los <strong>"Torneos"</strong> disponibles.
+                                Explora los <strong>"Torneos"</strong> disponibles para ver clasificaciones y estadísticas.
                             </p>
-                            <Button onClick={() => {
-                                const myPlayer = playerList.find(p => p.email === currentUser?.email);
-                                if (myPlayer) handleSelectPlayer(myPlayer);
-                                else alert("Aún no tienes un perfil de jugador vinculado. Contacta a un administrador.");
-                            }}>
-                                Ver Mi Perfil
+                            <Button onClick={() => setView('ranking_list')}>
+                                Ver Torneos
                             </Button>
                         </div>
                     )}
@@ -614,8 +593,13 @@ export const AdminLayout = () => {
                             players={players}
                             rankings={rankings}
                             onBack={() => {
-                                setView('players');
                                 setSelectedPlayerForDetail(null);
+                                // Return to previous view - could be 'players' or 'ranking_detail'
+                                if (activeRankingId) {
+                                    setView('ranking_detail');
+                                } else {
+                                    setView('players');
+                                }
                             }}
                         />
                     )}
@@ -638,6 +622,13 @@ export const AdminLayout = () => {
                         onBack={() => setView('ranking_list')}
                         onAddDivision={handleAddDivision}
                         onUpdateRanking={handleUpdateRanking}
+                        onPlayerClick={(playerId) => {
+                            const player = players[playerId];
+                            if (player) {
+                                setSelectedPlayerForDetail(player);
+                                setView('player_detail');
+                            }
+                        }}
                         onUpdatePlayerStats={async (pid, result) => {
                             const { updatePlayerStatsFull } = await import('../services/db');
                             if (result === 'draw') return;

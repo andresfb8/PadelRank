@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy } from 'lucide-react';
+import { Trophy, ArrowLeft } from 'lucide-react';
 import { RankingView } from './RankingView';
+import { PlayerDetailView } from './PlayerDetailView';
 import { Player, Ranking } from '../types';
 import { subscribeToPlayers, subscribeToRankings } from '../services/db';
 
@@ -12,6 +13,7 @@ export const PublicLayout = ({ rankingId }: Props) => {
     const [players, setPlayers] = useState<Record<string, Player>>({});
     const [rankings, setRankings] = useState<Ranking[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
     // Subscribe to Data
     useEffect(() => {
@@ -35,6 +37,15 @@ export const PublicLayout = ({ rankingId }: Props) => {
     }, []);
 
     const activeRanking = rankings.find(r => r.id === rankingId);
+    const selectedPlayer = selectedPlayerId ? players[selectedPlayerId] : null;
+
+    const handlePlayerClick = (playerId: string) => {
+        setSelectedPlayerId(playerId);
+    };
+
+    const handleBackToRanking = () => {
+        setSelectedPlayerId(null);
+    };
 
     if (loading) {
         return <div className="min-h-screen flex items-center justify-center text-gray-500">Cargando torneo...</div>;
@@ -56,12 +67,22 @@ export const PublicLayout = ({ rankingId }: Props) => {
             </header>
 
             <main className="p-4 md:p-8 max-w-7xl mx-auto">
-                <RankingView
-                    ranking={activeRanking}
-                    players={players}
-                    isAdmin={false} // STRICTLY FALSE
-                    onBack={() => { }} // No back button in public view implies "Top Level"
-                />
+                {selectedPlayer ? (
+                    <PlayerDetailView
+                        player={selectedPlayer}
+                        players={players}
+                        rankings={rankings}
+                        onBack={handleBackToRanking}
+                    />
+                ) : (
+                    <RankingView
+                        ranking={activeRanking}
+                        players={players}
+                        isAdmin={false} // STRICTLY FALSE
+                        onBack={() => { }} // No back button in public view implies "Top Level"
+                        onPlayerClick={handlePlayerClick}
+                    />
+                )}
             </main>
         </div>
     );
