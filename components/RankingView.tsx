@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
-import { SearchableSelect } from './SearchableSelect';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
