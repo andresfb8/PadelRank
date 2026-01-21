@@ -11,6 +11,7 @@ import { RankingWizard } from './RankingWizard';
 import { MatchModal } from './MatchModal';
 import { PlayerList } from './PlayerList';
 import { PlayerDetailView } from './PlayerDetailView';
+import { PairDetailView } from './PairDetailView';
 import { AdminProfile } from './AdminProfile';
 import { AdminManagement } from './AdminManagement';
 import { PlayerModal } from './PlayerModal';
@@ -36,7 +37,7 @@ import { migratePlayersStats } from '../services/migration';
 
 
 export const AdminLayout = () => {
-    const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management'>('login');
+    const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management' | 'player_detail' | 'pair_detail'>('login');
     const [isRegistering, setIsRegistering] = useState(false);
 
     // Auth
@@ -169,6 +170,7 @@ export const AdminLayout = () => {
     const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
     const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState<Player | null>(null); // New state
+    const [selectedPairIdForDetail, setSelectedPairIdForDetail] = useState<string | null>(null);
     const [credentialsModal, setCredentialsModal] = useState<{ isOpen: boolean, email: string, pass: string } | null>(null);
 
     // Resize Listener
@@ -604,6 +606,18 @@ export const AdminLayout = () => {
                         />
                     )}
 
+                    {view === 'pair_detail' && selectedPairIdForDetail && (
+                        <PairDetailView
+                            pairId={selectedPairIdForDetail}
+                            players={players}
+                            rankings={rankings}
+                            onBack={() => {
+                                setSelectedPairIdForDetail(null);
+                                setView('ranking_detail');
+                            }}
+                        />
+                    )}
+
                     {view === 'players' && <PlayerList
                         players={players}
                         onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
@@ -623,10 +637,15 @@ export const AdminLayout = () => {
                         onAddDivision={handleAddDivision}
                         onUpdateRanking={handleUpdateRanking}
                         onPlayerClick={(playerId) => {
-                            const player = players[playerId];
-                            if (player) {
-                                setSelectedPlayerForDetail(player);
-                                setView('player_detail');
+                            if (activeRanking.format === 'pairs') {
+                                setSelectedPairIdForDetail(playerId); // playerId is actually pairId here
+                                setView('pair_detail');
+                            } else {
+                                const player = players[playerId];
+                                if (player) {
+                                    setSelectedPlayerForDetail(player);
+                                    setView('player_detail');
+                                }
                             }
                         }}
                         onUpdatePlayerStats={async (pid, result) => {

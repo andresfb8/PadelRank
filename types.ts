@@ -59,6 +59,7 @@ export interface Ranking {
   config?: RankingConfig;
   rules?: string; // Markdown or text rules
   history?: Match[]; // Historical matches from previous phases (for global stats)
+  overrides?: { playerId: string, forceDiv: number }[]; // Manual division overrides for next phase
 }
 
 export interface Division {

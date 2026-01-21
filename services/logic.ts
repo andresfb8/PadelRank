@@ -268,99 +268,217 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
   }
 
   // Re-use logic but with a flat list
-  return generateStandings('global', allMatches, Array.from(allPlayers));
+  return generateStandings('global', allMatches, Array.from(allPlayers), ranking.format);
 }
 
-// Logic to calculate promotions and generate new divisions for next phase
-export function calculatePromotions(ranking: Ranking): {
+export function calculatePromotions(
+  ranking: Ranking,
+  overrides?: { playerId: string, forceDiv: number }[]
+): {
   newDivisions: Division[],
   movements: { playerId: string, fromDiv: number, toDiv: number, type: 'up' | 'down' | 'stay' }[]
 } {
   const sortedDivisions = [...ranking.divisions].sort((a, b) => a.numero - b.numero);
   const movements: { playerId: string, fromDiv: number, toDiv: number, type: 'up' | 'down' | 'stay' }[] = [];
-  const nextPhasePlayers: Record<number, string[]> = {};
 
-  // 1. Calculate standings for each division and determine movements
-  sortedDivisions.forEach((div, index) => {
-    const standings = generateStandings(div.id, div.matches, div.players);
-    const divNum = div.numero;
-    const isFirst = index === 0;
-    const isLast = index === sortedDivisions.length - 1;
+  // Configuration Defaults
+  const config = ranking.config || {};
+  const targetCapacity = config.maxPlayersPerDivision || 4;
+  const promoCount = config.promotionCount !== undefined ? config.promotionCount : 2;
+  const releCount = config.relegationCount !== undefined ? config.relegationCount : 2;
 
-    // Initialize array for this division if not exists
-    if (!nextPhasePlayers[divNum]) nextPhasePlayers[divNum] = [];
-    if (!nextPhasePlayers[divNum - 1] && !isFirst) nextPhasePlayers[divNum - 1] = [];
-    if (!nextPhasePlayers[divNum + 1] && !isLast) nextPhasePlayers[divNum + 1] = [];
+  // 0. Process Overrides
+  const forcedAssignments: Record<number, string[]> = {};
 
-    // Exclude retired players from current division list for promotion calculations
-    // But keep them in the loop to identify their position if needed, or better, just filter them out from 'nextPhasePlayers' logic?
-    // If we filter them out BEFORE standings, the pos index changes. We want them to APPEAR in standings but NOT Move to next phase.
+  if (overrides) {
+    overrides.forEach(o => {
+      if (!forcedAssignments[o.forceDiv]) forcedAssignments[o.forceDiv] = [];
+      forcedAssignments[o.forceDiv].push(o.playerId);
+    });
+  }
 
-    // We already have 'standings' which includes everyone who played.
-    // Check if player is retired
+  // 1. Calculate Standings & Pool of Candidates per Division
+  type Candidate = {
+    playerId: string;
+    originDivNum: number;
+    pos: number;
+    standing: StandingRow;
+  };
+
+  const poolByDiv: Record<number, Candidate[]> = {};
+  const activeDivisionNums = sortedDivisions.map(d => d.numero);
+  if (activeDivisionNums.length === 0) return { newDivisions: [], movements: [] };
+
+  // Also consider overrides forcing new divisions (e.g. Div 5)
+  const overrideDivs = Object.keys(forcedAssignments).map(Number);
+  const maxDivNum = Math.max(...activeDivisionNums, ...overrideDivs);
+
+  sortedDivisions.forEach(div => {
     const retiredSet = new Set(div.retiredPlayers || []);
 
-    standings.forEach((row, posIndex) => {
-      // If retired, do not add to next phase, do not generate movement (or generate 'retired' movement?)
-      if (retiredSet.has(row.playerId)) {
-        return;
+    const standings = generateStandings(div.id, div.matches, div.players);
+    const cands: Candidate[] = [];
+
+    standings.forEach((row, idx) => {
+      if (retiredSet.has(row.playerId)) return;
+
+      cands.push({
+        playerId: row.playerId,
+        originDivNum: div.numero,
+        pos: idx + 1,
+        standing: row
+      });
+    });
+
+    poolByDiv[div.numero] = cands;
+  });
+
+  // 2. Waterfall Filling
+  const assignedPlayers = new Set<string>();
+  const finalAssignments: Record<number, string[]> = {};
+
+  // Pre-fill assignments with FORCED players
+  Object.keys(forcedAssignments).forEach(dNumStr => {
+    const dNum = parseInt(dNumStr);
+    finalAssignments[dNum] = [...forcedAssignments[dNum]];
+    forcedAssignments[dNum].forEach(pid => assignedPlayers.add(pid));
+  });
+
+  const getUnconsumed = (pool: Candidate[]) => pool.filter(c => !assignedPlayers.has(c.playerId));
+
+  for (let divNum = 1; divNum <= maxDivNum; divNum++) {
+    if (!finalAssignments[divNum]) finalAssignments[divNum] = [];
+
+    const countAfterForced = finalAssignments[divNum].length;
+    let slotsRemaining = targetCapacity - countAfterForced;
+
+    if (slotsRemaining <= 0) {
+      continue;
+    }
+
+    const currentPool = poolByDiv[divNum] || [];
+    const belowPool = poolByDiv[divNum + 1] || [];
+    const abovePool = poolByDiv[divNum - 1] || [];
+
+    const natives = getUnconsumed(currentPool);
+    const incomingFromAbove = getUnconsumed(abovePool);
+    const incomingFromBelow = getUnconsumed(belowPool);
+
+    // Draft Logic
+    // Step A: Priority Inclusions
+    const priorityList: string[] = [];
+
+    // A1. Incoming from Above (Relegated)
+    incomingFromAbove.forEach(c => priorityList.push(c.playerId));
+
+    // A2. Guaranteed Promoters from Below
+    // Only take top 'promoCount' available
+    const promoters = incomingFromBelow.slice(0, promoCount);
+    promoters.forEach(c => priorityList.push(c.playerId));
+
+    // A3. Natives
+    // Fill remainder with best natives
+    let currentFilled = priorityList.length + countAfterForced;
+    let spaceForNatives = targetCapacity - currentFilled;
+
+    if (spaceForNatives < 0) {
+      // Capacity Exceeded by Priority 1 & 2
+      // We stick to the priority list order (Above > Below) so some promoters might get stuck in below logic if we cut?
+      // But here we just push them to 'priorityList'.
+    } else {
+      const bestNatives = natives.slice(0, spaceForNatives);
+      bestNatives.forEach(c => priorityList.push(c.playerId));
+    }
+
+    // Add Priority List to Assignments (respecting capacity)
+    for (const pid of priorityList) {
+      if (finalAssignments[divNum].length < targetCapacity && !assignedPlayers.has(pid)) {
+        finalAssignments[divNum].push(pid);
+        assignedPlayers.add(pid);
       }
+    }
 
-      // We need to re-calculate "effective position" excluding retired players above them?
-      // Or we just stick to their actual position? 
-      // User said: "el jugador retirado debe desaparecer de las divisiones...".
-      // Let's stick effectively to: simply NOT pushing them to nextPhasePlayers.
+    // A4. Gaps? (Extra Promotions)
+    if (finalAssignments[divNum].length < targetCapacity) {
+      // Try filling with more Promoters (Lucky Losers from below)
+      const morePromoters = getUnconsumed(belowPool);
 
-      const pos = posIndex + 1; // 1-based position
-
-      // CAUTION: If a top player retires, does the 3rd place promote? 
-      // Usually yes. But implementing that dynamic "sliding" logic is complex.
-      // MVP Approach: Stick to fixed positions. If pos 1 retires, only pos 2 promotes. 
-      // (User didn't specify dynamic filling).
-      // However, to ensure division size consistency (4), we might need to be smarter.
-      // But let's start simple as requested: "el jugador retirado... debe desaparecer".
-
-      // Promotion Logic (Top 2 go up, except in Div 1)
-      if (pos <= 2 && !isFirst) {
-        nextPhasePlayers[divNum - 1].push(row.playerId);
-        movements.push({ playerId: row.playerId, fromDiv: divNum, toDiv: divNum - 1, type: 'up' });
+      for (const c of morePromoters) {
+        if (finalAssignments[divNum].length < targetCapacity) {
+          finalAssignments[divNum].push(c.playerId);
+          assignedPlayers.add(c.playerId);
+        }
       }
-      // Relegation Logic (Bottom 2 go down, except in Last Div)
-      else if (pos >= 3 && !isLast) {
-        nextPhasePlayers[divNum + 1].push(row.playerId);
-        movements.push({ playerId: row.playerId, fromDiv: divNum, toDiv: divNum + 1, type: 'down' });
-      }
-      // Stay Logic
-      else {
-        nextPhasePlayers[divNum].push(row.playerId);
-        movements.push({ playerId: row.playerId, fromDiv: divNum, toDiv: divNum, type: 'stay' });
+    }
+  }
+
+  // 3. Overflow Handling (Last Division)
+  const allCandidates = Object.values(poolByDiv).flat();
+  const unassigned = allCandidates.filter(c => !assignedPlayers.has(c.playerId));
+
+  if (unassigned.length > 0) {
+    // Find the last division index that exists
+    let lastDiv = maxDivNum;
+    while (!finalAssignments[lastDiv] && lastDiv > 0) lastDiv--;
+    if (lastDiv === 0) lastDiv = 1; // Fallback
+
+    if (!finalAssignments[lastDiv]) finalAssignments[lastDiv] = [];
+
+    unassigned.forEach(c => {
+      finalAssignments[lastDiv].push(c.playerId);
+      assignedPlayers.add(c.playerId);
+    });
+  }
+
+  // 4. Generate Movements
+  Object.keys(finalAssignments).forEach(dNumStr => {
+    const dNum = parseInt(dNumStr);
+    const pIds = finalAssignments[dNum];
+
+    pIds.forEach(pid => {
+      let originDiv = 0;
+      Object.values(poolByDiv).flat().forEach(c => {
+        if (c.playerId === pid) originDiv = c.originDivNum;
+      });
+
+      if (originDiv !== 0) {
+        let type: 'up' | 'down' | 'stay' = 'stay';
+        if (dNum < originDiv) type = 'up';
+        if (dNum > originDiv) type = 'down';
+
+        movements.push({ playerId: pid, fromDiv: originDiv, toDiv: dNum, type });
+      } else {
+        // New player or manual insert
+        movements.push({ playerId: pid, fromDiv: 0, toDiv: dNum, type: 'stay' });
       }
     });
   });
 
-  // 2. Generate new Division objects with new players
-  const newDivisions: Division[] = sortedDivisions.map(oldDiv => {
-    const newPlayers = nextPhasePlayers[oldDiv.numero] || [];
+  const newDivisions: Division[] = [];
+  const finalKeys = Object.keys(finalAssignments).map(Number).sort((a, b) => a - b);
 
-    // Safety check: ensure 4 players (unless last div had weird numbers)
-    // If not 4, we might have issues generating calendar, but we proceed for MVP.
+  finalKeys.forEach(i => {
+    const players = finalAssignments[i];
+    if (players.length === 0) return;
 
-    return {
-      id: `div-${Date.now()}-${oldDiv.numero}`,
-      numero: oldDiv.numero,
+    const oldDiv = sortedDivisions.find(d => d.numero === i);
+    const divId = oldDiv ? `div-${Date.now()}-${i}` : `div-new-${Date.now()}-${i}`;
+
+    newDivisions.push({
+      id: divId,
+      numero: i,
       status: 'activa',
-      players: newPlayers,
-      matches: generateNewPhaseMatches(newPlayers, oldDiv.numero)
-    };
+      players: players,
+      matches: generateNewPhaseMatches(players, i)
+    });
   });
 
   return { newDivisions, movements };
 }
 
 function generateNewPhaseMatches(players: string[], divIndex: number): Match[] {
-  if (players.length < 4) return []; // Cannot generate proper round robin
+  if (players.length < 2) return [];
 
-  const [p0, p1, p2, p3] = players;
   const createMatch = (jornada: number, p1Id: string, p2Id: string, p3Id: string, p4Id: string): Match => ({
     id: `m-ph2-${Date.now()}-${divIndex}-${jornada}-${Math.random().toString(36).substr(2, 5)}`,
     jornada,
@@ -370,9 +488,14 @@ function generateNewPhaseMatches(players: string[], divIndex: number): Match[] {
     points: { p1: 0, p2: 0 }
   });
 
-  return [
-    createMatch(1, p0, p1, p2, p3),
-    createMatch(2, p0, p2, p1, p3),
-    createMatch(3, p0, p3, p1, p2)
-  ];
+  if (players.length === 4) {
+    const [p0, p1, p2, p3] = players;
+    return [
+      createMatch(1, p0, p1, p2, p3),
+      createMatch(2, p0, p2, p1, p3),
+      createMatch(3, p0, p3, p1, p2)
+    ];
+  }
+
+  return [];
 }

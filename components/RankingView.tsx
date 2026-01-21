@@ -8,6 +8,9 @@ import { Match, Player, Ranking, Division } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
 import { AddDivisionModal } from './AddDivisionModal';
 import { PromotionModal } from './PromotionModal';
+import { SubstituteModal } from './SubstituteModal';
+import { AddManualMatchModal } from './AddManualMatchModal';
+import { AddPairModal } from './AddPairModal';
 import { MatchModal } from './MatchModal';
 
 interface Props {
@@ -32,7 +35,10 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
-  const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '' });
+  const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerName: '', newPlayerEmail: '', nextPhaseDiv: '' });
+  const [isManualMatchModalOpen, setIsManualMatchModalOpen] = useState(false);
+  const [isAddPairModalOpen, setIsAddPairModalOpen] = useState(false);
+  const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
 
   const handleMatchClick = (m: Match) => {
     setSelectedMatch(m);
@@ -136,9 +142,41 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   };
 
   const handleOpenPromotionModal = () => {
-    const result = calculatePromotions(ranking);
+    // 1. Initialize from Ranking Persistent Overrides
+    const initialOverrides = ranking.overrides || [];
+    setPromotionOverrides(initialOverrides);
+
+    // 2. Calculate using these overrides
+    const result = calculatePromotions(ranking, initialOverrides);
     setPromotionData(result);
     setIsPromotionModalOpen(true);
+  };
+
+  const handleOverrideChange = (playerId: string, forceDiv: number | null) => {
+    let newOverrides = [...promotionOverrides];
+    if (forceDiv === null) {
+      newOverrides = newOverrides.filter(o => o.playerId !== playerId);
+    } else {
+      const existing = newOverrides.find(o => o.playerId === playerId);
+      if (existing) {
+        existing.forceDiv = forceDiv;
+      } else {
+        newOverrides.push({ playerId, forceDiv });
+      }
+    }
+    setPromotionOverrides(newOverrides);
+
+    // PERSIST: Save to Ranking state immediately (optional, but safer)
+    if (onUpdateRanking) {
+      onUpdateRanking({
+        ...ranking,
+        overrides: newOverrides
+      });
+    }
+
+    // Recalculate
+    const result = calculatePromotions(ranking, newOverrides);
+    setPromotionData(result);
   };
 
   const handleConfirmPromotion = () => {
@@ -150,7 +188,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       history: [
         ...(ranking.history || []),
         ...ranking.divisions.flatMap(d => d.matches.filter(m => m.status === 'finalizado'))
-      ]
+      ],
+      // Clear overrides for the next phase, as they are one-time use for this transition
+      overrides: []
     };
     onUpdateRanking(updatedRanking);
     setIsPromotionModalOpen(false);
@@ -164,19 +204,27 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   if (!ranking) return <div className="p-8 text-center text-gray-500">Torneo no encontrado</div>;
 
   const handleSubstitutePlayer = () => {
-    if (!activeDivision || !onUpdateRanking || !substituteData.oldPlayerId || !substituteData.newPlayerId) return;
+    if (!activeDivision || !onUpdateRanking || !substituteData.oldPlayerId || (!substituteData.newPlayerName && !substituteData.newPlayerEmail)) return;
 
-    if (!confirm(`¿Estás seguro de sustituir a este jugador? 
-      - El jugador saliente se marcará como retirado (mantendrá sus puntos jugados).
-      - El jugador entrante empezará con 0 puntos y jugará los partidos pendientes.`)) {
-      return;
+    const { oldPlayerId, newPlayerName, newPlayerEmail } = substituteData;
+
+    // Create a new player object if newPlayerName/Email is provided
+    let newPlayerId = '';
+    if (newPlayerName || newPlayerEmail) {
+      // Generate a unique ID for the new player
+      newPlayerId = `sub_${Date.now()}`;
+      // Add new player to the global players object (this would typically be handled by a parent component)
+      // For now, we'll assume the parent `onUpdateRanking` will handle player creation if needed.
+      // This is a simplified client-side substitution.
+    } else {
+      // If no new player name/email, it means the player is just removed.
+      // In this case, newPlayerId remains empty, and the old player is just marked retired.
     }
 
-    const { oldPlayerId, newPlayerId } = substituteData;
 
     // 1. Update Division Players: Keep old (for history), Add new
     const updatedPlayers = [...activeDivision.players];
-    if (!updatedPlayers.includes(newPlayerId)) {
+    if (newPlayerId && !updatedPlayers.includes(newPlayerId)) {
       updatedPlayers.push(newPlayerId);
     }
 
@@ -185,7 +233,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
     // 3. Update Pending Matches
     const updatedMatches = activeDivision.matches.map(m => {
-      if (m.status !== 'pendiente') return m; // Don't touch finished matches
+      if (m.status !== 'pendiente' || !newPlayerId) return m; // Don't touch finished matches or if no new player
 
       let p1Changed = false;
       let p2Changed = false;
@@ -218,15 +266,30 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       matches: updatedMatches
     };
 
-    const updatedRanking = {
+    // 4. Update Ranking with new substitute logic
+    let updatedRanking = {
       ...ranking,
       divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
     };
+    // 5. Manual Division Placement (Override) for Next Phase
+    const nextPhaseDivStr = substituteData.nextPhaseDiv;
+
+    if (newPlayerId && nextPhaseDivStr && !isNaN(parseInt(nextPhaseDivStr))) {
+      const targetDiv = parseInt(nextPhaseDivStr);
+      const currentOverrides = updatedRanking.overrides || [];
+      // Remove valid existing overrides for this player if any
+      const filteredOverrides = currentOverrides.filter(o => o.playerId !== newPlayerId);
+
+      updatedRanking = {
+        ...updatedRanking,
+        overrides: [...filteredOverrides, { playerId: newPlayerId, forceDiv: targetDiv }]
+      };
+      // Removed alert, feedback is implicit via UI update
+    }
 
     onUpdateRanking(updatedRanking);
     setIsSubstituteModalOpen(false);
-    setSubstituteData({ oldPlayerId: '', newPlayerId: '' });
-    alert("Jugador sustituido correctamente.");
+    setSubstituteData({ oldPlayerId: '', newPlayerName: '', newPlayerEmail: '', nextPhaseDiv: '' });
   };
 
   const handleGenerateNextRound = () => {
@@ -276,6 +339,125 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     alert(`✅ Roda ${nextRound} generada (${newMatches.length} partidos).`);
   };
 
+  const handleAddPairAndRegenerate = async () => {
+    setIsAddPairModalOpen(true);
+  };
+
+  const onAddPair = (p1Id: string, p2Id: string) => {
+    if (!onUpdateRanking || !activeDivision) return;
+
+    // 1. Add players to division if not present
+    const updatedPlayers = [...activeDivision.players];
+    if (!updatedPlayers.includes(p1Id)) updatedPlayers.push(p1Id);
+    if (!updatedPlayers.includes(p2Id)) updatedPlayers.push(p2Id);
+
+    // 2. Identify all pairs in the division to regenerate league
+    const existingPairs: string[][] = [];
+    const processedPlayers = new Set<string>();
+
+    // extract from matches
+    activeDivision.matches.forEach(m => {
+      const pair1Key = [m.pair1.p1Id, m.pair1.p2Id].sort().join('-');
+      if (!processedPlayers.has(m.pair1.p1Id)) { existingPairs.push([m.pair1.p1Id, m.pair1.p2Id]); processedPlayers.add(m.pair1.p1Id); processedPlayers.add(m.pair1.p2Id); }
+
+      const pair2Key = [m.pair2.p1Id, m.pair2.p2Id].sort().join('-');
+      if (!processedPlayers.has(m.pair2.p1Id)) { existingPairs.push([m.pair2.p1Id, m.pair2.p2Id]); processedPlayers.add(m.pair2.p1Id); processedPlayers.add(m.pair2.p2Id); }
+    });
+
+    // Add the new pair if valid (not strictly enforcing uniqueness here for simplicity, but pairs should be unique)
+    existingPairs.push([p1Id, p2Id]);
+
+    const hasPlayedMatches = activeDivision.matches.some(m => m.status === 'finalizado');
+
+    if (hasPlayedMatches) {
+      if (!confirm("⚠️ Hay partidos jugados. Regenerar el calendario borrará los partidos PENDIENTES y podría duplicar o romper el orden. ¿Seguro que quieres continuar? (Se recomienda solo importar partidos si la liga ya empezó)")) {
+        return;
+      }
+
+      const finalizedMatches = activeDivision.matches.filter(m => m.status === 'finalizado');
+      const finalMatches: Match[] = [];
+      const generated = MatchGenerator.generatePairsLeague(existingPairs, activeDivision.numero);
+
+      generated.forEach(gm => {
+        const existing = finalizedMatches.find(fm => {
+          const gmP1 = [gm.pair1.p1Id, gm.pair1.p2Id].sort().join('-');
+          const gmP2 = [gm.pair2.p1Id, gm.pair2.p2Id].sort().join('-');
+          const fmP1 = [fm.pair1.p1Id, fm.pair1.p2Id].sort().join('-');
+          const fmP2 = [fm.pair2.p1Id, fm.pair2.p2Id].sort().join('-');
+          return (gmP1 === fmP1 && gmP2 === fmP2) || (gmP1 === fmP2 && gmP2 === fmP1);
+        });
+
+        if (existing) {
+          finalMatches.push(existing);
+        } else {
+          finalMatches.push(gm);
+        }
+      });
+
+      const updatedDiv = { ...activeDivision, players: updatedPlayers, matches: finalMatches };
+      const updatedRanking = { ...ranking, divisions: ranking.divisions.map(d => d.id === updatedDiv.id ? updatedDiv : d) };
+      onUpdateRanking(updatedRanking);
+
+    } else {
+      const newMatches = MatchGenerator.generatePairsLeague(existingPairs, activeDivision.numero);
+      const updatedDiv = { ...activeDivision, players: updatedPlayers, matches: newMatches };
+      const updatedRanking = { ...ranking, divisions: ranking.divisions.map(d => d.id === updatedDiv.id ? updatedDiv : d) };
+      onUpdateRanking(updatedRanking);
+    }
+  };
+
+
+
+
+
+  const handleImportMatch = (matchData: {
+    pair1: { p1Id: string, p2Id: string },
+    pair2: { p1Id: string, p2Id: string },
+    score: { set1: { p1: number, p2: number }, set2: { p1: number, p2: number }, set3?: { p1: number, p2: number } },
+    divisionId: string
+  }) => {
+    if (!onUpdateRanking) return;
+
+    const divisions = [...ranking.divisions];
+    const divIndex = divisions.findIndex(d => d.id === matchData.divisionId);
+    if (divIndex === -1) return;
+
+    const division = { ...divisions[divIndex] };
+    const newMatch: Match = {
+      id: Date.now().toString(),
+      jornada: 0,
+      pair1: matchData.pair1,
+      pair2: matchData.pair2,
+      score: matchData.score,
+      points: { p1: 0, p2: 0 }, // Will be calculated by logic if needed, or we can assume simple win points here
+      status: 'finalizado'
+    };
+
+    // Simple point calculation for imported match (assuming standard rules or just recording history)
+    // For pairs league we usually want points. Let's start with basic win/loss logic for points.
+    let p1Points = 0;
+    let p2Points = 0;
+
+    // Determine winner based on sets
+    let p1Sets = 0;
+    let p2Sets = 0;
+    if (matchData.score.set1.p1 > matchData.score.set1.p2) p1Sets++; else p2Sets++;
+    if (matchData.score.set2.p1 > matchData.score.set2.p2) p1Sets++; else p2Sets++;
+    if (matchData.score.set3) { if (matchData.score.set3.p1 > matchData.score.set3.p2) p1Sets++; else p2Sets++; }
+
+    // Classic Pairs Points (usually 3 for win, 1 for loss etc.. let's default to standard logic)
+    // To match calculateMatchPoints default config:
+    if (p1Sets > p2Sets) { p1Points = 3; p2Points = 1; }
+    else { p1Points = 1; p2Points = 3; }
+
+    newMatch.points = { p1: p1Points, p2: p2Points };
+
+    division.matches = [...division.matches, newMatch];
+    divisions[divIndex] = division;
+
+    onUpdateRanking({ ...ranking, divisions });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -317,10 +499,24 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto justify-end">
-          {isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || ranking.format === 'americano') && (
-            <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-              <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
-            </Button>
+          {isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || ranking.format === 'americano' || ranking.format === 'pairs') && (
+            <div className="flex gap-2">
+              {ranking.format === 'pairs' && (
+                <Button onClick={() => setIsManualMatchModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Importar partido pasado">
+                  <Save size={16} /> <span className="hidden sm:inline">Importar Partido</span>
+                </Button>
+              )}
+              {ranking.format === 'pairs' && (
+                <Button onClick={handleAddPairAndRegenerate} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Gestionar Parejas y Regenerar">
+                  <Users size={16} /> <span className="hidden sm:inline">Gestionar Parejas</span>
+                </Button>
+              )}
+              {ranking.format !== 'pairs' && (
+                <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
+                  <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
+                </Button>
+              )}
+            </div>
           )}
           {isAdmin && onUpdateRanking && (ranking.format === 'classic' || ranking.format === 'individual') && (
             <Button onClick={handleOpenPromotionModal} className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 text-sm px-3 py-2">
@@ -329,7 +525,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           )}
           {isAdmin && onUpdateRanking && activeDivision && (
             <Button onClick={() => setIsSubstituteModalOpen(true)} className="bg-gray-600 hover:bg-gray-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-              <Users size={16} /> <span className="hidden sm:inline">Sustituir</span>
+              <Users size={16} /> <span className="hidden sm:inline">Sustituir Jugador</span>
             </Button>
           )}
           <Button
@@ -553,7 +749,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                 <tr>
                   <th className="px-4 py-3 text-center w-12 sticky left-0 bg-gray-50 z-10">#</th>
-                  <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">Jugador</th>
+                  <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">
+                    {ranking.format === 'pairs' ? 'Pareja' : 'Jugador'}
+                  </th>
                   <th className="px-4 py-3 text-center">Partidos</th>
                   <th className="px-4 py-3 text-center">PTS</th>
                   <th className="px-4 py-3 text-center">PG</th>
@@ -565,8 +763,17 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {globalStandings.map((row) => {
-                  const player = players[row.playerId];
-                  if (!player) return null;
+                  let displayName = 'Desconocido';
+                  if (ranking.format === 'pairs') {
+                    const [p1Id, p2Id] = row.playerId.split('-');
+                    const p1 = players[p1Id];
+                    const p2 = players[p2Id];
+                    displayName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
+                  } else {
+                    const player = players[row.playerId];
+                    if (player) displayName = `${player.nombre} ${player.apellidos}`;
+                  }
+
                   const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
                   return (
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
@@ -576,12 +783,12 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                           <button
                             onClick={() => onPlayerClick(row.playerId)}
                             className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
-                            title={`${player.nombre} ${player.apellidos}`}
+                            title={displayName}
                           >
-                            {player.nombre} {player.apellidos}
+                            {displayName}
                           </button>
                         ) : (
-                          <div className="truncate max-w-[260px]" title={`${player.nombre} ${player.apellidos}`}>{player.nombre} {player.apellidos}</div>
+                          <div className="truncate max-w-[260px]" title={displayName}>{displayName}</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
@@ -648,7 +855,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                       <td className={`px-4 py-3 text-center font-bold sticky left-0 z-10 ${posClass}`}>{row.pos}</td>
                       <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        {onPlayerClick && !isPair ? (
+                        {onPlayerClick ? (
                           <button
                             onClick={() => onPlayerClick(row.playerId)}
                             className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
@@ -694,9 +901,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {matches.map((m) => {
                   const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-                  const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
+                  const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
                   const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
-                  const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
+                  const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
 
                   return (
                     <div
@@ -791,6 +998,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           movements={promotionData.movements}
           players={players}
           onConfirm={handleConfirmPromotion}
+          overrides={promotionOverrides}
+          onOverrideChange={handleOverrideChange}
         />
       )}
 
@@ -862,47 +1071,33 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         </div>
       </Modal>
 
-      {/* Substitute Modal */}
-      <Modal
+      <SubstituteModal
         isOpen={isSubstituteModalOpen}
         onClose={() => setIsSubstituteModalOpen(false)}
-        title="Sustituir Jugador (Lesión/Abandono)"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 bg-yellow-50 p-3 rounded border border-yellow-200">
-            Esta acción reemplazará al jugador en todos los partidos <strong>pendientes</strong>.
-            El jugador saliente conservará sus puntos actuales pero no ascenderá/descenderá.
-            El nuevo jugador entrará con 0 puntos.
-          </p>
+        players={players}
+        divisions={ranking.divisions}
+        data={substituteData}
+        onChange={(field, value) => setSubstituteData({ ...substituteData, [field]: value })}
+        onConfirm={handleSubstitutePlayer}
+      />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jugador que Sale (Retirado)</label>
-            <SearchableSelect
-              options={activeDivision?.players.map(pid => ({ id: pid, label: `${players[pid]?.nombre} ${players[pid]?.apellidos}` })) || []}
-              value={substituteData.oldPlayerId}
-              onChange={(v) => setSubstituteData({ ...substituteData, oldPlayerId: v })}
-              placeholder="Seleccionar jugador..."
-            />
-          </div>
+      <AddManualMatchModal
+        isOpen={isManualMatchModalOpen}
+        onClose={() => setIsManualMatchModalOpen(false)}
+        players={players}
+        divisions={ranking.divisions}
+        onImport={handleImportMatch}
+      />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jugador que Entra (Nuevo)</label>
-            <SearchableSelect
-              options={Object.values(players).filter(p => !activeDivision?.players.includes(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }))}
-              value={substituteData.newPlayerId}
-              onChange={(v) => setSubstituteData({ ...substituteData, newPlayerId: v })}
-              placeholder="Seleccionar sustituto..."
-            />
-          </div>
+      <AddPairModal
+        isOpen={isAddPairModalOpen}
+        onClose={() => setIsAddPairModalOpen(false)}
+        players={players}
+        occupiedPlayerIds={activeDivision ? activeDivision.players : []}
+        onAddPair={onAddPair}
+      />
 
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="secondary" onClick={() => setIsSubstituteModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubstitutePlayer} disabled={!substituteData.oldPlayerId || !substituteData.newPlayerId}>
-              Confirmar Sustitución
-            </Button>
-          </div>
-        </div>
-      </Modal>
+
     </div>
   );
 };
