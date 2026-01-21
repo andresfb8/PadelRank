@@ -418,13 +418,29 @@ export const MatchGenerator = {
                 const away = participants[numParticipants - 1 - i];
 
                 // Check for Bye
-                if (home[0] === 'Bye' || away[0] === 'Bye') continue; // One pair sits out
+                const isHomeBye = home[0] === 'Bye';
+                const isAwayBye = away[0] === 'Bye';
 
-                matches.push(createMatch(divIndex, roundIndex,
-                    home[0], home[1],
-                    away[0], away[1],
-                    undefined // No Court assigned automatically
-                ));
+                if (isHomeBye && isAwayBye) continue; // Should not happen in normal flows
+
+                if (isHomeBye || isAwayBye) {
+                    // One pair sits out -> Create a 'descanso' match for the real pair
+                    const realPair = isHomeBye ? away : home;
+                    matches.push(createMatch(divIndex, roundIndex,
+                        realPair[0], realPair[1],
+                        'BYE', 'BYE', // Dummy IDs for the bye pair
+                        undefined
+                    ));
+                    // Manually set status to 'descanso'
+                    matches[matches.length - 1].status = 'descanso';
+                } else {
+                    // Normal Match
+                    matches.push(createMatch(divIndex, roundIndex,
+                        home[0], home[1],
+                        away[0], away[1],
+                        undefined // No Court assigned automatically
+                    ));
+                }
             }
 
             // Rotate participants for next round (keep index 0 fixed)

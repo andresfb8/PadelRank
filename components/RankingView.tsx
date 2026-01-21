@@ -656,32 +656,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <Edit2 size={16} /> Cargar Normas Clásicas (CPSJ)
                   </Button>
                 )}
-                {ranking.format === 'pairs' && (
-                  <Button
-                    onClick={() => {
-                      const defaultRules = `**3. PUNTUACIÓN Y CLASIFICACIÓN (PAREJAS)**\n\n` +
-                        `La clasificación se basa en el rendimiento de la **Pareja Fija**:\n` +
-                        `- Victoria 2-0: ${ranking.config?.pointsPerWin2_0 ?? 3} Puntos.\n` +
-                        `- Victoria 2-1: ${ranking.config?.pointsPerWin2_1 ?? 2} Puntos.\n` +
-                        `- Empate: ${ranking.config?.pointsDraw ?? 1} Punto.\n` +
-                        `- Derrota 1-2: ${ranking.config?.pointsPerLoss2_1 ?? 1} Punto.\n` +
-                        `- Derrota 0-2: ${ranking.config?.pointsPerLoss2_0 ?? 0} Puntos.\n\n` +
-                        `**Criterios de desempate:**\n` +
-                        `1. Puntos totales.\n` +
-                        `2. Diferencia de sets.\n` +
-                        `3. Diferencia de juegos.\n` +
-                        `4. Sets ganados.\n` +
-                        `5. Juegos ganados.\n\n` +
-                        `**4. FORMATO**\n` +
-                        `Partidos al mejor de 3 sets. Las parejas son fijas durante toda la liga.`;
-                      onUpdateRanking({ ...ranking, rules: defaultRules });
-                    }}
-                    variant="secondary"
-                    className="text-indigo-600 bg-indigo-50 border-indigo-100 hover:bg-indigo-100 flex items-center gap-2 text-sm"
-                  >
-                    <Edit2 size={16} /> Cargar Normas Estándar
-                  </Button>
-                )}
+
               </div>
               <textarea
                 className="w-full h-64 p-4 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-gray-700 leading-relaxed bg-gray-50"
@@ -904,6 +879,23 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                   const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
                   const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
 
+                  if (m.status === 'descanso') {
+                    return (
+                      <div key={m.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 opacity-75">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
+                          <Badge type="neutral">Descanso</Badge>
+                        </div>
+                        <div className="text-center py-2">
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pareja que descansa</div>
+                          <div className="font-bold text-gray-700">
+                            {p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={m.id}
@@ -1092,7 +1084,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         isOpen={isAddPairModalOpen}
         onClose={() => setIsAddPairModalOpen(false)}
         players={players}
-        occupiedPlayerIds={activeDivision ? activeDivision.players : []}
+        occupiedPlayerIds={Array.from(occupiedPlayerIds)}
         onAddPair={onAddPair}
       />
 

@@ -97,7 +97,7 @@ export interface Match {
   pair2: MatchPair;
   score?: MatchScore;
   points: { p1: number; p2: number };
-  status: 'pendiente' | 'finalizado' | 'no_disputado';
+  status: 'pendiente' | 'finalizado' | 'no_disputado' | 'descanso';
   court?: number;
 }
 
