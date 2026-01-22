@@ -397,7 +397,8 @@ export const MatchGenerator = {
         if (nPairs < 2) return [];
 
         // If odd number of pairs, add a "dummy" pair for byes
-        const participants = [...pairs];
+        // STRICT: Filter out any pre-existing "Bye" pairs passed by mistake to avoid double-byes
+        const participants = pairs.filter(p => p[0].toUpperCase() !== 'BYE' && p[1].toUpperCase() !== 'BYE');
         if (nPairs % 2 !== 0) {
             participants.push(['Bye', 'Bye']);
         }

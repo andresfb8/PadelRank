@@ -180,12 +180,14 @@ export function generateStandings(
     });
 
     // Sort and Return
-    return Object.values(map).sort((a, b) => {
-      if (b.pts !== a.pts) return b.pts - a.pts;
-      if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
-      if (b.gamesDiff !== a.gamesDiff) return b.gamesDiff - a.gamesDiff;
-      return b.gamesWon - a.gamesWon;
-    }).map((row, idx) => ({ ...row, pos: idx + 1 }));
+    return Object.values(map)
+      .filter(row => !row.playerId.toLowerCase().includes('bye'))
+      .sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
+        if (b.gamesDiff !== a.gamesDiff) return b.gamesDiff - a.gamesDiff;
+        return b.gamesWon - a.gamesWon;
+      }).map((row, idx) => ({ ...row, pos: idx + 1 }));
   }
 
   // STANDARD LOGIC (INDIVIDUALS)

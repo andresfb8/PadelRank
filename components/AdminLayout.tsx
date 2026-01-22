@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck, User as UserIcon } from 'lucide-react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth, db, secondaryAuth } from '../services/firebase';
 import { Player, Ranking, Match, Division, User } from '../types';
 import { onSnapshot, collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
@@ -189,6 +189,7 @@ export const AdminLayout = () => {
         const email = (document.getElementById('email') as HTMLInputElement).value;
         const password = (document.getElementById('password') as HTMLInputElement).value;
         try {
+            await setPersistence(auth, browserSessionPersistence);
             await signInWithEmailAndPassword(auth, email, password);
         } catch (error) {
             alert("Error al iniciar sesión: " + error);

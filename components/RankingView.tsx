@@ -357,10 +357,18 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     // extract from matches
     activeDivision.matches.forEach(m => {
       const pair1Key = [m.pair1.p1Id, m.pair1.p2Id].sort().join('-');
-      if (!processedPlayers.has(m.pair1.p1Id)) { existingPairs.push([m.pair1.p1Id, m.pair1.p2Id]); processedPlayers.add(m.pair1.p1Id); processedPlayers.add(m.pair1.p2Id); }
+      if (!processedPlayers.has(m.pair1.p1Id) && m.pair1.p1Id.toUpperCase() !== 'BYE' && m.pair1.p2Id.toUpperCase() !== 'BYE') {
+        existingPairs.push([m.pair1.p1Id, m.pair1.p2Id]);
+        processedPlayers.add(m.pair1.p1Id);
+        processedPlayers.add(m.pair1.p2Id);
+      }
 
       const pair2Key = [m.pair2.p1Id, m.pair2.p2Id].sort().join('-');
-      if (!processedPlayers.has(m.pair2.p1Id)) { existingPairs.push([m.pair2.p1Id, m.pair2.p2Id]); processedPlayers.add(m.pair2.p1Id); processedPlayers.add(m.pair2.p2Id); }
+      if (!processedPlayers.has(m.pair2.p1Id) && m.pair2.p1Id.toUpperCase() !== 'BYE' && m.pair2.p2Id.toUpperCase() !== 'BYE') {
+        existingPairs.push([m.pair2.p1Id, m.pair2.p2Id]);
+        processedPlayers.add(m.pair2.p1Id);
+        processedPlayers.add(m.pair2.p2Id);
+      }
     });
 
     // Add the new pair if valid (not strictly enforcing uniqueness here for simplicity, but pairs should be unique)
