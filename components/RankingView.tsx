@@ -798,7 +798,80 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           <div className="p-4 border-b flex justify-between items-center bg-gray-50">
             <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> Tabla de Clasificación</h3>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile Card View */}
+          <div className="md:hidden">
+            {activeTab === 'standings' && standings.map((row) => {
+              let displayName = 'Desconocido';
+              const isPromoted = row.pos <= (ranking.config?.promotionCount || 2);
+              const isRelegated = row.pos > standings.length - (ranking.config?.relegationCount || 2);
+
+              const formatCompactName = (name: string, surname?: string) => {
+                if (!name) return '?';
+                return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
+              };
+
+              if (ranking.format === 'pairs') {
+                const [p1Id, p2Id] = row.playerId.split('-');
+                const p1 = players[p1Id];
+                const p2 = players[p2Id];
+                displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
+              } else {
+                const player = players[row.playerId];
+                if (player) displayName = formatCompactName(player.nombre, player.apellidos);
+              }
+
+              const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
+
+              return (
+                <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
+                        row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                          row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500 bg-gray-50'
+                        }`}>
+                        #{row.pos}
+                      </span>
+                      <div>
+                        <div className="font-semibold text-gray-900 text-base">{displayName}</div>
+                        <div className="text-xs text-gray-400 font-medium">
+                          {isPromoted ? <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span> :
+                            isRelegated ? <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span> :
+                              'Permanencia'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <div className="text-2xl font-bold text-primary leading-none">{row.pts}</div>
+                      <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
+                    <div>
+                      <div className="text-xs text-gray-500 font-medium mb-0.5">PJ</div>
+                      <div className="font-bold text-gray-800">{row.pj}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-green-600 font-medium mb-0.5">PG</div>
+                      <div className="font-bold text-gray-800">{row.pg}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-red-500 font-medium mb-0.5">PP</div>
+                      <div className="font-bold text-gray-800">{row.pj - row.pg}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-blue-500 font-medium mb-0.5">%Vic</div>
+                      <div className="font-bold text-gray-800">{winrate}%</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm text-left whitespace-nowrap">
               <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                 <tr>
@@ -865,142 +938,151 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
           </div>
         </Card>
-      )}
+      )
+      }
 
-      {activeTab === 'matches' && activeDivision && (
-        <div className="space-y-8">
-          {Object.entries(
-            activeDivision.matches.reduce((acc, m) => {
-              if (!acc[m.jornada]) acc[m.jornada] = [];
-              acc[m.jornada].push(m);
-              return acc;
-            }, {} as Record<number, Match[]>)
-          ).sort((a, b) => Number(a[0]) - Number(b[0])).map(([round, matches]) => (
-            <div key={round} className="animate-fade-in">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-                <Calendar size={20} className="text-primary" /> Jornada {round}
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {matches.map((m) => {
-                  const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-                  const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-                  const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
-                  const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
+      {
+        activeTab === 'matches' && activeDivision && (
+          <div className="space-y-8">
+            {Object.entries(
+              activeDivision.matches.reduce((acc, m) => {
+                if (!acc[m.jornada]) acc[m.jornada] = [];
+                acc[m.jornada].push(m);
+                return acc;
+              }, {} as Record<number, Match[]>)
+            ).sort((a, b) => Number(a[0]) - Number(b[0])).map(([round, matches]) => (
+              <div key={round} className="animate-fade-in">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                  <Calendar size={20} className="text-primary" /> Jornada {round}
+                </h3>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {matches.map((m) => {
+                    const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
+                    const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
+                    const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
+                    const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
 
-                  if (m.status === 'descanso') {
-                    return (
-                      <div key={m.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 opacity-75">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                          <Badge type="neutral">Descanso</Badge>
-                        </div>
-                        <div className="text-center py-2">
-                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pareja que descansa</div>
-                          <div className="font-bold text-gray-700">
-                            {p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}
+                    if (m.status === 'descanso') {
+                      return (
+                        <div key={m.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 opacity-75">
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
+                            <Badge type="neutral">Descanso</Badge>
+                          </div>
+                          <div className="text-center py-2">
+                            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pareja que descansa</div>
+                            <div className="font-bold text-gray-700">
+                              {p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  }
+                      );
+                    }
 
-                  return (
-                    <div
-                      key={m.id}
-                      onClick={() => isAdmin && handleMatchClick(m)}
-                      className={`bg-white p-4 rounded-xl border transition-all ${isAdmin ? 'cursor-pointer hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
-                    >
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                        {m.court && <Badge type="neutral" className="ml-2">Pista {m.court}</Badge>}
-                        {m.status === 'finalizado' ? (
-                          <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
-                            {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
-                          </Badge>
-                        ) : (
-                          <Badge>Pendiente</Badge>
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => isAdmin && handleMatchClick(m)}
+                        className={`bg-white p-4 rounded-xl border transition-all ${isAdmin ? 'cursor-pointer hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
+                      >
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
+                          {m.court && <Badge type="neutral" className="ml-2">Pista {m.court}</Badge>}
+                          {m.status === 'finalizado' ? (
+                            <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
+                              {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
+                            </Badge>
+                          ) : (
+                            <Badge>Pendiente</Badge>
+                          )}
+                        </div>
+
+                        <div className="text-center mb-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            <span className="block mb-1">{p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}</span>
+                            <span className="text-primary font-black text-xs uppercase tracking-widest my-1 block">VS</span>
+                            <span className="block mt-1">{p3.nombre} {p3.apellidos} - {p4.nombre} {p4.apellidos}</span>
+                          </div>
+                        </div>
+
+                        {m.status === 'finalizado' && (
+                          <div className="bg-gray-50 rounded-lg p-2 text-center mb-2">
+                            <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
+                              {m.score?.set1 ? (
+                                <>
+                                  {m.score.set1.p1}-{m.score.set1.p2}
+                                  {m.score.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
+                                  {m.score.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
+                                </>
+                              ) : (
+                                <span>{m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {m.status === 'finalizado' && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
+                            <span>Puntos: {m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
+                            <span>{m.score?.description}</span>
+                          </div>
                         )}
                       </div>
-
-                      <div className="text-center mb-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          <span className="block mb-1">{p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}</span>
-                          <span className="text-primary font-black text-xs uppercase tracking-widest my-1 block">VS</span>
-                          <span className="block mt-1">{p3.nombre} {p3.apellidos} - {p4.nombre} {p4.apellidos}</span>
-                        </div>
-                      </div>
-
-                      {m.status === 'finalizado' && (
-                        <div className="bg-gray-50 rounded-lg p-2 text-center mb-2">
-                          <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
-                            {m.score?.set1 ? (
-                              <>
-                                {m.score.set1.p1}-{m.score.set1.p2}
-                                {m.score.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
-                                {m.score.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
-                              </>
-                            ) : (
-                              <span>{m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-
-                      {m.status === 'finalizado' && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
-                          <span>Puntos: {m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
-                          <span>{m.score?.description}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )
+      }
 
       {/* Match Result Modal */}
-      {selectedMatch && (
-        <MatchModal
-          isOpen={!!selectedMatch}
-          onClose={() => setSelectedMatch(null)}
-          match={selectedMatch}
-          players={players}
-          onSave={handleSaveMatchResult}
-          rankingConfig={ranking.config}
-          format={ranking.format}
-        />
-      )}
+      {
+        selectedMatch && (
+          <MatchModal
+            isOpen={!!selectedMatch}
+            onClose={() => setSelectedMatch(null)}
+            match={selectedMatch}
+            players={players}
+            onSave={handleSaveMatchResult}
+            rankingConfig={ranking.config}
+            format={ranking.format}
+          />
+        )
+      }
 
       {/* Add Division Modal */}
-      {isAdmin && isAddDivModalOpen && onAddDivision && (
-        <AddDivisionModal
-          isOpen={isAddDivModalOpen}
-          onClose={() => setIsAddDivModalOpen(false)}
-          nextDivisionNumber={ranking.divisions.length + 1}
-          players={players}
-          occupiedPlayerIds={occupiedPlayerIds}
-          onSave={(div) => {
-            onAddDivision(div);
-            setActiveDivisionId(div.id); // Switch to new division
-          }}
-        />
-      )}
+      {
+        isAdmin && isAddDivModalOpen && onAddDivision && (
+          <AddDivisionModal
+            isOpen={isAddDivModalOpen}
+            onClose={() => setIsAddDivModalOpen(false)}
+            nextDivisionNumber={ranking.divisions.length + 1}
+            players={players}
+            occupiedPlayerIds={occupiedPlayerIds}
+            onSave={(div) => {
+              onAddDivision(div);
+              setActiveDivisionId(div.id); // Switch to new division
+            }}
+          />
+        )
+      }
 
       {/* Promotion Modal */}
-      {isPromotionModalOpen && promotionData && (
-        <PromotionModal
-          isOpen={isPromotionModalOpen}
-          onClose={() => setIsPromotionModalOpen(false)}
-          movements={promotionData.movements}
-          players={players}
-          onConfirm={handleConfirmPromotion}
-          overrides={promotionOverrides}
-          onOverrideChange={handleOverrideChange}
-        />
-      )}
+      {
+        isPromotionModalOpen && promotionData && (
+          <PromotionModal
+            isOpen={isPromotionModalOpen}
+            onClose={() => setIsPromotionModalOpen(false)}
+            movements={promotionData.movements}
+            players={players}
+            onConfirm={handleConfirmPromotion}
+            overrides={promotionOverrides}
+            onOverrideChange={handleOverrideChange}
+          />
+        )
+      }
 
       {/* Status Management Modal */}
       <Modal
@@ -1097,6 +1179,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       />
 
 
-    </div>
+    </div >
   );
 };
