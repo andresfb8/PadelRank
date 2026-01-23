@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X } from 'lucide-react';
+import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X, UserPlus, Shield, Wand2, Trash2, Plus } from 'lucide-react';
 import { Button, Card, Input } from './ui/Components';
 import { Player, Ranking, RankingFormat, RankingConfig, Division, ScoringMode } from '../types';
 import { SearchableSelect } from './SearchableSelect';
@@ -25,6 +25,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
     const [name, setName] = useState('');
     const [category, setCategory] = useState<'Masculino' | 'Femenino' | 'Mixto'>('Mixto');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isOfficial, setIsOfficial] = useState(true); // Default true, but will update based on format
 
     // Config
     const [config, setConfig] = useState<RankingConfig>({
@@ -46,9 +47,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
     const [numDivisions, setNumDivisions] = useState(1);
     const [individualMaxPlayers, setIndividualMaxPlayers] = useState(12); // Default for individual
     const [assignments, setAssignments] = useState<Record<number, string[]>>({});
+    // Guest Players (stored as full objects temporarily)
+    const [guestPlayers, setGuestPlayers] = useState<{ id: string; nombre: string; apellidos?: string }[]>([]);
+    const [newGuestName, setNewGuestName] = useState('');
 
     // --- Helpers ---
-    const availablePlayers = Object.values(players);
+    const availablePlayers = [...Object.values(players), ...guestPlayers];
 
     // --- Steps Renderers ---
 
@@ -132,6 +136,13 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                 pointsPerLoss2_0: 0
                             }));
                         }
+
+                        // Default Official Status
+                        if (f.id === 'americano' || f.id === 'mexicano') {
+                            setIsOfficial(false);
+                        } else {
+                            setIsOfficial(true);
+                        }
                     }}
                 >
                     <div className="flex justify-between items-start mb-2">
@@ -160,6 +171,30 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Inicio</label>
                     <input type="date" className="input-field w-full border p-2 rounded-lg" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
+                </div>
+            </div>
+
+            {/* Official Tournament Toggle */}
+            <div className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${isOfficial ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+                onClick={() => setIsOfficial(!isOfficial)}>
+                <div className={`mt-1 p-1 rounded-full ${isOfficial ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    <Shield size={16} />
+                </div>
+                <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                        <h4 className="font-bold text-gray-800">
+                            {isOfficial ? "Torneo Oficial (Cuenta para Ranking)" : "Torneo NO Oficial"}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full font-medium">Click para cambiar</span>
+                            {isOfficial ? <CheckCircle size={18} className="text-blue-600" /> : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300"></div>}
+                        </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {isOfficial
+                            ? "Los partidos afectarán a las estadísticas globales (PJ, PG, Winrate) de los jugadores registrados."
+                            : "Torneo AMISTOSO. Los resultados NO contarán para el historial ni estadísticas globales de los jugadores. Opcion RECOMENDADA para torneos rápidos (Americano/Mexicano) para no desvirtuar estadisticas."}
+                    </p>
                 </div>
             </div>
 
@@ -244,219 +279,309 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         setAssignments(newA);
     };
 
+
+
     const renderStep3 = () => {
-        if (format === 'classic' || format === 'individual') {
-            const maxP = format === 'classic' ? 4 : individualMaxPlayers;
+        // Unified Step 3: Select Pool First (for all formats or at least optional for Classic/Pairs)
+        // Actually, to support "Random Distribute", we need the pool for everyone.
 
-            // Generate assignments structure if missing
-            const ensureAssignments = () => {
-                const newA = { ...assignments };
-                let changed = false;
-                for (let i = 0; i < numDivisions; i++) {
-                    if (!newA[i] || newA[i].length !== maxP) {
-                        const current = newA[i] || [];
-                        if (current.length < maxP) {
-                            newA[i] = [...current, ...Array(maxP - current.length).fill('')];
-                        } else {
-                            newA[i] = current.slice(0, maxP);
-                        }
-                        changed = true;
-                    }
+        const handleAutoDistribute = () => {
+            if (selectedPlayerIds.length === 0) return alert("Selecciona jugadores primero");
+
+            // Randomize
+            const shuffled = [...selectedPlayerIds].sort(() => Math.random() - 0.5);
+
+            // Distribute based on Format
+            if (format === 'classic') {
+                const playersPerDiv = 4;
+                const neededDivs = Math.ceil(shuffled.length / playersPerDiv);
+
+                // Warn if mismatch
+                if (shuffled.length % playersPerDiv !== 0) {
+                    alert(`Advertencia: Tienes ${shuffled.length} jugadores. En formato Clásico se necesitan grupos de 4 exactos. Los últimos ${shuffled.length % playersPerDiv} quedarán fuera o incompletos.`);
                 }
-                if (changed) setAssignments(newA);
-            };
 
-            // Run once on render? safer to do it in useEffect or just render what we have and fill on interaction?
-            // React render needs to be pure. We can iterate on the fly.
+                // Update Config
+                setNumDivisions(neededDivs || 1);
 
-            return (
-                <div className="space-y-6">
-                    {format === 'classic' && (
-                        <div className="flex items-center gap-4 mb-4">
-                            <span className="font-bold">Número de Divisiones (Mesas de 4):</span>
-                            <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => {
-                                const n = parseInt(e.target.value) || 1;
-                                setNumDivisions(n);
-                            }} className="border p-1 w-16 text-center rounded" />
+                const newAssignments: Record<number, string[]> = {};
+                for (let i = 0; i < neededDivs; i++) {
+                    // Take 4 players
+                    const slice = shuffled.slice(i * playersPerDiv, (i + 1) * playersPerDiv);
+                    // Fill up to 4 with empty strings if not enough
+                    while (slice.length < playersPerDiv) slice.push('');
+                    newAssignments[i] = slice;
+                }
+                setAssignments(newAssignments);
+            }
+            else if (format === 'pairs') {
+                // For Pairs, we need to create pairs random? Or just fill slots?
+                // User request says "Mezcle entre divisiones".
+                // Assuming randomized pairs too? Or just randomized players into pair slots?
+                // Let's pair them 1-2, 3-4, etc.
+                const playersPerDiv = 4; // 2 pairs
+                const neededDivs = Math.ceil(shuffled.length / playersPerDiv);
+
+                if (shuffled.length % 2 !== 0) {
+                    alert("Advertencia: Número impar de jugadores. Alguien se quedará sin pareja.");
+                }
+
+                setNumDivisions(neededDivs || 1);
+
+                const newAssignments: Record<number, string[]> = {};
+                for (let i = 0; i < neededDivs; i++) {
+                    const divPlayers = shuffled.slice(i * playersPerDiv, (i + 1) * playersPerDiv);
+                    const pairStrings: string[] = [];
+
+                    // Create pairs
+                    for (let k = 0; k < divPlayers.length; k += 2) {
+                        const p1 = divPlayers[k];
+                        const p2 = divPlayers[k + 1];
+                        if (p1 && p2) pairStrings.push(`${p1}-${p2}`);
+                        else if (p1) pairStrings.push(`${p1}-`);
+                    }
+                    // Fill assignments (RankingWizard expects "p1-p2" strings in array)
+                    newAssignments[i] = pairStrings;
+                }
+                setAssignments(newAssignments);
+            }
+            else if (format === 'individual') {
+                // Distribute across N divisions
+                // Default to config.maxPlayersPerDivision if set?
+                // Or just spread evenly?
+                // Let's use the current numDivisions set by user OR calc based on capacity (e.g. 12 per div)
+                const cap = individualMaxPlayers || 12;
+                const neededDivs = Math.ceil(shuffled.length / cap);
+                setNumDivisions(neededDivs || 1);
+
+                const newAssignments: Record<number, string[]> = {};
+                for (let i = 0; i < neededDivs; i++) {
+                    const slice = shuffled.slice(i * cap, (i + 1) * cap);
+                    newAssignments[i] = slice;
+                }
+                setAssignments(newAssignments);
+            }
+        };
+
+        const handleClearAssignments = () => {
+            if (confirm("¿Borrar todas las asignaciones de las divisiones?")) {
+                setAssignments({});
+            }
+        };
+
+        return (
+            <div className="space-y-6">
+                {/* 1. Pool Selection (Always visible now) */}
+                <div className="space-y-4">
+                    <div className="flex justify-between items-end">
+                        <div className="flex-1">
+                            <h3 className="font-bold text-gray-800">1. Seleccionar Bolsa de Jugadores ({selectedPlayerIds.length})</h3>
+                            <p className="text-sm text-gray-500">Selecciona todos los participantes para distribuirlos o añádelos manualmente abajo.</p>
                         </div>
-                    )}
-
-                    {Array.from({ length: numDivisions }).map((_, divIdx) => (
-                        <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border">
-                            <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
-                            <div className="grid md:grid-cols-2 gap-3">
-                                {Array.from({ length: maxP }).map((_, pIdx) => {
-                                    // Safe access
-                                    const currentList = assignments[divIdx] || [];
-                                    const val = currentList[pIdx] || '';
-
-                                    // Filter used
-                                    const used = new Set<string>();
-                                    Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
-                                    const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({
-                                        id: p.id, label: `${p.nombre} ${p.apellidos}`
-                                    }));
-
-                                    return (
-                                        <div key={pIdx}>
-                                            <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
-                                            <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, maxP)} placeholder="Seleccionar..." />
-                                        </div>
-                                    )
-                                })}
+                        {/* Auto Distribute Actions */}
+                        {(format === 'classic' || format === 'individual' || format === 'pairs') && (
+                            <div className="flex gap-2">
+                                <Button onClick={handleAutoDistribute} className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
+                                    <Wand2 size={16} className="mr-2" />
+                                    Distribución Aleatoria
+                                </Button>
+                                <Button onClick={handleClearAssignments} variant="secondary" className="text-sm">
+                                    <Trash2 size={16} />
+                                </Button>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            )
-        }
-
-        if (format === 'pairs') {
-            // For Pairs, assignments map Div -> Pair Index -> Pair String (p1Id-p2Id)
-            // maxP is max number of PAIRS per division
-            const maxPairs = individualMaxPlayers;
-
-            // Ensure assignments structure
-            // (We reuse 'assignments' dict but values are "p1-p2")
-
-            return (
-                <div className="space-y-6">
-                    <div className="flex items-center gap-4 mb-4">
-                        <span className="font-bold">Número de Divisiones:</span>
-                        <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => {
-                            const n = parseInt(e.target.value) || 1;
-                            setNumDivisions(n);
-                        }} className="border p-1 w-16 text-center rounded" />
+                        )}
                     </div>
 
-                    {Array.from({ length: numDivisions }).map((_, divIdx) => (
-                        <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border">
-                            <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
-                            <div className="grid gap-4">
-                                {Array.from({ length: maxPairs }).map((_, pairIdx) => {
-                                    const currentList = assignments[divIdx] || [];
-                                    const val = currentList[pairIdx] || '';
-                                    const [p1Id, p2Id] = val ? val.split('-') : ['', ''];
-
-                                    // Filter used
-                                    const used = new Set<string>();
-                                    Object.values(assignments).forEach((arr: string[]) => arr?.forEach(pairStr => {
-                                        if (pairStr && pairStr !== val) {
-                                            const [u1, u2] = pairStr.split('-');
-                                            if (u1) used.add(u1);
-                                            if (u2) used.add(u2);
+                    {/* Search and Add Player Component (Reused logic) */}
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Buscar Jugador</label>
+                                <SearchableSelect
+                                    options={availablePlayers
+                                        .filter(p => !selectedPlayerIds.includes(p.id))
+                                        .map(p => ({
+                                            id: p.id,
+                                            label: `${p.nombre} ${p.apellidos || ''}`,
+                                            subLabel: p.id.startsWith('guest-') ? 'Invitado' : `Nivel: ${p.stats.winrate}%`
+                                        }))}
+                                    value=""
+                                    onChange={(id) => {
+                                        if (id) setSelectedPlayerIds([...selectedPlayerIds, id]);
+                                    }}
+                                    placeholder="Buscar..."
+                                />
+                            </div>
+                            {/* Guest Add */}
+                            <div className="flex-1 flex gap-2 items-end">
+                                <input
+                                    type="text"
+                                    className="input-field flex-1 border p-2 rounded-lg text-sm h-[38px] mt-auto" // match select height
+                                    placeholder="Nombre invitado"
+                                    value={newGuestName}
+                                    onChange={(e) => setNewGuestName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && newGuestName.trim()) {
+                                            const guest = { id: `guest-${Date.now()}`, nombre: newGuestName.trim(), apellidos: '(Invitado)' };
+                                            setGuestPlayers([...guestPlayers, guest]);
+                                            setSelectedPlayerIds([...selectedPlayerIds, guest.id]);
+                                            setNewGuestName('');
                                         }
-                                    }));
-                                    // Also filter current pair selection cross-check
-                                    if (p1Id) used.add(p1Id);
-                                    if (p2Id) used.add(p2Id);
+                                    }}
+                                />
+                                <Button
+                                    onClick={() => {
+                                        if (newGuestName.trim()) {
+                                            const guest = { id: `guest-${Date.now()}`, nombre: newGuestName.trim(), apellidos: '(Invitado)' };
+                                            setGuestPlayers([...guestPlayers, guest]);
+                                            setSelectedPlayerIds([...selectedPlayerIds, guest.id]);
+                                            setNewGuestName('');
+                                        }
+                                    }}
+                                    className="h-[38px]"
+                                ><Plus size={16} /></Button>
+                            </div>
+                        </div>
 
-                                    // Options for P1 (exclude used)
-                                    // Options for P2 (exclude used AND p1)
-                                    const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({
-                                        id: p.id, label: `${p.nombre} ${p.apellidos}`
-                                    }));
-
+                        {/* Selected Tags */}
+                        {selectedPlayerIds.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-4 max-h-32 overflow-y-auto">
+                                {selectedPlayerIds.map(id => {
+                                    const p = availablePlayers.find(ap => ap.id === id);
+                                    if (!p) return null;
                                     return (
-                                        <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border">
-                                            <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
-                                            <div className="flex-1 grid grid-cols-2 gap-2">
-                                                <SearchableSelect
-                                                    options={getOpts(p1Id)}
-                                                    value={p1Id}
-                                                    onChange={(v) => {
-                                                        const newP2 = p2Id === v ? '' : p2Id; // clear if same
-                                                        const newVal = v && newP2 ? `${v}-${newP2}` : v ? `${v}-` : newP2 ? `-${newP2}` : ''; // partial or full
-                                                        // Wait, we need robust handling.
-                                                        // If v is empty, remove p1.
-                                                        // Let's simplified: If we construct a string "p1-p2".
-                                                        const currentP1 = v;
-                                                        const currentP2 = p2Id;
-                                                        const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, maxPairs);
-                                                    }}
-                                                    placeholder="Jugador A"
-                                                />
-                                                <SearchableSelect
-                                                    options={getOpts(p2Id)}
-                                                    value={p2Id}
-                                                    onChange={(v) => {
-                                                        const currentP1 = p1Id;
-                                                        const currentP2 = v;
-                                                        const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, maxPairs);
-                                                    }}
-                                                    placeholder="Jugador B"
-                                                />
-                                            </div>
+                                        <div key={id} className="bg-white border rounded-full px-3 py-1 text-xs flex items-center gap-2 shadow-sm">
+                                            <span>{p.nombre} {p.apellidos}</span>
+                                            <button onClick={() => setSelectedPlayerIds(selectedPlayerIds.filter(x => x !== id))} className="text-gray-400 hover:text-red-500"><X size={12} /></button>
                                         </div>
                                     )
                                 })}
                             </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="border-t pt-6"></div>
+
+                {/* 2. Manual Assignments / View (Conditional per format) */}
+                {(format === 'classic') && (
+                    <div>
+                        <div className="flex items-center gap-4 mb-4">
+                            <h3 className="font-bold text-gray-800">2. Divisiones (Manual)</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm">Num. Divisiones:</span>
+                                <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
+                            </div>
                         </div>
-                    ))}
-                </div>
-            );
-        }
 
-        // For Americano/Mexicano: Select Pool from List with Search
-        return (
-            <div className="space-y-4">
-                <div className="flex justify-between">
-                    <h3 className="font-bold text-gray-800">Seleccionar Jugadores ({selectedPlayerIds.length})</h3>
-                    <span className="text-sm text-gray-500">Mínimo 4 jugadores · Múltiplo de 4 recomendado</span>
-                </div>
+                        {Array.from({ length: numDivisions }).map((_, divIdx) => (
+                            <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
+                                <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
+                                <div className="grid md:grid-cols-2 gap-3">
+                                    {Array.from({ length: 4 }).map((_, pIdx) => {
+                                        const currentList = assignments[divIdx] || [];
+                                        const val = currentList[pIdx] || '';
+                                        // Used Logic same as before
+                                        const used = new Set<string>();
+                                        Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
+                                        const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
 
-                {/* Search and Add Player */}
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Buscar y Añadir Jugador</label>
-                    <SearchableSelect
-                        options={availablePlayers
-                            .filter(p => !selectedPlayerIds.includes(p.id))
-                            .map(p => ({
-                                id: p.id,
-                                label: `${p.nombre} ${p.apellidos}`,
-                                subLabel: `Nivel: ${p.stats.winrate}%`
-                            }))}
-                        value=""
-                        onChange={(id) => {
-                            if (id) setSelectedPlayerIds([...selectedPlayerIds, id]);
-                        }}
-                        placeholder="Buscar jugador..."
-                    />
-                </div>
+                                        return (
+                                            <div key={pIdx}>
+                                                <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
+                                                <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, 4)} placeholder="Seleccionar..." />
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
-                {/* Selected Players List */}
-                <div className="bg-white border rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-700 mb-3">Jugadores Seleccionados</h4>
-                    {selectedPlayerIds.length === 0 ? (
-                        <p className="text-gray-400 text-center py-8">No hay jugadores seleccionados</p>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {selectedPlayerIds.map(id => {
-                                const player = players[id];
-                                if (!player) return null;
-                                return (
-                                    <div
-                                        key={id}
-                                        className="flex items-center justify-between p-2 bg-gray-50 rounded border"
-                                    >
-                                        <div className="flex-1">
-                                            <div className="font-medium text-sm">{player.nombre} {player.apellidos}</div>
-                                            <div className="text-xs text-gray-500">Nivel: {player.stats.winrate}%</div>
-                                        </div>
-                                        <button
-                                            onClick={() => setSelectedPlayerIds(selectedPlayerIds.filter(pid => pid !== id))}
-                                            className="ml-2 p-1 hover:bg-red-100 rounded text-red-500"
-                                        >
-                                            <X size={16} />
-                                        </button>
-                                    </div>
-                                );
-                            })}
+                {(format === 'individual') && (
+                    <div>
+                        <div className="flex items-center gap-4 mb-4">
+                            <h3 className="font-bold text-gray-800">2. Divisiones (Manual)</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm">Num. Divisiones:</span>
+                                <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
+                            </div>
                         </div>
-                    )}
-                </div>
+                        {/* Render logic repeated for Individual (simplified list) */}
+                        {Array.from({ length: numDivisions }).map((_, divIdx) => (
+                            <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
+                                <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
+                                <div className="grid md:grid-cols-2 gap-3">
+                                    {Array.from({ length: individualMaxPlayers }).map((_, pIdx) => {
+                                        const currentList = assignments[divIdx] || [];
+                                        const val = currentList[pIdx] || '';
+                                        const used = new Set<string>();
+                                        Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
+                                        const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+                                        return (
+                                            <div key={pIdx} className="flex gap-2 items-center">
+                                                <span className="text-xs text-gray-400 w-6">{pIdx + 1}.</span>
+                                                <div className="flex-1">
+                                                    <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, individualMaxPlayers)} placeholder="..." />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {(format === 'pairs') && (
+                    <div>
+                        <div className="flex items-center gap-4 mb-4">
+                            <h3 className="font-bold text-gray-800">2. Divisiones (Manual)</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm">Num. Divisiones:</span>
+                                <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
+                            </div>
+                        </div>
+                        {Array.from({ length: numDivisions }).map((_, divIdx) => (
+                            <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
+                                <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
+                                <div className="grid gap-4">
+                                    {Array.from({ length: individualMaxPlayers }).map((_, pairIdx) => {
+                                        const currentList = assignments[divIdx] || [];
+                                        const val = currentList[pairIdx] || '';
+                                        const [p1Id, p2Id] = val ? val.split('-') : ['', ''];
+
+                                        // Complex used check (skipped for brevity, same as previous impl)
+                                        const used = new Set<string>();
+                                        Object.values(assignments).forEach((arr: string[]) => arr?.forEach(pairStr => {
+                                            if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('-'); if (u1) used.add(u1); if (u2) used.add(u2); }
+                                        }));
+                                        if (p1Id) used.add(p1Id);
+                                        if (p2Id) used.add(p2Id);
+                                        const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+
+                                        return (
+                                            <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border">
+                                                <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
+                                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                                    <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
+                                                        const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                        handleAssignment(divIdx, pairIdx, finalVal, individualMaxPlayers);
+                                                    }} placeholder="A" />
+                                                    <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
+                                                        const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                        handleAssignment(divIdx, pairIdx, finalVal, individualMaxPlayers);
+                                                    }} placeholder="B" />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     };
@@ -543,6 +668,13 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             });
         }
 
+        // Filter valid Guest Players (only those selected)
+        const activeGuestPlayers = guestPlayers.filter(g =>
+            format === 'classic' || format === 'individual' || format === 'pairs'
+                ? Object.values(assignments).flat().includes(g.id)
+                : selectedPlayerIds.includes(g.id)
+        );
+
         const newRanking: Ranking = {
             id: `r-${crypto.randomUUID()}`,
             nombre: name,
@@ -554,7 +686,9 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             config: {
                 ...config,
                 maxPlayersPerDivision: format === 'individual' ? individualMaxPlayers : undefined
-            }
+            },
+            isOfficial,
+            guestPlayers: activeGuestPlayers
         };
 
         onSave(newRanking);
@@ -569,17 +703,17 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             </div>
 
             {/* Stepper */}
-            <div className="flex justify-center mb-8">
+            <div className="flex justify-center mb-6 md:mb-8 overflow-x-auto px-2">
                 {STEPS.map((s, idx) => (
                     <div key={s.number} className="flex items-center">
-                        <div className={`flex flex-col items-center gap-2 relative z-10 ${step >= s.number ? 'text-primary' : 'text-gray-400'}`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${step >= s.number ? 'bg-primary text-white shadow-lg scale-110' : 'bg-gray-100'}`}>
+                        <div className={`flex flex-col items-center gap-1 md:gap-2 relative z-10 ${step >= s.number ? 'text-primary' : 'text-gray-400'}`}>
+                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base transition-all ${step >= s.number ? 'bg-primary text-white shadow-lg scale-110' : 'bg-gray-100'}`}>
                                 {s.number}
                             </div>
-                            <span className="text-xs font-bold uppercase">{s.title}</span>
+                            <span className="text-[10px] md:text-xs font-bold uppercase whitespace-nowrap">{s.title}</span>
                         </div>
                         {idx < STEPS.length - 1 && (
-                            <div className={`w-24 h-1 -mt-6 mx-2 transition-colors ${step > s.number ? 'bg-primary' : 'bg-gray-100'}`} />
+                            <div className={`w-8 md:w-24 h-1 -mt-5 mx-1 md:mx-2 transition-colors ${step > s.number ? 'bg-primary' : 'bg-gray-100'}`} />
                         )}
                     </div>
                 ))}
@@ -593,7 +727,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             </Card>
 
             {/* Footer Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-40 flex justify-between max-w-5xl mx-auto items-center">
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-[60] flex justify-between max-w-5xl mx-auto items-center pb-safe">
                 <Button disabled={step === 1} variant="secondary" onClick={() => setStep(step - 1)}>Atrás</Button>
 
                 <div className="flex gap-2">

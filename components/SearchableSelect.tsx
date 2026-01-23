@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, Check } from 'lucide-react';
+import { Search, ChevronDown, Check, X } from 'lucide-react';
 
 interface Option {
     id: string;
@@ -26,6 +26,8 @@ export const SearchableSelect = ({
     const [searchTerm, setSearchTerm] = useState('');
     const wrapperRef = useRef<HTMLDivElement>(null);
 
+    const [position, setPosition] = useState<'top' | 'bottom'>('bottom');
+
     // Close when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -37,18 +39,28 @@ export const SearchableSelect = ({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Auto-positioning logic
+    useEffect(() => {
+        if (isOpen && wrapperRef.current) {
+            const rect = wrapperRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            // Provide 280px buffer for dropdown (max-h-60 is approx 240px + search input)
+            if (spaceBelow < 280 && rect.top > 280) {
+                setPosition('top');
+            } else {
+                setPosition('bottom');
+            }
+        }
+    }, [isOpen]);
+
     // Filter options
     const filteredOptions = options.filter(opt =>
         opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (opt.subLabel && opt.subLabel.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    // Limit to 5 for performance/UX as requested, ensuring selected is always visible if it exists in filtered? 
-    // actually for a custom scrollable dropdown, we can show more, but let's stick to the "5 + selected" logic 
-    // or just show a scrollable list of matches. 
-    // User asked for "Filtro de busqueda", implying they want to find people. 
-    // A scrollable list of 5-10 items is standard. Let's do top 10 for custom dropdowns.
-    const displayedOptions = filteredOptions.slice(0, 50); // Relaxed limit for custom component
+    // Limit to 50 for performance
+    const displayedOptions = filteredOptions.slice(0, 50);
 
     const selectedOption = options.find(o => o.id === value);
 
@@ -59,7 +71,6 @@ export const SearchableSelect = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white flex justify-between items-center cursor-pointer hover:border-primary transition-colors text-sm"
                 onClick={() => {
                     setIsOpen(!isOpen);
-                    // Focus input on open? 
                     if (!isOpen) setSearchTerm('');
                 }}
             >
@@ -71,7 +82,10 @@ export const SearchableSelect = ({
 
             {/* Dropdown Menu */}
             {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg animation-fade-in-down">
+                <div
+                    className={`absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-lg animation-fade-in-down ${position === 'top' ? 'bottom-full mb-1' : 'mt-1'
+                        }`}
+                >
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-100">
                         <div className="relative">
@@ -113,14 +127,18 @@ export const SearchableSelect = ({
 
                         {/* Show "Clear Selection" if value exists */}
                         {value && (
-                            <div
-                                className="px-3 py-2 text-xs text-red-500 border-t border-gray-100 cursor-pointer hover:bg-red-50 text-center"
-                                onClick={() => {
-                                    onChange('');
-                                    setIsOpen(false);
-                                }}
-                            >
-                                Quitar Selección
+                            <div className="sticky bottom-0 bg-white border-t border-gray-100 p-2">
+                                <button
+                                    className="w-full text-center text-xs text-red-500 hover:bg-red-50 hover:text-red-700 py-2 rounded transition-colors font-medium flex items-center justify-center gap-1"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onChange('');
+                                        setIsOpen(false);
+                                        setSearchTerm('');
+                                    }}
+                                >
+                                    <X size={12} /> Quitar Selección
+                                </button>
                             </div>
                         )}
                     </div>
@@ -129,3 +147,4 @@ export const SearchableSelect = ({
         </div>
     );
 };
+

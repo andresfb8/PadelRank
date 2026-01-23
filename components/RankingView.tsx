@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users } from 'lucide-react';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2 } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
@@ -34,9 +34,10 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
-  const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerName: '', newPlayerEmail: '', nextPhaseDiv: '' });
+  const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '', nextPhaseDiv: '' });
   const [isManualMatchModalOpen, setIsManualMatchModalOpen] = useState(false);
   const [isAddPairModalOpen, setIsAddPairModalOpen] = useState(false);
+  const [isDivisionSettingsModalOpen, setIsDivisionSettingsModalOpen] = useState(false);
   const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
 
   const handleMatchClick = (m: Match) => {
@@ -74,7 +75,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     const previousStatus = activeDivision.matches[matchIndex].status;
     const isFirstTimeFinalizing = updatedMatch.status === 'finalizado' && previousStatus !== 'finalizado';
 
-    if (isFirstTimeFinalizing && onUpdatePlayerStats && activeDivision && isRankedFormat) {
+    if (isFirstTimeFinalizing && onUpdatePlayerStats && activeDivision && isRankedFormat && ranking.isOfficial !== false) {
       // Determine winner
       // P1 vs P2
       // For simplicity in Classic/Individual (Set based)
@@ -202,23 +203,11 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
   if (!ranking) return <div className="p-8 text-center text-gray-500">Torneo no encontrado</div>;
 
-  const handleSubstitutePlayer = () => {
-    if (!activeDivision || !onUpdateRanking || !substituteData.oldPlayerId || (!substituteData.newPlayerName && !substituteData.newPlayerEmail)) return;
+  const handleSubstitutePlayer = (data: { oldPlayerId: string, newPlayerId: string, nextPhaseDiv?: string }) => {
+    if (!activeDivision || !onUpdateRanking || !data.oldPlayerId || !data.newPlayerId) return;
 
-    const { oldPlayerId, newPlayerName, newPlayerEmail } = substituteData;
-
-    // Create a new player object if newPlayerName/Email is provided
-    let newPlayerId = '';
-    if (newPlayerName || newPlayerEmail) {
-      // Generate a unique ID for the new player
-      newPlayerId = `sub_${Date.now()}`;
-      // Add new player to the global players object (this would typically be handled by a parent component)
-      // For now, we'll assume the parent `onUpdateRanking` will handle player creation if needed.
-      // This is a simplified client-side substitution.
-    } else {
-      // If no new player name/email, it means the player is just removed.
-      // In this case, newPlayerId remains empty, and the old player is just marked retired.
-    }
+    const { oldPlayerId, newPlayerId } = data; // use directly
+    // No new creation logic since we use a real ID.
 
 
     // 1. Update Division Players: Keep old (for history), Add new
@@ -271,7 +260,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
     };
     // 5. Manual Division Placement (Override) for Next Phase
-    const nextPhaseDivStr = substituteData.nextPhaseDiv;
+    const nextPhaseDivStr = data.nextPhaseDiv;
 
     if (newPlayerId && nextPhaseDivStr && !isNaN(parseInt(nextPhaseDivStr))) {
       const targetDiv = parseInt(nextPhaseDivStr);
@@ -288,7 +277,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
     onUpdateRanking(updatedRanking);
     setIsSubstituteModalOpen(false);
-    setSubstituteData({ oldPlayerId: '', newPlayerName: '', newPlayerEmail: '', nextPhaseDiv: '' });
+    // setSubstituteData reset not needed as we don't bind state to modal input anymore directly in parent (modal handles its own or we re-init)
   };
 
   const handleGenerateNextRound = () => {
@@ -305,7 +294,10 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         return alert("Debes finalizar todos los partidos de la ronda actual antes de generar la siguiente en modo Mexicano.");
       }
       newMatches = MatchGenerator.generateMexicanoRound(
-        activeDivision.players.map(id => players[id] || { id, nombre: '?', apellidos: '' } as Player),
+        activeDivision.players.map(id => {
+          const guest = ranking.guestPlayers?.find(g => g.id === id);
+          return players[id] || (guest ? { ...guest, stats: { winrate: 50 }, email: '', telefono: '', fechaNacimiento: '' } as Player : { id, nombre: '?', apellidos: '', stats: { winrate: 0 } as any } as Player);
+        }),
         standings,
         nextRound,
         ranking.config?.courts
@@ -465,6 +457,40 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     onUpdateRanking({ ...ranking, divisions });
   };
 
+  const handleRenameDivision = (divId: string, newName: string) => {
+    if (!onUpdateRanking) return;
+    const updatedRanking = {
+      ...ranking,
+      divisions: ranking.divisions.map(d => d.id === divId ? { ...d, name: newName } : d)
+    };
+    onUpdateRanking(updatedRanking);
+  };
+
+  const handleDeleteDivision = (divId: string) => {
+    if (!onUpdateRanking) return;
+
+    // 1. Filter out deleted division
+    const remainingDivisions = ranking.divisions.filter(d => d.id !== divId);
+
+    // 2. Re-index remaining divisions
+    const reindexedDivisions = remainingDivisions.map((d, index) => ({
+      ...d,
+      numero: index + 1
+    }));
+
+    const updatedRanking = {
+      ...ranking,
+      divisions: reindexedDivisions
+    };
+
+    onUpdateRanking(updatedRanking);
+
+    // If we deleted the active division, switch to the first available one (or null if none)
+    if (activeDivisionId === divId) {
+      setActiveDivisionId(reindexedDivisions.length > 0 ? reindexedDivisions[0].id : '');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -583,14 +609,25 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               División {div.numero}
             </button>
           ))}
-          {isAdmin && onAddDivision && (
-            <button
-              onClick={() => setIsAddDivModalOpen(true)}
-              className="px-3 py-2 rounded-t-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center"
-              title="Añadir nueva división"
-            >
-              <Plus size={16} />
-            </button>
+          {isAdmin && (
+            <>
+              {onAddDivision && (
+                <button
+                  onClick={() => setIsAddDivModalOpen(true)}
+                  className="px-3 py-2 rounded-t-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center border-b border-gray-200"
+                  title="Añadir nueva división"
+                >
+                  <Plus size={16} />
+                </button>
+              )}
+              <button
+                onClick={() => setIsDivisionSettingsModalOpen(true)}
+                className="px-3 py-2 rounded-t-lg bg-gray-50 text-gray-600 hover:bg-gray-200 transition-colors flex items-center ml-1 border-b border-gray-200"
+                title="Gestionar Divisiones"
+              >
+                <Settings size={16} />
+              </button>
+            </>
           )}
         </div>
       )}
@@ -743,7 +780,10 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                 displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
               } else {
                 const player = players[row.playerId];
+                const guest = ranking.guestPlayers?.find(g => g.id === row.playerId);
+
                 if (player) displayName = formatCompactName(player.nombre, player.apellidos);
+                else if (guest) displayName = `${guest.nombre} ${guest.apellidos || ''} (Inv)`;
               }
 
               const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
@@ -1151,6 +1191,50 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         )
       }
 
+      {/* Division Settings Modal */}
+      <Modal
+        isOpen={isDivisionSettingsModalOpen}
+        onClose={() => setIsDivisionSettingsModalOpen(false)}
+        title="Gestionar Divisiones"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
+            Aquí puedes renombrar o eliminar divisiones. <span className="font-bold text-red-600">¡Cuidado!</span> Borrar una división elimina a sus jugadores y partidos del torneo.
+          </p>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {ranking.divisions.sort((a, b) => a.numero - b.numero).map(div => (
+              <div key={div.id} className="flex items-center gap-2 p-3 border rounded-lg bg-gray-50">
+                <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full border text-sm font-bold text-gray-500">
+                  {div.numero}
+                </div>
+                <input
+                  className="flex-1 p-2 border rounded-md text-sm"
+                  placeholder={`División ${div.numero}`}
+                  value={div.name || ''}
+                  onChange={(e) => handleRenameDivision(div.id, e.target.value)}
+                />
+                {/* Delete Button - Only allowed if it's the last division OR user confirms re-indexing */}
+                {/* Actually per requirements, user can delete any. Logic handles re-indexing. */}
+                <button
+                  onClick={() => {
+                    if (confirm(`¿ELIMINAR ${div.name || `División ${div.numero}`}?\n\nSe ELIMINARÁN permanentemente los jugadores y partidos de esta división.\nLas divisiones inferiores subirán de nivel.`)) {
+                      handleDeleteDivision(div.id);
+                    }
+                  }}
+                  className="p-2 text-red-500 hover:bg-red-100 rounded-md transition-colors"
+                  title="Eliminar División"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end pt-4">
+            <Button onClick={() => setIsDivisionSettingsModalOpen(false)}>Hecho</Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Status Management Modal */}
       <Modal
         isOpen={isStatusModalOpen}
@@ -1222,11 +1306,10 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       <SubstituteModal
         isOpen={isSubstituteModalOpen}
         onClose={() => setIsSubstituteModalOpen(false)}
-        players={players}
-        divisions={ranking.divisions}
-        data={substituteData}
-        onChange={(field, value) => setSubstituteData({ ...substituteData, [field]: value })}
-        onConfirm={handleSubstitutePlayer}
+        onSubstitute={handleSubstitutePlayer}
+        divisionPlayers={activeDivision ? activeDivision.players.map(id => players[id]).filter(Boolean) : []}
+        availablePlayers={Object.values(players)}
+        currentDiv={activeDivision?.numero || 1}
       />
 
       <AddManualMatchModal

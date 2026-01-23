@@ -60,6 +60,8 @@ export interface Ranking {
   rules?: string; // Markdown or text rules
   history?: Match[]; // Historical matches from previous phases (for global stats)
   overrides?: { playerId: string, forceDiv: number }[]; // Manual division overrides for next phase
+  isOfficial?: boolean; // If false, matches do not affect global player stats (default: true for Classic, false for Quick)
+  guestPlayers?: { id: string; nombre: string; apellidos?: string }[]; // Temporary players for this tournament only
 }
 
 export interface Division {
@@ -69,6 +71,7 @@ export interface Division {
   players: string[]; // Player IDs
   retiredPlayers?: string[]; // IDs of players who left during the phase
   matches: Match[];
+  name?: string; // Optional custom name (e.g. "Champions League")
 }
 
 export interface MatchPair {
