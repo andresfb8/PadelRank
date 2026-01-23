@@ -16,19 +16,19 @@
           },
           colors: {
             primary: {
-              DEFAULT: '#4F46E5', // Indigo 600
-              50: '#EEF2FF',
-              100: '#E0E7FF',
-              600: '#4F46E5',
-              700: '#4338CA',
+              DEFAULT: '#2563EB', // Electric Blue
+              50: '#EFF6FF',
+              100: '#DBEAFE',
+              600: '#2563EB',
+              700: '#1D4ED8',
             },
             secondary: {
               DEFAULT: '#64748B', // Slate 500
-              50: '#F8FAFC', // Slate 50
-              100: '#F1F5F9', // Slate 100
-              200: '#E2E8F0', // Slate 200
-              800: '#1E293B', // Slate 800
-              900: '#0F172A', // Slate 900
+              50: '#F0F4F8', // Neumorphic Base
+              100: '#E2E8F0',
+              200: '#CBD5E1',
+              800: '#1E293B',
+              900: '#0F172A',
             },
             accent: {
               DEFAULT: '#0EA5E9', // Sky 500
@@ -40,7 +40,10 @@
           },
           boxShadow: {
             'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-            'glow': '0 0 15px rgba(79, 70, 229, 0.3)',
+            'glow': '0 0 15px rgba(37, 99, 235, 0.4)',
+            'neu': '9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5)',
+            'neu-pressed': 'inset 6px 6px 10px 0 rgba(163,177,198, 0.7), inset -6px -6px 10px 0 rgba(255,255,255, 0.8)',
+            'neu-sm': '5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255, 0.5)',
           }
         }
       }
@@ -49,8 +52,8 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #F8FAFC;
-      /* Slate 50 */
+      background-color: #F0F4F8;
+      /* Neumorphic Base */
       color: #1E293B;
       /* Slate 800 */
       -webkit-font-smoothing: antialiased;

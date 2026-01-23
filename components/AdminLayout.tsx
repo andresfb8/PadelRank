@@ -34,6 +34,7 @@ import {
     subscribeToUserProfile
 } from '../services/db';
 import { migratePlayersStats } from '../services/migration';
+import { MobileBottomNav } from './MobileBottomNav';
 
 
 export const AdminLayout = () => {
@@ -399,53 +400,55 @@ export const AdminLayout = () => {
     const activeRankings = rankings.filter(r => r.status === 'activo');
 
     return (
-        <div className="min-h-screen flex bg-gray-50 text-gray-900 relative">
-            {/* Sidebar */}
-            <aside className={`fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarOpen ? 'shadow-2xl lg:shadow-none' : ''}`}>
+        <div className="min-h-screen flex bg-[#F0F4F8] text-gray-900 relative">
+            {/* Sidebar (Desktop Only) */}
+            <aside className="hidden lg:block sticky top-0 h-screen w-64 bg-white border-r border-gray-100 z-30">
                 <div className="h-full flex flex-col">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-center">
                         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
                             <Trophy /> PadelRank
                         </h2>
                     </div>
-                    <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                    <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
                         {!isPublicUser && (
-                            <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'dashboard' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
+                            <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'dashboard' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
                         )}
 
-                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Trophy size={20} /> {isPublicUser ? 'Torneos' : 'Mis Torneos'}</button>
+                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Trophy size={20} /> {isPublicUser ? 'Torneos' : 'Mis Torneos'}</button>
 
                         {!isPublicUser && (
-                            <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'players' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
+                            <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'players' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
                         )}
 
                         {currentUser?.role === 'superadmin' && (
-                            <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'admin_management' ? 'bg-blue-50 text-primary font-medium' : 'text-gray-600 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
+                            <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'admin_management' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
                         )}
                     </nav>
                     <div className="p-4 border-t border-gray-100">
-                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors"><LogOut size={20} /> Cerrar Sesión</button>
+                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"><LogOut size={20} /> Cerrar Sesión</button>
                     </div>
                 </div>
             </aside>
 
-            {/* Main */}
-            <div className="flex-1 flex flex-col min-w-0">
-                <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm lg:shadow-none">
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden text-gray-500 p-2 -ml-2 hover:bg-gray-100 rounded-lg"><Menu /></button>
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-w-0 pb-24 lg:pb-0">
+                <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm lg:shadow-none">
+                    <div className="lg:hidden text-primary font-bold flex items-center gap-2">
+                        <Trophy size={24} /> PadelRank
+                    </div>
                     <div className="flex items-center gap-4 ml-auto">
                         <div className="text-right hidden md:block">
                             <div className="text-sm font-bold text-gray-900">{currentUser?.name || currentUser?.email}</div>
                             <div className="mt-0.5 flex justify-end">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${currentUser?.role === 'superadmin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                    currentUser?.role === 'admin' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                        'bg-gray-100 text-gray-600 border-gray-200'
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${currentUser?.role === 'superadmin' ? 'bg-purple-100/50 text-purple-700 border-purple-200' :
+                                    currentUser?.role === 'admin' ? 'bg-blue-100/50 text-blue-700 border-blue-200' :
+                                        'bg-gray-100/50 text-gray-600 border-gray-200'
                                     }`}>
                                     {isPublicUser ? 'Jugador' : currentUser?.role}
                                 </span>
                             </div>
                         </div>
-                        <button onClick={() => !isPublicUser && setView('profile')} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold hover:opacity-90 ${isPublicUser ? 'bg-gray-200 text-gray-600 cursor-default' : 'bg-primary text-white'}`}>
+                        <button onClick={() => !isPublicUser && setView('profile')} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold hover:opacity-90 transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500 cursor-default' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
                             {currentUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
                         </button>
                     </div>
@@ -672,6 +675,14 @@ export const AdminLayout = () => {
                     {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} />}
                 </main>
             </div>
+
+            {/* Mobile Bottom Nav */}
+            <MobileBottomNav
+                currentView={view}
+                onNavigate={handleNavClick}
+                isAdmin={!isPublicUser}
+                isSuperAdmin={currentUser?.role === 'superadmin'}
+            />
 
             <PlayerModal isOpen={isPlayerModalOpen} onClose={() => setIsPlayerModalOpen(false)} onSave={handleSavePlayer} playerToEdit={editingPlayer} />
             {credentialsModal?.isOpen && (
