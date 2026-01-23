@@ -11,6 +11,8 @@ import { SubstituteModal } from './SubstituteModal';
 import { AddManualMatchModal } from './AddManualMatchModal';
 import { AddPairModal } from './AddPairModal';
 import { MatchModal } from './MatchModal';
+import { BracketView } from './BracketView';
+import { TournamentEngine } from '../services/TournamentEngine';
 
 interface Props {
   ranking: Ranking;
@@ -62,6 +64,23 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       ...ranking,
       divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
     };
+
+    // ELIMINATION LOGIC
+    if (ranking.format === 'elimination' && updatedMatch.status === 'finalizado') {
+      const p1WonVal = updatedMatch.points.p1 > updatedMatch.points.p2;
+      const winnerId = p1WonVal ? updatedMatch.pair1 : updatedMatch.pair2;
+      const loserId = p1WonVal ? updatedMatch.pair2 : updatedMatch.pair1;
+
+      let newDivisions = TournamentEngine.advanceWinner(updatedMatch, updatedRanking, { p1: winnerId.p1Id, p2: winnerId.p2Id });
+
+      // Handle Consolation for R1 Losers
+      if (updatedMatch.jornada === 1 && ranking.config?.eliminationConfig?.consolation) {
+        const updatedRankingWithWinner = { ...updatedRanking, divisions: newDivisions }; // Use intermediate state
+        newDivisions = TournamentEngine.moveLoserToConsolation(updatedMatch, updatedRankingWithWinner, { p1: loserId.p1Id, p2: loserId.p2Id });
+      }
+
+      updatedRanking.divisions = newDivisions;
+    }
 
     onUpdateRanking(updatedRanking);
 
@@ -903,147 +922,177 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         activeTab === 'standings' && (
           <Card className="overflow-hidden !p-0">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> Tabla de Clasificación</h3>
+              <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> {ranking.format === 'elimination' ? 'Cuadro de Torneo' : 'Tabla de Clasificación'}</h3>
             </div>
 
-            {/* Mobile Card View */}
-            <div className="md:hidden">
-              {activeTab === 'standings' && standings.map((row) => {
-                let displayName = 'Desconocido';
-                const isPromoted = row.pos <= (ranking.config?.promotionCount || 2);
-                const isRelegated = row.pos > standings.length - (ranking.config?.relegationCount || 2);
+            {ranking.format === 'elimination' && activeDivision ? (
+              <div className="p-4 bg-gray-50/50 min-h-[400px]">
+                <BracketView
+                  division={activeDivision}
+                  players={players}
+                  onMatchClick={handleMatchClick}
+                />
+              </div>
+            ) : (
+              <>
+                {/* Mobile Card View */}
+                <div className="md:hidden">
+                  {activeTab === 'standings' && standings.map((row) => {
+                    let displayName = 'Desconocido';
+                    const isPromoted = row.pos <= (ranking.config?.promotionCount || 2);
+                    const isRelegated = row.pos > standings.length - (ranking.config?.relegationCount || 2);
 
-                const formatCompactName = (name: string, surname?: string) => {
-                  if (!name) return '?';
-                  return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
-                };
+                    const formatCompactName = (name: string, surname?: string) => {
+                      if (!name) return '?';
+                      return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
+                    };
 
-                if (ranking.format === 'pairs') {
-                  const [p1Id, p2Id] = row.playerId.split('-');
-                  const p1 = players[p1Id];
-                  const p2 = players[p2Id];
-                  displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
-                } else {
-                  const player = players[row.playerId];
-                  if (player) displayName = formatCompactName(player.nombre, player.apellidos);
-                }
-
-                const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
-
-                return (
-                  <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                          row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                            row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500 bg-gray-50'
-                          }`}>
-                          #{row.pos}
-                        </span>
-                        <div>
-                          <div className="font-semibold text-gray-900 text-base">{displayName}</div>
-                          <div className="text-xs text-gray-400 font-medium">
-                            {isPromoted ? <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span> :
-                              isRelegated ? <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span> :
-                                'Permanencia'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <div className="text-2xl font-bold text-primary leading-none">{row.pts}</div>
-                        <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
-                      <div>
-                        <div className="text-xs text-gray-500 font-medium mb-0.5">PJ</div>
-                        <div className="font-bold text-gray-800">{row.pj}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-green-600 font-medium mb-0.5">PG</div>
-                        <div className="font-bold text-gray-800">{row.pg}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-red-500 font-medium mb-0.5">PP</div>
-                        <div className="font-bold text-gray-800">{row.pj - row.pg}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-blue-500 font-medium mb-0.5">%Vic</div>
-                        <div className="font-bold text-gray-800">{winrate}%</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="overflow-x-auto hidden md:block">
-              <table className="w-full text-sm text-left whitespace-nowrap">
-                <thead className="bg-gray-50 text-gray-500 font-medium border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-center w-12 sticky left-0 bg-gray-50 z-10">Pos</th>
-                    <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">Jugador</th>
-                    <th className="px-4 py-3 text-center">PJ</th>
-                    <th className="px-4 py-3 text-center">PTS</th>
-                    <th className="px-4 py-3 text-center">% Vic</th>
-                    <th className="px-4 py-3 text-center hidden sm:table-cell">Sets +/-</th>
-                    <th className="px-4 py-3 text-center hidden sm:table-cell">Juegos +/-</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {standings.map((row) => {
-                    const isPair = row.playerId.includes('-');
-                    let playerName = 'Desconocido';
-
-                    if (isPair) {
+                    if (ranking.format === 'pairs') {
                       const [p1Id, p2Id] = row.playerId.split('-');
                       const p1 = players[p1Id];
                       const p2 = players[p2Id];
-                      playerName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
+                      displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
                     } else {
                       const player = players[row.playerId];
-                      if (!player) return null;
-                      playerName = `${player.nombre} ${player.apellidos}`;
+                      if (player) displayName = formatCompactName(player.nombre, player.apellidos);
                     }
-
-                    let posClass = "bg-white text-gray-700";
-                    if (activeDivision && activeDivision.numero > 1 && row.pos <= 2) posClass = "bg-green-100 text-green-800 border-r border-green-200";
-                    if (!isLastDivision && row.pos >= 3) posClass = "bg-red-100 text-red-800 border-r border-red-200";
 
                     const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
 
                     return (
-                      <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
-                        <td className={`px-4 py-3 text-center font-bold sticky left-0 z-10 ${posClass}`}>{row.pos}</td>
-                        <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                          {onPlayerClick ? (
-                            <button
-                              onClick={() => onPlayerClick(row.playerId)}
-                              className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
-                              title={playerName}
-                            >
-                              {playerName}
-                            </button>
-                          ) : (
-                            <div className="truncate max-w-[260px]" title={playerName}>{playerName}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
-                        <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>
-                        <td className="px-4 py-3 text-center font-medium text-gray-700">{winrate}%</td>
-                        <td className="px-4 py-3 text-center text-gray-600 hidden sm:table-cell">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
-                        <td className="px-4 py-3 text-center text-gray-600 hidden sm:table-cell">{row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff}</td>
-                      </tr>
+                      <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
+                              row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                                row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500 bg-gray-50'
+                              }`}>
+                              #{row.pos}
+                            </span>
+                            <div>
+                              <div className="font-semibold text-gray-900 text-base">{displayName}</div>
+                              <div className="text-xs text-gray-400 font-medium">
+                                {isPromoted ? <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span> :
+                                  isRelegated ? <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span> :
+                                    'Permanencia'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <div className="text-2xl font-bold text-primary leading-none">{row.pts}</div>
+                            <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium mb-0.5">PJ</div>
+                            <div className="font-bold text-gray-800">{row.pj}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-green-600 font-medium mb-0.5">PG</div>
+                            <div className="font-bold text-gray-800">{row.pg}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-red-500 font-medium mb-0.5">PP</div>
+                            <div className="font-bold text-gray-800">{row.pj - row.pg}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-blue-500 font-medium mb-0.5">%</div>
+                            <div className="font-bold text-gray-800">{winrate}%</div>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-            <div className="p-2 bg-gray-50 text-xs text-gray-400 flex gap-4 justify-end border-t">
-              {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
-              {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
-            </div>
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 w-12 text-center">#</th>
+                        <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Jugador</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16">PJ</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16">PTS</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-green-600 uppercase w-16">PG</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-red-500 uppercase w-16">PP</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16">Dif S</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16">Dif J</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase w-20">% Vic</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {activeTab === 'standings' && standings.map((row) => {
+                        let displayName = 'Desconocido';
+                        if (ranking.format === 'pairs') {
+                          const [p1Id, p2Id] = row.playerId.split('-');
+                          const p1 = players[p1Id];
+                          const p2 = players[p2Id];
+                          displayName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
+                        } else {
+                          const player = players[row.playerId];
+                          if (player) displayName = `${player.nombre} ${player.apellidos}`;
+                        }
+
+                        const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
+                        const isPromoted = row.pos <= (ranking.config?.promotionCount || 2);
+                        const isRelegated = row.pos > standings.length - (ranking.config?.relegationCount || 2);
+
+                        return (
+                          <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
+                            <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10 border-r border-gray-100/50">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
+                                row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                                  row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500'
+                                }`}>
+                                {row.pos}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                              <div className="flex items-center gap-2">
+                                {onPlayerClick ? (
+                                  <button
+                                    onClick={() => onPlayerClick(row.playerId)}
+                                    className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
+                                    title={displayName}
+                                  >
+                                    {displayName}
+                                  </button>
+                                ) : (
+                                  <div className="truncate max-w-[260px]" title={displayName}>{displayName}</div>
+                                )}
+                                {isPromoted && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">ASC</span>}
+                                {isRelegated && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">DESC</span>}
+                              </div>
+
+                            </td>
+                            <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
+                            <td className="px-4 py-3 text-center font-bold text-primary bg-primary/5 rounded-lg my-1">{row.pts}</td>
+                            <td className="px-4 py-3 text-center text-green-600 font-medium">{row.pg}</td>
+                            <td className="px-4 py-3 text-center text-red-600 font-medium">{row.pj - row.pg}</td>
+                            <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
+                            <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff}</td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1 overflow-hidden">
+                                <div className={`h-1.5 rounded-full ${winrate >= 50 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${winrate}%` }}></div>
+                              </div>
+                              <span className="text-xs text-gray-500">{winrate}%</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="p-2 bg-gray-50 text-xs text-gray-400 flex gap-4 justify-end border-t">
+                  {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
+                  {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
+                </div>
+              </>
+            )}
           </Card>
         )
       }
@@ -1143,6 +1192,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           </div>
         )
       }
+
+
 
       {/* Match Result Modal */}
       {

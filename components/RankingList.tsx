@@ -110,7 +110,8 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                             {ranking.format === 'americano' ? 'Americano' :
                               ranking.format === 'mexicano' ? 'Mexicano' :
                                 ranking.format === 'individual' ? 'Individual' :
-                                  ranking.format === 'pairs' ? 'Ranking por Parejas' : 'Ranking clásica CPSJ'}
+                                  ranking.format === 'pairs' ? 'Ranking por Parejas' :
+                                    ranking.format === 'elimination' ? 'Eliminación Directa' : 'Ranking clásica CPSJ'}
                           </span>
                         </div>
                         <button

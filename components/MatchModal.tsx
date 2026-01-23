@@ -12,7 +12,7 @@ interface Props {
   onSave: (matchId: string, result: any) => void;
   rankingConfig?: RankingConfig;
   // New prop
-  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs';
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination';
 }
 
 export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingConfig, format }: Props) => {
@@ -222,7 +222,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
         )}
 
         {/* Incomplete Toggle - Hide for Individual and Mexicano/Americano */}
-        {format !== 'individual' && format !== 'mexicano' && format !== 'americano' && (
+        {format !== 'individual' && format !== 'mexicano' && format !== 'americano' && format !== 'elimination' && (
           <div className={`flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100`}>
             <input
               type="checkbox"
@@ -243,16 +243,41 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
             <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
               <Info size={16} /> Análisis del Resultado
             </h4>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Estado:</span>
-              <Badge type={preview.finalizationType === 'completo' ? 'success' : (preview.finalizationType === 'empate_manual' ? 'default' : 'warning')}>
-                {preview.description}
-              </Badge>
-            </div>
-            <div className="flex justify-between items-center font-mono text-sm">
-              <span>Reparto de Puntos:</span>
-              <span className="font-bold">{preview.points.p1} - {preview.points.p2}</span>
-            </div>
+            {format === 'elimination' ? (
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-gray-700">Ganador:</span>
+                <span className="font-bold text-green-600">
+                  {(() => {
+                    let p1Sets = 0;
+                    let p2Sets = 0;
+                    const v1 = { p1: parseInt(s1.p1) || 0, p2: parseInt(s1.p2) || 0 };
+                    const v2 = { p1: parseInt(s2.p1) || 0, p2: parseInt(s2.p2) || 0 };
+                    const v3 = { p1: parseInt(s3.p1) || 0, p2: parseInt(s3.p2) || 0 };
+
+                    if (v1.p1 > v1.p2) p1Sets++; else if (v1.p2 > v1.p1) p2Sets++;
+                    if (s2.p1 && s2.p2) { if (v2.p1 > v2.p2) p1Sets++; else if (v2.p2 > v2.p1) p2Sets++; }
+                    if (s3.p1 && s3.p2) { if (v3.p1 > v3.p2) p1Sets++; else if (v3.p2 > v3.p1) p2Sets++; }
+
+                    return p1Sets > p2Sets ? p1Name : (p2Sets > p1Sets ? p2Name : 'Empate');
+                  })()}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Estado:</span>
+                  <Badge type={preview.finalizationType === 'completo' ? 'success' : (preview.finalizationType === 'empate_manual' ? 'default' : 'warning')}>
+                    {preview.description}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center font-mono text-sm">
+                  <span>Reparto de Puntos:</span>
+                  <span className="font-bold">
+                    {`${preview.points.p1} - ${preview.points.p2}`}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         )}
 

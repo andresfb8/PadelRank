@@ -4,6 +4,7 @@ import { Button, Card, Input } from './ui/Components';
 import { Player, Ranking, RankingFormat, RankingConfig, Division, ScoringMode } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
+import { TournamentEngine } from '../services/TournamentEngine';
 
 interface Props {
     players: Record<string, Player>;
@@ -37,7 +38,8 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         promotionCount: 2,
         relegationCount: 2,
         courts: 2,
-        scoringMode: '24'  // Default for Mexicano/Americano
+        scoringMode: '24',  // Default for Mexicano/Americano
+        eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
     });
 
     // Players
@@ -88,6 +90,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     label: 'Mexicano',
                     desc: 'Partidos nivelados. Los ganadores juegan entre sí. El mejor sistema competitvo rápido.',
                     color: 'orange' // Mexicano usually relates to fun/dynamic
+                },
+                {
+                    id: 'elimination',
+                    label: 'Eliminación Directa (Torneo)',
+                    desc: 'Cuadro principal y de consolación. Cabezas de serie y avance por rondas.',
+                    color: 'red'
                 }
             ].map((f) => (
                 <div
@@ -123,6 +131,11 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                 pointsDraw: 2,
                                 pointsPerLoss2_1: 1,
                                 pointsPerLoss2_0: 0
+                            }));
+                        } else if (f.id === 'elimination') {
+                            setConfig(prev => ({
+                                ...prev,
+                                eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
                             }));
                         } else {
                             // Reset to defaults for other formats
@@ -262,6 +275,47 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                         <Input type="number" label={format === 'pairs' ? "Parejas/Div" : "Jugadores/Div"} value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(0, parseInt(e.target.value) || 0))} />
                         <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
                         <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
+                    </div>
+                </div>
+            )}
+            {/* Elimination Configuration */}
+            {format === 'elimination' && (
+                <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Trophy size={18} /> Configuración del Torneo</h3>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Modalidad</label>
+                            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                                <button
+                                    onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'individual' } })}
+                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.eliminationConfig?.type === 'individual' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Individual
+                                </button>
+                                <button
+                                    onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'pairs' } })}
+                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.eliminationConfig?.type === 'pairs' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Parejas
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={config.eliminationConfig?.consolation}
+                                    onChange={(e) => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, consolation: e.target.checked } })}
+                                    className="w-5 h-5 text-primary rounded"
+                                />
+                                <span className="text-sm font-medium text-gray-700 font-bold">Cuadro de Consolación</span>
+                            </label>
+                            <p className="text-xs text-gray-500 ml-7">
+                                Los perdedores de la primera ronda juegan un torneo paralelo.
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
@@ -582,6 +636,51 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                         ))}
                     </div>
                 )}
+
+                {(format === 'elimination' && config.eliminationConfig?.type === 'pairs') && (
+                    <div>
+                        <div className="flex items-center gap-4 mb-4">
+                            <h3 className="font-bold text-gray-800">2. Formar Parejas (Manual/Aleatorio)</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm">Num. Parejas:</span>
+                                <input type="number" min="1" max="64" value={individualMaxPlayers} onChange={(e) => setIndividualMaxPlayers(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg border mb-4">
+                            <div className="grid md:grid-cols-2 gap-4">
+                                {Array.from({ length: individualMaxPlayers || 8 }).map((_, pairIdx) => {
+                                    const currentList = assignments[0] || [];
+                                    const val = currentList[pairIdx] || '';
+                                    const [p1Id, p2Id] = val ? val.split('-') : ['', ''];
+
+                                    const used = new Set<string>();
+                                    (assignments[0] || []).forEach(pairStr => {
+                                        if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('-'); if (u1) used.add(u1); if (u2) used.add(u2); }
+                                    });
+                                    if (p1Id) used.add(p1Id);
+                                    if (p2Id) used.add(p2Id);
+                                    const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+
+                                    return (
+                                        <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border shadow-sm">
+                                            <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
+                                            <div className="flex-1 grid grid-cols-2 gap-2">
+                                                <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
+                                                    const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                    handleAssignment(0, pairIdx, finalVal, individualMaxPlayers || 8);
+                                                }} placeholder="Jugador A" />
+                                                <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
+                                                    const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                    handleAssignment(0, pairIdx, finalVal, individualMaxPlayers || 8);
+                                                }} placeholder="Jugador B" />
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
@@ -594,58 +693,78 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
         const divisions: Division[] = [];
 
-        if (format === 'classic' || format === 'individual' || format === 'pairs') {
-            for (let i = 0; i < numDivisions; i++) {
-                const p = assignments[i] || [];
-                // Filter empty players
-                const activePlayers = p.filter(x => x);
+        if (format === 'classic' || format === 'individual' || format === 'pairs' || format === 'elimination') {
 
-                const minP = format === 'pairs' ? 2 : 4;
-                if (activePlayers.length < minP) return alert(`Mínimo ${format === 'pairs' ? '2 Parejas' : '4 Jugadores'} en Div ${i + 1}`);
+            if (format === 'elimination') {
+                let playersList: string[] = [];
 
-                let matches: any[] = [];
-                if (format === 'classic') {
-                    if (activePlayers.length !== 4) return alert(`La División ${i + 1} debe tener exactamente 4 jugadores en liga clásica`);
-                    matches = MatchGenerator.generateClassic4(activePlayers, i);
-                } else if (format === 'pairs') {
-                    // Pairs Generation
-                    const pairStrings = p.filter(x => x && x.includes('-') && !x.startsWith('-') && !x.endsWith('-'));
-                    if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
+                if (config.eliminationConfig?.type === 'pairs') {
+                    // Filter completed pairs
+                    const p = assignments[0] || [];
+                    playersList = p.filter(x => x && x.includes('-') && !x.startsWith('-') && !x.endsWith('-'));
+                    if (playersList.length < 2) return alert("Se necesitan al menos 2 parejas completas para el torneo");
+                } else {
+                    playersList = selectedPlayerIds;
+                    if (playersList.length < 2) return alert("Mínimo 2 jugadores para torneo");
+                }
 
-                    const pairs = pairStrings.map(s => s.split('-'));
-                    // Flatten players for division.players
-                    const flatPlayers = pairs.flat();
+                const bracketDivisions = TournamentEngine.generateBracket(playersList, config.eliminationConfig?.consolation || false);
+                divisions.push(...bracketDivisions);
 
-                    // RE-assign activePlayers to flatPlayers so the division object is correct? 
-                    // NO, 'activePlayers' variable above is used? 
-                    // Let's override the 'activePlayers' usage or just create division object with it.
-                    // Actually, 'activePlayers' calculated earlier was just filtering 'p'. 
-                    // For pairs, 'p' contains "id-id".
-                    // So 'activePlayers' (the var) contains ["id-id", "id-id"].
-                    // Division expects FLAT list of IDs.
+                // Skip the loop below
+            } else {
+                for (let i = 0; i < numDivisions; i++) {
+                    const p = assignments[i] || [];
+                    // Filter empty players
+                    const activePlayers = p.filter(x => x);
 
-                    matches = MatchGenerator.generatePairsLeague(pairs, i);
+                    const minP = format === 'pairs' ? 2 : 4;
+                    if (activePlayers.length < minP) return alert(`Mínimo ${format === 'pairs' ? '2 Parejas' : '4 Jugadores'} en Div ${i + 1}`);
+
+                    let matches: any[] = [];
+                    if (format === 'classic') {
+                        if (activePlayers.length !== 4) return alert(`La División ${i + 1} debe tener exactamente 4 jugadores en liga clásica`);
+                        matches = MatchGenerator.generateClassic4(activePlayers, i);
+                    } else if (format === 'pairs') {
+                        // Pairs Generation
+                        const pairStrings = p.filter(x => x && x.includes('-') && !x.startsWith('-') && !x.endsWith('-'));
+                        if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
+
+                        const pairs = pairStrings.map(s => s.split('-'));
+                        // Flatten players for division.players
+                        const flatPlayers = pairs.flat();
+
+                        // RE-assign activePlayers to flatPlayers so the division object is correct? 
+                        // NO, 'activePlayers' variable above is used? 
+                        // Let's override the 'activePlayers' usage or just create division object with it.
+                        // Actually, 'activePlayers' calculated earlier was just filtering 'p'. 
+                        // For pairs, 'p' contains "id-id".
+                        // So 'activePlayers' (the var) contains ["id-id", "id-id"].
+                        // Division expects FLAT list of IDs.
+
+                        matches = MatchGenerator.generatePairsLeague(pairs, i);
+
+                        divisions.push({
+                            id: `div-${crypto.randomUUID()}`,
+                            numero: i + 1,
+                            status: 'activa',
+                            players: flatPlayers, // Store flat list of IDs
+                            matches: matches
+                        });
+                        continue;
+                    } else {
+                        // Individual matches (League generation)
+                        matches = MatchGenerator.generateIndividualLeague(activePlayers, i);
+                    }
 
                     divisions.push({
                         id: `div-${crypto.randomUUID()}`,
                         numero: i + 1,
                         status: 'activa',
-                        players: flatPlayers, // Store flat list of IDs
+                        players: activePlayers,
                         matches: matches
                     });
-                    continue; // Skip the default push below
-                } else {
-                    // Individual matches (League generation)
-                    matches = MatchGenerator.generateIndividualLeague(activePlayers, i);
                 }
-
-                divisions.push({
-                    id: `div-${crypto.randomUUID()}`,
-                    numero: i + 1,
-                    status: 'activa',
-                    players: activePlayers,
-                    matches: matches
-                });
             }
         } else {
             // Americano/Mexicano

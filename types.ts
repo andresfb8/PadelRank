@@ -25,7 +25,8 @@ export interface Player {
   ownerId?: string;
 }
 
-export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs';
+
+export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination';
 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
 
@@ -44,6 +45,13 @@ export interface RankingConfig {
   courts?: number; // Number of courts for scheduling
   scoringMode?: ScoringMode; // Scoring system
   customPoints?: number; // If scoringMode === 'custom'
+
+  // For Elimination
+  eliminationConfig?: {
+    consolation: boolean;
+    thirdPlaceMatch: boolean;
+    type: 'individual' | 'pairs';
+  };
 }
 
 export interface Ranking {
@@ -62,6 +70,7 @@ export interface Ranking {
   overrides?: { playerId: string, forceDiv: number }[]; // Manual division overrides for next phase
   isOfficial?: boolean; // If false, matches do not affect global player stats (default: true for Classic, false for Quick)
   guestPlayers?: { id: string; nombre: string; apellidos?: string }[]; // Temporary players for this tournament only
+  rounds?: number; // Total rounds for elimination bracket
 }
 
 export interface Division {
@@ -72,11 +81,13 @@ export interface Division {
   retiredPlayers?: string[]; // IDs of players who left during the phase
   matches: Match[];
   name?: string; // Optional custom name (e.g. "Champions League")
+  type?: 'main' | 'consolation'; // For Elimination
 }
 
 export interface MatchPair {
   p1Id: string;
   p2Id: string;
+  placeholder?: string; // E.g., "Winner of Match 1"
 }
 
 export interface MatchScore {
@@ -95,13 +106,19 @@ export interface MatchScore {
 
 export interface Match {
   id: string;
-  jornada: number;
+  jornada: number; // In elimination: Round Number (1 = Final, 2 = Semis, etc. OR 1=R32...)
   pair1: MatchPair;
   pair2: MatchPair;
   score?: MatchScore;
   points: { p1: number; p2: number };
   status: 'pendiente' | 'finalizado' | 'no_disputado' | 'descanso';
   court?: number;
+  startTime?: string; // ISO string for scheduling
+
+  // Elimination Pointers
+  nextMatchId?: string; // ID of the match where the winner goes
+  consolationMatchId?: string; // ID of the match where the loser goes (if R1)
+  roundName?: string; // "Final", "Semi-Final", "Quarter-Final"
 }
 
 export interface StandingRow {
