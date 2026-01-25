@@ -302,27 +302,62 @@ export class TournamentEngine {
         ranking: Ranking,
         loserId: { p1: string, p2: string }
     ): Division[] {
-        if (!currentMatch.consolationMatchId) return ranking.divisions;
+        console.log("🔍 moveLoserToConsolation called for match:", currentMatch.id);
+        console.log("   consolationMatchId:", currentMatch.consolationMatchId);
+        console.log("   loserId:", loserId);
 
         const newDivisions = [...ranking.divisions];
         let consMatch: Match | undefined;
 
-        for (const div of newDivisions) {
-            consMatch = div.matches.find(m => m.id === currentMatch.consolationMatchId);
-            if (consMatch) break;
-        }
-
-        if (consMatch) {
-            if (this.isEmpty(consMatch.pair1)) {
-                consMatch.pair1.p1Id = loserId.p1;
-                consMatch.pair1.p2Id = loserId.p2;
-                delete consMatch.pair1.placeholder;
-            } else if (this.isEmpty(consMatch.pair2)) {
-                consMatch.pair2.p1Id = loserId.p1;
-                consMatch.pair2.p2Id = loserId.p2;
-                delete consMatch.pair2.placeholder;
+        // Try to find consolation match by ID first (R1 matches have this)
+        if (currentMatch.consolationMatchId) {
+            for (const div of newDivisions) {
+                consMatch = div.matches.find(m => m.id === currentMatch.consolationMatchId);
+                if (consMatch) {
+                    console.log("✅ Found consolation match by ID:", consMatch.id, "in division:", div.name);
+                    break;
+                }
             }
         }
+
+        // Fallback: If no consolationMatchId (e.g., R2 loser with BYE in R1), find first available slot in Consolation R1
+        if (!consMatch) {
+            console.log("⚠️ No consolationMatchId - searching for available slot in Consolation R1");
+            const consolationDiv = newDivisions.find(d => d.type === 'consolation');
+
+            if (consolationDiv) {
+                // Find first match in Consolation R1 with an empty slot
+                const consR1Matches = consolationDiv.matches.filter(m => m.jornada === 1);
+
+                for (const match of consR1Matches) {
+                    if (this.isEmpty(match.pair1) || this.isEmpty(match.pair2)) {
+                        consMatch = match;
+                        console.log("✅ Found available slot in consolation match:", match.id);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!consMatch) {
+            console.error("❌ No consolation match available for loser");
+            return newDivisions;
+        }
+
+        if (this.isEmpty(consMatch.pair1)) {
+            console.log("   → Assigning loser to pair1 of consolation match");
+            consMatch.pair1.p1Id = loserId.p1;
+            consMatch.pair1.p2Id = loserId.p2;
+            delete consMatch.pair1.placeholder;
+        } else if (this.isEmpty(consMatch.pair2)) {
+            console.log("   → Assigning loser to pair2 of consolation match");
+            consMatch.pair2.p1Id = loserId.p1;
+            consMatch.pair2.p2Id = loserId.p2;
+            delete consMatch.pair2.placeholder;
+        } else {
+            console.warn("⚠️ Both pairs in consolation match are already filled!");
+        }
+
         return newDivisions;
     }
 

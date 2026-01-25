@@ -164,11 +164,37 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         let newDivisions = TournamentEngine.advanceWinner(updatedMatch, updatedRanking, { p1: winnerId.p1Id, p2: winnerId.p2Id });
         console.log("advanceWinner result:", newDivisions);
 
-        // Handle Consolation for R1 Losers
-        if (updatedMatch.jornada === 1 && ranking.config?.eliminationConfig?.consolation) {
-          const updatedRankingWithWinner = { ...updatedRanking, divisions: newDivisions }; // Use intermediate state
-          newDivisions = TournamentEngine.moveLoserToConsolation(updatedMatch, updatedRankingWithWinner, { p1: loserId.p1Id, p2: loserId.p2Id });
-          console.log("consolation result:", newDivisions);
+        // Handle Consolation for First-Match Losers (including those who had BYE in R1)
+        if (ranking.config?.eliminationConfig?.consolation) {
+          // Check if this is the loser's first REAL match (not BYE)
+          const isFirstRealMatch = (pairId: { p1Id: string, p2Id: string }) => {
+            // Find all matches in main bracket where this pair played
+            const mainDiv = newDivisions.find(d => d.type === 'main');
+            if (!mainDiv) return false;
+
+            const pairMatches = mainDiv.matches.filter(m =>
+              m.status === 'finalizado' &&
+              ((m.pair1.p1Id === pairId.p1Id && m.pair1.p2Id === pairId.p2Id) ||
+                (m.pair2.p1Id === pairId.p1Id && m.pair2.p2Id === pairId.p2Id))
+            );
+
+            // Filter out BYE matches
+            const realMatches = pairMatches.filter(m =>
+              m.pair1.p1Id !== 'BYE' && m.pair2.p1Id !== 'BYE'
+            );
+
+            // If this is their only real match, they should go to consolation
+            return realMatches.length === 1;
+          };
+
+          if (isFirstRealMatch({ p1Id: loserId.p1Id, p2Id: loserId.p2Id })) {
+            console.log("🎯 Loser's first real match - moving to consolation");
+            const updatedRankingWithWinner = { ...updatedRanking, divisions: newDivisions };
+            newDivisions = TournamentEngine.moveLoserToConsolation(updatedMatch, updatedRankingWithWinner, { p1: loserId.p1Id, p2: loserId.p2Id });
+            console.log("consolation result:", newDivisions);
+          } else {
+            console.log("⏭️ Not first real match - loser eliminated");
+          }
         }
 
         // Reactive Scheduler Hook
@@ -1467,60 +1493,63 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                         </div>
 
                         {/* Dedicated Schedule Area - Bottom of Card */}
-                        <div
-                          className={`border-t border-gray-100 py-2 px-4 bg-gray-50 flex items-center justify-between rounded-b-xl transition-colors ${isAdmin ? 'cursor-pointer hover:bg-blue-50 group' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation(); // Avoid opening Score Modal
-                            if (isAdmin) setSchedulingMatch(m);
-                          }}
-                        >
-                          {/* Content based on state */}
-                          {(m.startTime || m.court) ? (
-                            <div className="flex items-center gap-3 text-xs font-semibold text-blue-700 w-full">
-                              <div className="flex items-center gap-1">
-                                <Clock size={14} />
-                                {m.startTime ? new Date(m.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                              </div>
-                              {m.court && (
-                                <div className="flex items-center gap-1 border-l border-blue-200 pl-3 ml-auto">
-                                  <span>Pista {m.court}</span>
+                        {/* Only show for formats that use scheduling */}
+                        {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
+                          <div
+                            className={`border-t border-gray-100 py-2 px-4 bg-gray-50 flex items-center justify-between rounded-b-xl transition-colors ${isAdmin ? 'cursor-pointer hover:bg-blue-50 group' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Avoid opening Score Modal
+                              if (isAdmin) setSchedulingMatch(m);
+                            }}
+                          >
+                            {/* Content based on state */}
+                            {(m.startTime || m.court) ? (
+                              <div className="flex items-center gap-3 text-xs font-semibold text-blue-700 w-full">
+                                <div className="flex items-center gap-1">
+                                  <Clock size={14} />
+                                  {m.startTime ? new Date(m.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                 </div>
-                              )}
+                                {m.court && (
+                                  <div className="flex items-center gap-1 border-l border-blue-200 pl-3 ml-auto">
+                                    <span>Pista {m.court}</span>
+                                  </div>
+                                )}
 
-                              {/* Conflict Indicator */}
-                              {isAdmin && ranking.schedulerConfig && ranking.playerConstraints && (() => {
-                                const start = new Date(m.startTime!);
-                                const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig.slotDurationMinutes);
-                                const occupied = SchedulerEngine.getAllOccupiedSlots(ranking, m.id);
+                                {/* Conflict Indicator */}
+                                {isAdmin && ranking.schedulerConfig && ranking.playerConstraints && (() => {
+                                  const start = new Date(m.startTime!);
+                                  const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig.slotDurationMinutes);
+                                  const occupied = SchedulerEngine.getAllOccupiedSlots(ranking, m.id);
 
-                                const courtConflict = m.court && SchedulerEngine.checkMatchConflict(start, end, m.court, occupied);
+                                  const courtConflict = m.court && SchedulerEngine.checkMatchConflict(start, end, m.court, occupied);
 
-                                const pIds = [m.pair1.p1Id, m.pair1.p2Id, m.pair2.p1Id, m.pair2.p2Id].filter(Boolean) as string[];
-                                const playerConflict = SchedulerEngine.checkPlayerAvailability(start, end, pIds, ranking.playerConstraints || {});
+                                  const pIds = [m.pair1.p1Id, m.pair1.p2Id, m.pair2.p1Id, m.pair2.p2Id].filter(Boolean) as string[];
+                                  const playerConflict = SchedulerEngine.checkPlayerAvailability(start, end, pIds, ranking.playerConstraints || {});
 
-                                if (courtConflict || !playerConflict.valid) {
-                                  return (
-                                    <div className="ml-2 text-red-500 animate-pulse" title="Conflicto de horario detectado">
-                                      <AlertTriangle size={14} />
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
+                                  if (courtConflict || !playerConflict.valid) {
+                                    return (
+                                      <div className="ml-2 text-red-500 animate-pulse" title="Conflicto de horario detectado">
+                                        <AlertTriangle size={14} />
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
 
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center w-full text-xs font-medium text-gray-400 group-hover:text-blue-600 gap-1">
-                              {isAdmin ? (
-                                <>
-                                  <Calendar size={14} /> Programar Partido
-                                </>
-                              ) : (
-                                <span>Sin programar</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center w-full text-xs font-medium text-gray-400 group-hover:text-blue-600 gap-1">
+                                {isAdmin ? (
+                                  <>
+                                    <Calendar size={14} /> Programar Partido
+                                  </>
+                                ) : (
+                                  <span>Sin programar</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
