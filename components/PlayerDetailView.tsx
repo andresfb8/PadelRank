@@ -151,6 +151,8 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
         let totalSetsPlayed = 0;
         let totalGamesWon = 0;
         let totalGamesPlayed = 0;
+        let netSets = 0;
+        let netGames = 0;
 
         // Iterate history for detailed stats
         history.forEach(h => {
@@ -176,7 +178,6 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                         if (myG > oppG) totalSetsWon++;
                     });
                 } else if (match.score.pointsScored) {
-                    // Americano/Mexicano (Treat points as "Games" for efficiency or just track them)
                     // For now, let's treat them as Games to have a unified "Scoring Efficiency"
                     const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
                     const myPts = p1InPair1 ? match.score.pointsScored.p1 : match.score.pointsScored.p2;
@@ -187,6 +188,42 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                     // These formats don't really have "Sets", usually 1 set.
                     totalSetsPlayed++;
                     if (myPts > oppPts) totalSetsWon++;
+                }
+
+                // Calculate Net Differences
+                if (match.score) {
+                    const sets = [match.score.set1, match.score.set2, match.score.set3].filter(Boolean);
+                    if (sets.length > 0) {
+                        sets.forEach(s => {
+                            if (!s) return;
+                            const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
+                            const myG = p1InPair1 ? s.p1 : s.p2;
+                            const oppG = p1InPair1 ? s.p2 : s.p1;
+                            netGames += (myG - oppG);
+                        });
+                        // Sets Diff
+                        const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
+                        // Score Logic at Match Level to determine Sets Won/Lost for Difference
+                        // This is tricky as we already looped sets above, let's simplify:
+                        // We already track totalSetsWon. We need totalSetsLost.
+                        // Wait, netGames is easy (accumulate myG - oppG).
+                        // NetSets needs to know how many sets I lost in this match.
+                        sets.forEach(s => {
+                            if (!s) return;
+                            const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
+                            const myG = p1InPair1 ? s.p1 : s.p2;
+                            const oppG = p1InPair1 ? s.p2 : s.p1;
+                            if (myG > oppG) netSets++;
+                            else if (oppG > myG) netSets--;
+                        });
+                    } else if (match.score.pointsScored) {
+                        const p1InPair1 = match.pair1.p1Id === player.id || match.pair1.p2Id === player.id;
+                        const myPts = p1InPair1 ? match.score.pointsScored.p1 : match.score.pointsScored.p2;
+                        const oppPts = p1InPair1 ? match.score.pointsScored.p2 : match.score.pointsScored.p1;
+                        netGames += (myPts - oppPts);
+                        if (myPts > oppPts) netSets++;
+                        else if (oppPts > myPts) netSets--;
+                    }
                 }
             }
         });
@@ -219,8 +256,8 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                 bestPartner,
                 biggestNemesis,
                 recentForm: recentForm.slice(-5).reverse(),
-                sets: { won: totalSetsWon, total: totalSetsPlayed },
-                games: { won: totalGamesWon, total: totalGamesPlayed },
+                sets: { won: totalSetsWon, total: totalSetsPlayed, diff: netSets },
+                games: { won: totalGamesWon, total: totalGamesPlayed, diff: netGames },
                 streaks: { current: currentStreak, best: bestStreak }
             }
         }; // Most recent first
@@ -290,9 +327,16 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                             <span className="font-bold text-rose-600">{player.stats?.pp ?? 0}</span>
                         </div>
                         <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-600">Total Sets Diferencia</span>
-                            {/* We don't have this in player.stats yet, would need recalc. Skipping for now */}
-                            <span className="font-bold text-gray-400">-</span>
+                            <span className="text-gray-600">Dif. Sets</span>
+                            <span className={`font-bold ${enhancedStats.sets.diff > 0 ? 'text-emerald-600' : enhancedStats.sets.diff < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
+                                {enhancedStats.sets.diff > 0 ? `+${enhancedStats.sets.diff}` : enhancedStats.sets.diff}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <span className="text-gray-600">Dif. Juegos</span>
+                            <span className={`font-bold ${enhancedStats.games.diff > 0 ? 'text-emerald-600' : enhancedStats.games.diff < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
+                                {enhancedStats.games.diff > 0 ? `+${enhancedStats.games.diff}` : enhancedStats.games.diff}
+                            </span>
                         </div>
                     </div>
                 </Card>

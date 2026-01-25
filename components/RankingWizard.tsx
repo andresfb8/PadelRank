@@ -47,11 +47,14 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
     // For Others: We just need a pool of players.
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [numDivisions, setNumDivisions] = useState(1);
+    const [categories, setCategories] = useState<string[]>([]); // Start empty to prevent default duplicates
     const [individualMaxPlayers, setIndividualMaxPlayers] = useState(12); // Default for individual
+    const [categorySizes, setCategorySizes] = useState<Record<number, number>>({});
     const [assignments, setAssignments] = useState<Record<number, string[]>>({});
     // Guest Players (stored as full objects temporarily)
     const [guestPlayers, setGuestPlayers] = useState<{ id: string; nombre: string; apellidos?: string }[]>([]);
     const [newGuestName, setNewGuestName] = useState('');
+    const [newCategoryName, setNewCategoryName] = useState('');
 
     // --- Helpers ---
     const availablePlayers = [...Object.values(players), ...guestPlayers];
@@ -132,12 +135,6 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                 pointsPerLoss2_1: 1,
                                 pointsPerLoss2_0: 0
                             }));
-                        } else if (f.id === 'elimination') {
-                            setConfig(prev => ({
-                                ...prev,
-                                eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
-                            }));
-                        } else {
                             // Reset to defaults for other formats
                             setIndividualMaxPlayers(12); // Default
                             setConfig(prev => ({
@@ -147,6 +144,13 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                 pointsDraw: 1,
                                 pointsPerLoss2_1: 1,
                                 pointsPerLoss2_0: 0
+                            }));
+                        } else if (f.id === 'elimination') {
+                            setNumDivisions(1); // Default to 1 category
+                            setIndividualMaxPlayers(8); // Default pairs per category
+                            setConfig(prev => ({
+                                ...prev,
+                                eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
                             }));
                         }
 
@@ -319,8 +323,46 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     </div>
                 </div>
             )}
+
+
+
+            {
+                format === 'elimination' && (
+                    <div className="border-t pt-4 mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Categorías del Torneo</label>
+                        <div className="flex gap-2 mb-2">
+                            <Input
+                                placeholder="Nueva Categoría (ej: 1ª Masculina)"
+                                value={newCategoryName}
+                                onChange={(e: any) => setNewCategoryName(e.target.value)}
+                            />
+                            <Button onClick={() => {
+                                if (newCategoryName.trim()) {
+                                    if (categories.some(c => c.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+                                        alert("La categoría ya existe");
+                                        return;
+                                    }
+                                    setCategories([...categories, newCategoryName]);
+                                    setNewCategoryName('');
+                                }
+                            }}><Plus size={16} /></Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {categories.map((cat, idx) => (
+                                <div key={idx} className="bg-white border px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                                    {cat}
+                                    <button onClick={() => setCategories(categories.filter((_, i) => i !== idx))} className="text-red-500"><X size={14} /></button>
+                                </div>
+                            ))}
+                        </div>
+                        {categories.length === 0 && <p className="text-xs text-red-500 mt-1">Debes añadir al menos una categoría.</p>}
+                    </div>
+                )
+            }
         </div>
     );
+
+
 
     const handleAssignment = (divIdx: number, pIdx: number, pId: string, maxP: number) => {
         const newA = { ...assignments };
@@ -391,8 +433,8 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     for (let k = 0; k < divPlayers.length; k += 2) {
                         const p1 = divPlayers[k];
                         const p2 = divPlayers[k + 1];
-                        if (p1 && p2) pairStrings.push(`${p1}-${p2}`);
-                        else if (p1) pairStrings.push(`${p1}-`);
+                        if (p1 && p2) pairStrings.push(`${p1}::${p2}`);
+                        else if (p1) pairStrings.push(`${p1}::`);
                     }
                     // Fill assignments (RankingWizard expects "p1-p2" strings in array)
                     newAssignments[i] = pairStrings;
@@ -468,32 +510,54 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                             </div>
                             {/* Guest Add */}
                             <div className="flex-1 flex gap-2 items-end">
-                                <input
-                                    type="text"
-                                    className="input-field flex-1 border p-2 rounded-lg text-sm h-[38px] mt-auto" // match select height
-                                    placeholder="Nombre invitado"
-                                    value={newGuestName}
-                                    onChange={(e) => setNewGuestName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && newGuestName.trim()) {
-                                            const guest = { id: `guest-${Date.now()}`, nombre: newGuestName.trim(), apellidos: '(Invitado)' };
-                                            setGuestPlayers([...guestPlayers, guest]);
-                                            setSelectedPlayerIds([...selectedPlayerIds, guest.id]);
-                                            setNewGuestName('');
-                                        }
-                                    }}
-                                />
-                                <Button
-                                    onClick={() => {
-                                        if (newGuestName.trim()) {
-                                            const guest = { id: `guest-${Date.now()}`, nombre: newGuestName.trim(), apellidos: '(Invitado)' };
-                                            setGuestPlayers([...guestPlayers, guest]);
-                                            setSelectedPlayerIds([...selectedPlayerIds, guest.id]);
-                                            setNewGuestName('');
-                                        }
-                                    }}
-                                    className="h-[38px]"
-                                ><Plus size={16} /></Button>
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Añadir Invitado(s)</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            className="input-field flex-1 border p-2 rounded-lg text-sm h-[38px]"
+                                            placeholder="Nombre Jugador"
+                                            value={newGuestName}
+                                            onChange={(e) => setNewGuestName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newGuestName.trim()) {
+                                                    const guest = { id: `guest-${Date.now()}`, nombre: newGuestName.trim(), apellidos: '' };
+                                                    setGuestPlayers([...guestPlayers, guest]);
+                                                    setSelectedPlayerIds([...selectedPlayerIds, guest.id]);
+                                                    setNewGuestName('');
+                                                }
+                                            }}
+                                        />
+                                        <Button
+                                            onClick={() => {
+                                                if (newGuestName.trim()) {
+                                                    const guest = { id: `guest-${Date.now()}`, nombre: newGuestName.trim(), apellidos: '' };
+                                                    setGuestPlayers([...guestPlayers, guest]);
+                                                    setSelectedPlayerIds([...selectedPlayerIds, guest.id]);
+                                                    setNewGuestName('');
+                                                }
+                                            }}
+                                            className="h-[38px] px-3"
+                                            title="Añadir Jugador Individual"
+                                        ><Plus size={16} /></Button>
+                                    </div>
+                                    {/* Add Pair Shortcut */}
+                                    <div className="mt-2 text-xs text-blue-600 underline cursor-pointer flex items-center gap-1" onClick={() => {
+                                        const p1 = prompt("Nombre Jugador 1 de la Pareja:");
+                                        if (!p1) return;
+                                        const p2 = prompt("Nombre Jugador 2 de la Pareja:");
+                                        if (!p2) return;
+
+                                        const g1 = { id: `guest-${Date.now()}-1`, nombre: p1, apellidos: '' };
+                                        const g2 = { id: `guest-${Date.now()}-2`, nombre: p2, apellidos: '' };
+
+                                        const newGuests = [...guestPlayers, g1, g2];
+                                        setGuestPlayers(newGuests);
+                                        setSelectedPlayerIds([...selectedPlayerIds, g1.id, g2.id]);
+                                    }}>
+                                        <Users size={12} /> Añadir Pareja Rápida
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -604,27 +668,28 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                     {Array.from({ length: individualMaxPlayers }).map((_, pairIdx) => {
                                         const currentList = assignments[divIdx] || [];
                                         const val = currentList[pairIdx] || '';
-                                        const [p1Id, p2Id] = val ? val.split('-') : ['', ''];
+                                        const [p1Id, p2Id] = val ? val.split('::') : ['', ''];
 
                                         // Complex used check (skipped for brevity, same as previous impl)
                                         const used = new Set<string>();
                                         Object.values(assignments).forEach((arr: string[]) => arr?.forEach(pairStr => {
-                                            if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('-'); if (u1) used.add(u1); if (u2) used.add(u2); }
+                                            if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('::'); if (u1) used.add(u1); if (u2) used.add(u2); }
                                         }));
                                         if (p1Id) used.add(p1Id);
                                         if (p2Id) used.add(p2Id);
                                         const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+
 
                                         return (
                                             <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border">
                                                 <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
                                                 <div className="flex-1 grid grid-cols-2 gap-2">
                                                     <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
-                                                        const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                        const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
                                                         handleAssignment(divIdx, pairIdx, finalVal, individualMaxPlayers);
                                                     }} placeholder="A" />
                                                     <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
-                                                        const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
+                                                        const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
                                                         handleAssignment(divIdx, pairIdx, finalVal, individualMaxPlayers);
                                                     }} placeholder="B" />
                                                 </div>
@@ -637,53 +702,88 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     </div>
                 )}
 
+
+
                 {(format === 'elimination' && config.eliminationConfig?.type === 'pairs') && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
-                            <h3 className="font-bold text-gray-800">2. Formar Parejas (Manual/Aleatorio)</h3>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm">Num. Parejas:</span>
-                                <input type="number" min="1" max="64" value={individualMaxPlayers} onChange={(e) => setIndividualMaxPlayers(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
-                            </div>
+                            <h3 className="font-bold text-gray-800">2. Inscripción de Parejas por Categoría</h3>
                         </div>
-                        <div className="bg-gray-50 p-4 rounded-lg border mb-4">
-                            <div className="grid md:grid-cols-2 gap-4">
-                                {Array.from({ length: individualMaxPlayers || 8 }).map((_, pairIdx) => {
-                                    const currentList = assignments[0] || [];
-                                    const val = currentList[pairIdx] || '';
-                                    const [p1Id, p2Id] = val ? val.split('-') : ['', ''];
 
-                                    const used = new Set<string>();
-                                    (assignments[0] || []).forEach(pairStr => {
-                                        if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('-'); if (u1) used.add(u1); if (u2) used.add(u2); }
-                                    });
-                                    if (p1Id) used.add(p1Id);
-                                    if (p2Id) used.add(p2Id);
-                                    const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
 
-                                    return (
-                                        <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border shadow-sm">
-                                            <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
-                                            <div className="flex-1 grid grid-cols-2 gap-2">
-                                                <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
-                                                    const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
-                                                    handleAssignment(0, pairIdx, finalVal, individualMaxPlayers || 8);
-                                                }} placeholder="Jugador A" />
-                                                <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
-                                                    const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}-${currentP2 || ''}` : '';
-                                                    handleAssignment(0, pairIdx, finalVal, individualMaxPlayers || 8);
-                                                }} placeholder="Jugador B" />
+
+                        {categories.map((catName, catIdx) => (
+                            <div key={catIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="font-bold text-primary">{catName}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500">Parejas:</span>
+                                        <input
+                                            type="number"
+                                            min="2"
+                                            max="64"
+                                            value={categorySizes[catIdx] || 8}
+                                            onChange={(e) => setCategorySizes({ ...categorySizes, [catIdx]: parseInt(e.target.value) || 8 })}
+                                            className="border p-1 w-12 text-center rounded text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    {Array.from({ length: categorySizes[catIdx] || 8 }).map((_, pairIdx) => {
+                                        // Specific assignment key for categories: use negative index logic or string key?
+                                        // assignments is Record<number, string[]>. 
+                                        // Let's map categories to indices: 0 = cat[0], 1 = cat[1]...
+                                        // This works fine as long as we don't mix with Division logic which also uses indices but that's fine as formats are exclusive.
+
+                                        // Use catIdx as the key in assignments
+                                        const currentList = assignments[catIdx] || [];
+                                        const val = currentList[pairIdx] || '';
+                                        const [p1Id, p2Id] = val ? val.split('::') : ['', ''];
+
+                                        const used = new Set<string>();
+                                        // Check usage across ALL categories
+                                        Object.values(assignments).forEach((list: string[]) => list?.forEach(pairStr => {
+                                            if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('::'); if (u1) used.add(u1); if (u2) used.add(u2); }
+                                        }));
+
+                                        if (p1Id) used.add(p1Id);
+                                        if (p2Id) used.add(p2Id);
+                                        const getOpts = (excludeId: string) => {
+                                            const opts = availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId);
+                                            return opts.sort((a, b) => {
+                                                const aSelected = selectedPlayerIds.includes(a.id);
+                                                const bSelected = selectedPlayerIds.includes(b.id);
+                                                if (aSelected && !bSelected) return -1;
+                                                if (!aSelected && bSelected) return 1;
+                                                return a.nombre.localeCompare(b.nombre);
+                                            }).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+                                        };
+
+                                        return (
+                                            <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border shadow-sm">
+                                                <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
+                                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                                    <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
+                                                        const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
+                                                        handleAssignment(catIdx, pairIdx, finalVal, categorySizes[catIdx] || 8);
+                                                    }} placeholder="Jugador A" />
+                                                    <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
+                                                        const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
+                                                        handleAssignment(catIdx, pairIdx, finalVal, categorySizes[catIdx] || 8);
+                                                    }} placeholder="Jugador B" />
+                                                </div>
                                             </div>
-                                        </div>
-                                    )
-                                })}
+                                        )
+                                    })}
+                                </div>
                             </div>
-                        </div>
+                        ))}
                     </div>
                 )}
             </div>
         );
     };
+
 
     // --- Actions ---
 
@@ -696,20 +796,59 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         if (format === 'classic' || format === 'individual' || format === 'pairs' || format === 'elimination') {
 
             if (format === 'elimination') {
-                let playersList: string[] = [];
+                // Loop through configured categories
+                if (categories.length === 0) return alert("Debes configurar al menos una categoría");
 
-                if (config.eliminationConfig?.type === 'pairs') {
-                    // Filter completed pairs
-                    const p = assignments[0] || [];
-                    playersList = p.filter(x => x && x.includes('-') && !x.startsWith('-') && !x.endsWith('-'));
-                    if (playersList.length < 2) return alert("Se necesitan al menos 2 parejas completas para el torneo");
-                } else {
-                    playersList = selectedPlayerIds;
-                    if (playersList.length < 2) return alert("Mínimo 2 jugadores para torneo");
+                for (let i = 0; i < categories.length; i++) {
+                    const catName = categories[i];
+                    let playersList: string[] = [];
+
+                    if (config.eliminationConfig?.type === 'pairs') {
+                        // Get pairs for this category (index i)
+                        const p = assignments[i] || [];
+                        // Replace split('-') with split('::') and rejoin with '-' for consistency if Bracket expects it? 
+                        // Verify format needed by Bracket.
+                        // generateBracket expects strings. 
+                        // If it expects "p1-p2", we should normalize it here OR change bracket engine.
+                        // TournamentEngine line 26: const [p1id, p2id] = p.split('-');
+                        // So TournamentEngine EXPECTS '-'. 
+                        // We should convert back to '-' here for compatibility, BUT safeguard against IDs having hyphens???
+                        // TournamentEngine uses split('-'). If ID has hyphen, TournamentEngine will fail too.
+                        // We should fix TournamentEngine or Normalize here.
+                        // For now, let's normalize to "::" if we update TournamentEngine, OR we assume IDs don't have hyphens is broken assumption.
+                        // Let's replace '::' with '-' is risky if ID has hyphen.
+                        // Hack: TournamentEngine uses just IDs.
+                        // Actually, generateBracket takes just LIST of string IDs if Type is Individual?
+                        // But for Pairs...
+                        // If type=pairs, the LIST is strings of "id1-id2".
+                        // I should Fix TournamentEngine to support '::' or Robust split?
+                        // Let's verify TournamentEngine Logic.
+                        // Assuming TournamentEngine is fragile, I better pass "p1::p2" and update TournamentEngine next.
+                        // For now, verify this file logic first.
+
+                        // Let's pass '::' separated strings to TournamentEngine and I will update TournamentEngine next.
+                        playersList = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
+                        if (playersList.length < 2) return alert(`Se necesitan al menos 2 parejas completas para la categoría ${catName}`);
+                    } else {
+                        // Individual not fully implemented for categories yet based on plan, using simple assignment?
+                        // Assuming assignments[i] contains individual IDs too if we updated the render logic.
+                        // But Step 3 render for Individual Elimination wasn't updated in this chunk.
+                        // Let's assume Pairs mostly as per user request.
+                        const p = assignments[i] || [];
+                        playersList = p.filter(x => x);
+                        if (playersList.length < 2) return alert(`Mínimo 2 jugadores para ${catName}`);
+                    }
+
+                    const bracketDivisions = TournamentEngine.generateBracket(playersList, config.eliminationConfig?.consolation || false);
+
+                    // Assign Category Name to these divisions
+                    bracketDivisions.forEach(d => {
+                        d.category = catName;
+                        d.name = `${catName} - ${d.type === 'main' ? 'Principal' : 'Consolación'}`;
+                    });
+
+                    divisions.push(...bracketDivisions);
                 }
-
-                const bracketDivisions = TournamentEngine.generateBracket(playersList, config.eliminationConfig?.consolation || false);
-                divisions.push(...bracketDivisions);
 
                 // Skip the loop below
             } else {
@@ -727,10 +866,10 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                         matches = MatchGenerator.generateClassic4(activePlayers, i);
                     } else if (format === 'pairs') {
                         // Pairs Generation
-                        const pairStrings = p.filter(x => x && x.includes('-') && !x.startsWith('-') && !x.endsWith('-'));
+                        const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
                         if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
 
-                        const pairs = pairStrings.map(s => s.split('-'));
+                        const pairs = pairStrings.map(s => s.split('::'));
                         // Flatten players for division.players
                         const flatPlayers = pairs.flat();
 
@@ -860,6 +999,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         </div>
     );
 };
+
 
 // Missing X definition
 

@@ -71,6 +71,10 @@ export interface Ranking {
   isOfficial?: boolean; // If false, matches do not affect global player stats (default: true for Classic, false for Quick)
   guestPlayers?: { id: string; nombre: string; apellidos?: string }[]; // Temporary players for this tournament only
   rounds?: number; // Total rounds for elimination bracket
+
+  // Scheduler Configuration
+  schedulerConfig?: import('./services/SchedulerEngine').SchedulerConfig;
+  playerConstraints?: Record<string, import('./services/SchedulerEngine').PlayerAvailability>;
 }
 
 export interface Division {
@@ -82,6 +86,7 @@ export interface Division {
   matches: Match[];
   name?: string; // Optional custom name (e.g. "Champions League")
   type?: 'main' | 'consolation'; // For Elimination
+  category?: string; // E.g. "Primera Masculina", "Segunda Femenina"
 }
 
 export interface MatchPair {

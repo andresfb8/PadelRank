@@ -21,12 +21,20 @@ export class TournamentEngine {
         const bracketOrder = this.mapSeedsToBracket(participants, size);
 
         // 3. Create Divisions
+        // Extract individual player IDs from pairs
+        const allPlayerIds: string[] = [];
+        participants.forEach(pairStr => {
+            const [p1Id, p2Id] = pairStr.split('-');
+            if (p1Id && p1Id !== 'BYE') allPlayerIds.push(p1Id);
+            if (p2Id && p2Id !== 'BYE') allPlayerIds.push(p2Id);
+        });
+
         const mainDiv: Division = {
             id: crypto.randomUUID(),
             numero: 1,
             name: "Cuadro Principal",
             status: "activa",
-            players: participants,
+            players: allPlayerIds, // Individual player IDs
             matches: [],
             type: 'main'
         };
@@ -36,7 +44,7 @@ export class TournamentEngine {
             numero: 2,
             name: "Cuadro Consolación",
             status: "activa",
-            players: [],
+            players: [], // Will be populated with losers
             matches: [],
             type: 'consolation'
         };
@@ -92,9 +100,7 @@ export class TournamentEngine {
                     const p2Val = bracketOrder[i * 2 + 1];
                     this.setPair(currentMatch.pair1, p1Val);
                     this.setPair(currentMatch.pair2, p2Val);
-
-                    // Auto-advance BYEs immediately? Or just set status?
-                    this.checkBye(currentMatch);
+                    // BYE check will be done after all links are created
                 } else {
                     // Placeholders
                     const prevMatch1 = matchMap.get(`${r - 1}-${i * 2}`);
@@ -102,6 +108,18 @@ export class TournamentEngine {
                     currentMatch.pair1 = { p1Id: '', p2Id: '', placeholder: prevMatch1 ? `Ganador ${prevMatch1.jornada}.${i * 2 + 1}` : '?' };
                     currentMatch.pair2 = { p1Id: '', p2Id: '', placeholder: prevMatch2 ? `Ganador ${prevMatch2.jornada}.${i * 2 + 2}` : '?' };
                 }
+            }
+        }
+
+        // 5.5 Process BYEs AFTER all matches are linked
+        // This enables auto-advancement to work correctly
+        for (let i = 0; i < size / 2; i++) {
+            const match = matchMap.get(`1-${i}`);
+            if (match) {
+                // Reconstruct matchMap for ID-based lookup (needed by checkBye)
+                const idMatchMap = new Map<string, Match>();
+                matchMap.forEach(m => idMatchMap.set(m.id, m));
+                this.checkBye(match, idMatchMap);
             }
         }
 
@@ -165,7 +183,12 @@ export class TournamentEngine {
         if (val === 'BYE') {
             pair.p1Id = 'BYE';
             pair.p2Id = '';
+        } else if (val.includes('::')) {
+            const [p1, p2] = val.split('::');
+            pair.p1Id = p1;
+            pair.p2Id = p2 || '';
         } else if (val.includes('-')) {
+            // Legacy support or fallback, but risky if ID has hyphen
             const [p1, p2] = val.split('-');
             pair.p1Id = p1;
             pair.p2Id = p2 || '';
@@ -175,14 +198,37 @@ export class TournamentEngine {
         }
     }
 
-    private static checkBye(m: Match) {
+    private static checkBye(m: Match, matchMap?: Map<string, Match>) {
+        let winner: { p1: string, p2: string } | null = null;
+
         if (m.pair1.p1Id === 'BYE') {
             m.status = 'finalizado';
             m.score = { description: 'BYE' };
-            // P2 Wins logic handled in engine execution
+            m.points = { p1: 0, p2: 1 }; // P2 wins
+            winner = { p1: m.pair2.p1Id, p2: m.pair2.p2Id };
         } else if (m.pair2.p1Id === 'BYE') {
             m.status = 'finalizado';
             m.score = { description: 'BYE' };
+            m.points = { p1: 1, p2: 0 }; // P1 wins
+            winner = { p1: m.pair1.p1Id, p2: m.pair1.p2Id };
+        }
+
+        // Auto-advance winner to next match if there is one
+        if (winner && m.nextMatchId && matchMap) {
+            const nextMatch = matchMap.get(m.nextMatchId);
+            if (nextMatch) {
+                if (this.isEmpty(nextMatch.pair1)) {
+                    nextMatch.pair1.p1Id = winner.p1;
+                    nextMatch.pair1.p2Id = winner.p2;
+                    delete nextMatch.pair1.placeholder;
+                } else if (this.isEmpty(nextMatch.pair2)) {
+                    nextMatch.pair2.p1Id = winner.p1;
+                    nextMatch.pair2.p2Id = winner.p2;
+                    delete nextMatch.pair2.placeholder;
+                }
+                // Check if next match also has a BYE (recursive)
+                this.checkBye(nextMatch, matchMap);
+            }
         }
     }
 

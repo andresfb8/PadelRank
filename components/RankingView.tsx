@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2 } from 'lucide-react';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2, Clock, AlertTriangle } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions } from '../services/logic';
@@ -13,13 +13,16 @@ import { AddPairModal } from './AddPairModal';
 import { MatchModal } from './MatchModal';
 import { BracketView } from './BracketView';
 import { TournamentEngine } from '../services/TournamentEngine';
+import { SchedulerEngine } from '../services/SchedulerEngine';
+import { SchedulerConfigModal } from './SchedulerConfigModal';
+import { ScheduleModal } from './ScheduleModal';
 
 interface Props {
   ranking: Ranking;
   players: Record<string, Player>;
   onMatchClick?: (m: Match) => void;
   onBack?: () => void;
-  onAddDivision?: (division: Division) => void;
+  onAddDivision?: (division: Division | Division[]) => void;
   onUpdateRanking?: (ranking: Ranking) => void;
   isAdmin?: boolean;
   onUpdatePlayerStats?: (playerId: string, result: 'win' | 'loss' | 'draw') => void;
@@ -29,59 +32,138 @@ interface Props {
 export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick }: Props) => {
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules'>('standings');
+  const [bracketType, setBracketType] = useState<'main' | 'consolation'>('main');
   const [copied, setCopied] = useState(false);
   const [isAddDivModalOpen, setIsAddDivModalOpen] = useState(false);
   const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [schedulingMatch, setSchedulingMatch] = useState<Match | null>(null); // New State for Option C
+
+  const handleSaveSchedule = (matchId: string, schedule: { startTime?: string, court?: number }) => {
+    if (!activeDivision || !onUpdateRanking) return;
+    const matchIndex = activeDivision.matches.findIndex(m => m.id === matchId);
+    if (matchIndex === -1) return;
+
+    const oldMatch = activeDivision.matches[matchIndex];
+    const updatedMatch = { ...oldMatch, ...schedule };
+
+    // Auto-update status if needed? No, schedule doesn't change Result Status (Pendiente -> Finalizado)
+    // But maybe track that it is scheduled? 'pendiente' is fine.
+
+    const updatedMatches = [...activeDivision.matches];
+    updatedMatches[matchIndex] = updatedMatch;
+
+    const updatedDivision = { ...activeDivision, matches: updatedMatches };
+    let updatedRanking = {
+      ...ranking,
+      divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
+    };
+
+    // Check conflicts hook or other side-effects?
+    // Not needed for simple schedule update unless we want to propagate.
+
+    onUpdateRanking(updatedRanking);
+  };
   const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
   const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '', nextPhaseDiv: '' });
   const [isManualMatchModalOpen, setIsManualMatchModalOpen] = useState(false);
   const [isAddPairModalOpen, setIsAddPairModalOpen] = useState(false);
   const [isDivisionSettingsModalOpen, setIsDivisionSettingsModalOpen] = useState(false);
   const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
+  const [isSchedulerConfigModalOpen, setIsSchedulerConfigModalOpen] = useState(false);
 
   const handleMatchClick = (m: Match) => {
     setSelectedMatch(m);
     if (onMatchClick) onMatchClick(m);
   };
 
-  const handleSaveMatchResult = (matchId: string, result: any) => {
+  const handleUpdateMatch = (matchId: string, data: any) => {
     // Find the match in the active division and update it
-    // Then propagate up via onUpdateRanking
     if (!activeDivision || !onUpdateRanking) return;
 
     const matchIndex = activeDivision.matches.findIndex(m => m.id === matchId);
     if (matchIndex === -1) return;
 
-    const updatedMatch = { ...activeDivision.matches[matchIndex], score: result, status: 'finalizado' as const, points: result.points };
+    // Merge existing match with new data
+    // If score is present, status becomes finalizado (unless explicitly set otherwise?)
+    // Let's rely on data 'status' if present, else infer
+    const oldMatch = activeDivision.matches[matchIndex];
+
+    console.log("handleUpdateMatch called", { matchId, data });
+
+    // Determine valid score update
+    // MatchModal returns flat data: { set1: ..., points: ..., finalizationType: ... }
+    // Or just schedule data: { startTime: ... }
+    const hasScoreUpdate = data.set1 || data.points; // Check for actual result data presence
+
+    const updatedMatch: any = {
+      ...oldMatch,
+      ...data, // This puts startTime, court, etc at root
+    };
+
+    if (hasScoreUpdate) {
+      updatedMatch.status = 'finalizado';
+      updatedMatch.score = {
+        set1: data.set1,
+        set2: data.set2,
+        set3: data.set3,
+        pointsScored: data.pointsScored,
+        isIncomplete: data.isIncomplete,
+        finalizationType: data.finalizationType,
+        description: data.description
+      };
+
+      // Ensure root points are set for standings/advancement
+      if (data.points) updatedMatch.points = data.points;
+    }
+
+    console.log("Updated Match Object prepared:", updatedMatch);
+
     const updatedMatches = [...activeDivision.matches];
     updatedMatches[matchIndex] = updatedMatch;
 
     const updatedDivision = { ...activeDivision, matches: updatedMatches };
-    const updatedRanking = {
+    let updatedRanking = {
       ...ranking,
       divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
     };
 
     // ELIMINATION LOGIC
     if (ranking.format === 'elimination' && updatedMatch.status === 'finalizado') {
-      const p1WonVal = updatedMatch.points.p1 > updatedMatch.points.p2;
-      const winnerId = p1WonVal ? updatedMatch.pair1 : updatedMatch.pair2;
-      const loserId = p1WonVal ? updatedMatch.pair2 : updatedMatch.pair1;
+      try {
+        console.log("Processing Elimination Logic...");
+        const p1WonVal = updatedMatch.points.p1 > updatedMatch.points.p2;
+        const winnerId = p1WonVal ? updatedMatch.pair1 : updatedMatch.pair2;
+        const loserId = p1WonVal ? updatedMatch.pair2 : updatedMatch.pair1;
 
-      let newDivisions = TournamentEngine.advanceWinner(updatedMatch, updatedRanking, { p1: winnerId.p1Id, p2: winnerId.p2Id });
+        console.log("Winner Determined:", winnerId);
 
-      // Handle Consolation for R1 Losers
-      if (updatedMatch.jornada === 1 && ranking.config?.eliminationConfig?.consolation) {
-        const updatedRankingWithWinner = { ...updatedRanking, divisions: newDivisions }; // Use intermediate state
-        newDivisions = TournamentEngine.moveLoserToConsolation(updatedMatch, updatedRankingWithWinner, { p1: loserId.p1Id, p2: loserId.p2Id });
+        let newDivisions = TournamentEngine.advanceWinner(updatedMatch, updatedRanking, { p1: winnerId.p1Id, p2: winnerId.p2Id });
+        console.log("advanceWinner result:", newDivisions);
+
+        // Handle Consolation for R1 Losers
+        if (updatedMatch.jornada === 1 && ranking.config?.eliminationConfig?.consolation) {
+          const updatedRankingWithWinner = { ...updatedRanking, divisions: newDivisions }; // Use intermediate state
+          newDivisions = TournamentEngine.moveLoserToConsolation(updatedMatch, updatedRankingWithWinner, { p1: loserId.p1Id, p2: loserId.p2Id });
+          console.log("consolation result:", newDivisions);
+        }
+
+        // Reactive Scheduler Hook
+        if (ranking.schedulerConfig && ranking.format === 'elimination') {
+          const tempRanking = { ...updatedRanking, divisions: newDivisions };
+          newDivisions = SchedulerEngine.scheduleNextMatches(updatedMatch, tempRanking, activeDivision.id);
+        }
+
+        updatedRanking.divisions = newDivisions;
+      } catch (error) {
+        console.error("Error in Elimination Logic:", error);
+        alert("Error al procesar avance de ronda: " + error);
       }
-
-      updatedRanking.divisions = newDivisions;
     }
 
+    console.log("Saving Ranking...", updatedRanking);
     onUpdateRanking(updatedRanking);
 
     // GLOBAL STATS UPDATE (Fire and Forget)
@@ -141,6 +223,15 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
   const activeDivision = ranking.divisions.find(d => d.id === activeDivisionId);
   const isLastDivision = activeDivision && activeDivision.numero === ranking.divisions.length;
+
+  // For elimination format, get all divisions of the same category (main + consolation)
+  const categoryDivisions = ranking.format === 'elimination' && activeDivision
+    ? ranking.divisions.filter(d =>
+      d.numero === activeDivision.numero || // Same numero
+      (d.category && d.category === activeDivision.category) || //Same category
+      (d.name && activeDivision.name && d.name.includes(activeDivision.name.split(' ')[0])) // Same name prefix
+    )
+    : activeDivision ? [activeDivision] : [];
 
   // Data for current view
   const standings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any) : [];
@@ -510,6 +601,16 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     }
   };
 
+  const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, constraints: Record<string, import('../services/SchedulerEngine').PlayerAvailability>) => {
+    if (!onUpdateRanking) return;
+    const updatedRanking = {
+      ...ranking,
+      schedulerConfig: config,
+      playerConstraints: constraints
+    };
+    onUpdateRanking(updatedRanking);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -570,6 +671,13 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               )}
             </div>
           )}
+          {isAdmin && onUpdateRanking && ranking.format === 'elimination' && (
+            <div className="flex gap-2">
+              <Button onClick={() => setIsSchedulerConfigModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 text-sm px-3 py-2">
+                <Calendar size={16} /> <span className="hidden sm:inline">Horarios</span>
+              </Button>
+            </div>
+          )}
           {isAdmin && onUpdateRanking && (ranking.format === 'classic' || ranking.format === 'individual') && (
             <Button onClick={handleOpenPromotionModal} className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 text-sm px-3 py-2">
               <Flag size={16} /> <span className="hidden sm:inline">Finalizar Fase</span>
@@ -598,15 +706,17 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       {/* Division Tabs */}
       {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs') && (
         <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('global')}
-            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'global'
-              ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
-              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-              }`}
-          >
-            <BarChart size={16} /> Global
-          </button>
+          {ranking.format !== 'elimination' && (
+            <button
+              onClick={() => setActiveTab('global')}
+              className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'global'
+                ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              <BarChart size={16} /> Global
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('rules')}
             className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
@@ -616,18 +726,30 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
           >
             <BookOpen size={16} /> Normas
           </button>
-          {ranking.divisions.sort((a, b) => a.numero - b.numero).map(div => (
-            <button
-              key={div.id}
-              onClick={() => { setActiveDivisionId(div.id); setActiveTab('standings'); }}
-              className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
-                ? 'bg-white text-primary border-b-2 border-primary shadow-sm z-10'
-                : 'bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-            >
-              División {div.numero}
-            </button>
-          ))}
+          {ranking.divisions
+            .filter(div => div.type !== 'consolation') // Hide consolation divisions from main tabs
+            .sort((a, b) => a.numero - b.numero)
+            .map(div => (
+              <button
+                key={div.id}
+                onClick={() => { setActiveDivisionId(div.id); setActiveTab('standings'); }}
+                className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
+                  ? 'bg-white text-primary border-b-2 border-primary shadow-sm z-10'
+                  : 'bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+              >
+                {(() => {
+                  // Remove automatic suffixes like "Cuadro Principal", "Cuadro Consolación"
+                  const displayName = div.category || div.name || `División ${div.numero}`;
+                  return displayName
+                    .replace(/Cuadro Principal/gi, '')
+                    .replace(/Cuadro Consolación/gi, '')
+                    .replace(/\s*-\s*Principal/gi, '')
+                    .replace(/\s*-\s*Consolación/gi, '')
+                    .trim() || `División ${div.numero}`;
+                })()}
+              </button>
+            ))}
           {isAdmin && (
             <>
               {onAddDivision && (
@@ -750,8 +872,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         </div>
       )}
 
-      {/* Division/Global Content */}
-      {activeTab !== 'rules' && (
+      {/* Division/Global Content - Hidden for elimination format */}
+      {activeTab !== 'rules' && ranking.format !== 'elimination' && (
         <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-4">
           <h3 className="font-bold text-gray-700 px-2 lg:text-lg">
             {activeTab === 'global' ? 'Estadísticas Globales' :
@@ -918,21 +1040,115 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       )
       }
 
+      {/* Category Header for Elimination - shows category name */}
+      {ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
+        <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+          <h2 className="text-xl font-bold text-gray-900">
+            {(() => {
+              // DEBUG: Log values to console
+              console.log('🔍 DEBUG Division:', {
+                numero: activeDivision.numero,
+                name: activeDivision.name,
+                category: activeDivision.category,
+                type: activeDivision.type
+              });
+
+              // Priority: category > cleaned name > fallback
+              if (activeDivision.category) {
+                return activeDivision.category;
+              }
+
+              if (activeDivision.name) {
+                const cleaned = activeDivision.name
+                  .replace(/Cuadro Principal/gi, '')
+                  .replace(/Cuadro Consolación/gi, '')
+                  .replace(/\s*-\s*Principal/gi, '')
+                  .replace(/\s*-\s*Consolación/gi, '')
+                  .trim();
+
+                console.log('🔍 Cleaned name:', cleaned);
+                if (cleaned) return cleaned;
+              }
+
+              return `División ${activeDivision.numero}`;
+            })()}
+          </h2>
+        </div>
+      )}
+
       {
         activeTab === 'standings' && (
           <Card className="overflow-hidden !p-0">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> {ranking.format === 'elimination' ? 'Cuadro de Torneo' : 'Tabla de Clasificación'}</h3>
+              <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                <Trophy size={18} className="text-yellow-500" />
+                {ranking.format === 'elimination' && activeDivision ? (
+                  // Show category name for elimination tournaments
+                  (() => {
+                    // Priority: category > cleaned name > fallback
+                    if (activeDivision.category) {
+                      return activeDivision.category;
+                    }
+
+                    if (activeDivision.name) {
+                      const cleaned = activeDivision.name
+                        .replace(/Cuadro Principal/gi, '')
+                        .replace(/Cuadro Consolación/gi, '')
+                        .replace(/\s*-\s*Principal/gi, '')
+                        .replace(/\s*-\s*Consolación/gi, '')
+                        .trim();
+
+                      if (cleaned) return cleaned;
+                    }
+
+                    return `División ${activeDivision.numero}`;
+                  })()
+                ) : (
+                  ranking.format === 'elimination' ? 'Cuadro de Torneo' : 'Tabla de Clasificación'
+                )}
+              </h3>
             </div>
 
-            {ranking.format === 'elimination' && activeDivision ? (
-              <div className="p-4 bg-gray-50/50 min-h-[400px]">
-                <BracketView
-                  division={activeDivision}
-                  players={players}
-                  onMatchClick={handleMatchClick}
-                />
-              </div>
+            {ranking.format === 'elimination' ? (
+              <>
+                {/* Sub-tabs for Main and Consolation brackets */}
+                <div className="flex gap-2 p-3 border-b bg-gray-50">
+                  <button
+                    onClick={() => setBracketType('main')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${bracketType === 'main'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'bg-white text-gray-600 hover:bg-gray-100'
+                      }`}
+                  >
+                    Cuadro Principal
+                  </button>
+                  {ranking.config?.eliminationConfig?.consolation && (
+                    <button
+                      onClick={() => setBracketType('consolation')}
+                      className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${bracketType === 'consolation'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                        }`}
+                    >
+                      Cuadro de Consolación
+                    </button>
+                  )}
+                </div>
+                {activeDivision ? (
+                  <div className="p-4 bg-gray-50/50 min-h-[400px]">
+                    <BracketView
+                      divisions={categoryDivisions}
+                      players={players}
+                      onMatchClick={handleMatchClick}
+                      onScheduleClick={isAdmin ? setSchedulingMatch : undefined}
+                      bracketType={bracketType}
+                      ranking={ranking}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-gray-400">Selecciona una categoría</div>
+                )}
+              </>
             ) : (
               <>
                 {/* Mobile Card View */}
@@ -1138,51 +1354,112 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     return (
                       <div
                         key={m.id}
-                        onClick={() => isAdmin && handleMatchClick(m)}
-                        className={`bg-white p-4 rounded-xl border transition-all ${isAdmin ? 'cursor-pointer hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
+                        className={`bg-white p-0 rounded-xl border transition-all ${isAdmin ? 'hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
                       >
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                          {m.court && <Badge type="neutral" className="ml-2">Pista {m.court}</Badge>}
-                          {m.status === 'finalizado' ? (
-                            <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
-                              {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
-                            </Badge>
-                          ) : (
-                            <Badge>Pendiente</Badge>
+                        {/* Main Clickable Area -> Opens MatchModal (Score) */}
+                        <div
+                          className={`p-4 ${isAdmin ? 'cursor-pointer' : ''}`}
+                          onClick={() => isAdmin && handleMatchClick(m)}
+                        >
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
+                            {/* Removed Court Badge from here, moving to Schedule Area */}
+                            {m.status === 'finalizado' ? (
+                              <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
+                                {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
+                              </Badge>
+                            ) : (
+                              <Badge>Pendiente</Badge>
+                            )}
+                          </div>
+
+                          <div className="text-center mb-2">
+                            <div className="text-sm font-medium text-gray-900 border-b pb-2 mb-2 border-dashed border-gray-100">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="text-right pr-2 border-r border-gray-100">
+                                  <span className="block font-bold">{p1.nombre} {p1.apellidos}</span>
+                                  <span className="block font-bold">{p2.nombre} {p2.apellidos}</span>
+                                </div>
+                                <div className="text-left pl-2">
+                                  <span className="block font-bold">{p3.nombre} {p3.apellidos}</span>
+                                  <span className="block font-bold">{p4.nombre} {p4.apellidos}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {m.status === 'finalizado' && (
+                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                              <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
+                                {m.score?.set1 ? (
+                                  <>
+                                    {m.score.set1.p1}-{m.score.set1.p2}
+                                    {m.score.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
+                                    {m.score.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
+                                  </>
+                                ) : (
+                                  <span>{m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
+                                )}
+                              </span>
+                            </div>
                           )}
                         </div>
 
-                        <div className="text-center mb-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            <span className="block mb-1">{p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}</span>
-                            <span className="text-primary font-black text-xs uppercase tracking-widest my-1 block">VS</span>
-                            <span className="block mt-1">{p3.nombre} {p3.apellidos} - {p4.nombre} {p4.apellidos}</span>
-                          </div>
-                        </div>
+                        {/* Dedicated Schedule Area - Bottom of Card */}
+                        <div
+                          className={`border-t border-gray-100 py-2 px-4 bg-gray-50 flex items-center justify-between rounded-b-xl transition-colors ${isAdmin ? 'cursor-pointer hover:bg-blue-50 group' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Avoid opening Score Modal
+                            if (isAdmin) setSchedulingMatch(m);
+                          }}
+                        >
+                          {/* Content based on state */}
+                          {(m.startTime || m.court) ? (
+                            <div className="flex items-center gap-3 text-xs font-semibold text-blue-700 w-full">
+                              <div className="flex items-center gap-1">
+                                <Clock size={14} />
+                                {m.startTime ? new Date(m.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                              </div>
+                              {m.court && (
+                                <div className="flex items-center gap-1 border-l border-blue-200 pl-3 ml-auto">
+                                  <span>Pista {m.court}</span>
+                                </div>
+                              )}
 
-                        {m.status === 'finalizado' && (
-                          <div className="bg-gray-50 rounded-lg p-2 text-center mb-2">
-                            <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
-                              {m.score?.set1 ? (
+                              {/* Conflict Indicator */}
+                              {isAdmin && ranking.schedulerConfig && ranking.playerConstraints && (() => {
+                                const start = new Date(m.startTime!);
+                                const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig.slotDurationMinutes);
+                                const occupied = SchedulerEngine.getAllOccupiedSlots(ranking, m.id);
+
+                                const courtConflict = m.court && SchedulerEngine.checkMatchConflict(start, end, m.court, occupied);
+
+                                const pIds = [m.pair1.p1Id, m.pair1.p2Id, m.pair2.p1Id, m.pair2.p2Id].filter(Boolean) as string[];
+                                const playerConflict = SchedulerEngine.checkPlayerAvailability(start, end, pIds, ranking.playerConstraints || {});
+
+                                if (courtConflict || !playerConflict.valid) {
+                                  return (
+                                    <div className="ml-2 text-red-500 animate-pulse" title="Conflicto de horario detectado">
+                                      <AlertTriangle size={14} />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center w-full text-xs font-medium text-gray-400 group-hover:text-blue-600 gap-1">
+                              {isAdmin ? (
                                 <>
-                                  {m.score.set1.p1}-{m.score.set1.p2}
-                                  {m.score.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
-                                  {m.score.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
+                                  <Calendar size={14} /> Programar Partido
                                 </>
                               ) : (
-                                <span>{m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
+                                <span>Sin programar</span>
                               )}
-                            </span>
-                          </div>
-                        )}
-
-                        {m.status === 'finalizado' && (
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
-                            <span>Puntos: {m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
-                            <span>{m.score?.description}</span>
-                          </div>
-                        )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1193,8 +1470,6 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         )
       }
 
-
-
       {/* Match Result Modal */}
       {
         selectedMatch && (
@@ -1203,9 +1478,27 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             onClose={() => setSelectedMatch(null)}
             match={selectedMatch}
             players={players}
-            onSave={handleSaveMatchResult}
+            onSave={handleUpdateMatch}
             rankingConfig={ranking.config}
             format={ranking.format}
+            schedulerConfig={ranking.schedulerConfig}
+            occupiedSlots={SchedulerEngine.getAllOccupiedSlots(ranking, selectedMatch.id)}
+          />
+        )
+      }
+
+      {/* Schedule Modal */}
+      {
+        schedulingMatch && (
+          <ScheduleModal
+            isOpen={!!schedulingMatch}
+            onClose={() => setSchedulingMatch(null)}
+            match={schedulingMatch}
+            onSave={handleSaveSchedule}
+            schedulerConfig={ranking.schedulerConfig}
+            occupationSlots={SchedulerEngine.getAllOccupiedSlots(ranking, schedulingMatch.id)}
+            playerConstraints={ranking.playerConstraints}
+            players={players}
           />
         )
       }
@@ -1219,9 +1512,16 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             nextDivisionNumber={ranking.divisions.length + 1}
             players={players}
             occupiedPlayerIds={occupiedPlayerIds}
+            rankingFormat={ranking.format}
+            hasConsolation={ranking.config?.eliminationConfig?.consolation}
             onSave={(div) => {
               onAddDivision(div);
-              setActiveDivisionId(div.id); // Switch to new division
+              // Handle array vs single division for UI switch
+              if (Array.isArray(div)) {
+                if (div.length > 0) setActiveDivisionId(div[0].id);
+              } else {
+                setActiveDivisionId(div.id);
+              }
             }}
           />
         )
@@ -1246,11 +1546,13 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       <Modal
         isOpen={isDivisionSettingsModalOpen}
         onClose={() => setIsDivisionSettingsModalOpen(false)}
-        title="Gestionar Divisiones"
+        title={ranking.format === 'elimination' ? "Gestionar Categorías" : "Gestionar Divisiones"}
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
-            Aquí puedes renombrar o eliminar divisiones. <span className="font-bold text-red-600">¡Cuidado!</span> Borrar una división elimina a sus jugadores y partidos del torneo.
+            {ranking.format === 'elimination'
+              ? "Aquí puedes renombrar o eliminar categorías. ¡Cuidado! Borrar una categoría elimina a sus jugadores y partidos."
+              : "Aquí puedes renombrar o eliminar divisiones. ¡Cuidado! Borrar una división elimina a sus jugadores y partidos del torneo."}
           </p>
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {ranking.divisions.sort((a, b) => a.numero - b.numero).map(div => (
@@ -1377,6 +1679,16 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         players={players}
         occupiedPlayerIds={Array.from(occupiedPlayerIds)}
         onAddPair={onAddPair}
+      />
+
+      <SchedulerConfigModal
+        isOpen={isSchedulerConfigModalOpen}
+        onClose={() => setIsSchedulerConfigModalOpen(false)}
+        tournament={ranking}
+        players={players}
+        onSave={handleSaveSchedulerConfig}
+        initialConfig={ranking.schedulerConfig}
+        initialConstraints={ranking.playerConstraints}
       />
 
 

@@ -56,8 +56,14 @@ service cloud.firestore {
       // Public Read (Anyone can view rankings via link)
       allow read: if true;
       
-      // Write: Strictly Owners or SuperAdmins
-      allow write: if isOwnerOfResource() || isSuperAdmin();
+      // Create: Must be signed in and set ownerId to self
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      
+      // Update/Delete: Owner (check existing resource) or SuperAdmin
+      allow update, delete: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || 
+        isSuperAdmin()
+      );
     }
 
     // 3. Players

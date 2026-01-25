@@ -230,27 +230,27 @@ export const AdminLayout = () => {
         setActiveRankingId(r.id);
         setView('ranking_detail');
     };
-    const handleAddDivision = (newDivision: Division) => {
-        if (!activeRanking) return;
-        const updated = { ...activeRanking, divisions: [...activeRanking.divisions, newDivision] };
-        // Optimistic update not really needed as subscription catches it, 
-        // but we usually just update the doc. Wait, this function 'handleAddDivision' 
-        // in App.tsx was purely local state update? 
-        // No, RankingView calls 'onAddDivision' which calls this.
-        // AND RankingView updates logic? 
-        // Actually, we must SAVE it to DB. 
-        // The previous App.tsx implementation of handleAddDivision:
-        // setRankings(rankings.map(r => r.id === activeRanking.id ? updatedRanking : r));
-        // It ONLY updated local state? That seems like a bug in the old code if so, 
-        // or maybe RankingView saved it? 
-        // Checking old App.tsx code... 
-        // It seems handleAddDivision ONLY updated local state: `setRankings(...)`.
-        // It did NOT call `updateRanking`.
-        // BUT `RankingView` has `onUpdateRanking`.
-        // If `AddDivisionModal` returns a division, `RankingView` calls `onAddDivision`.
-        // We should probably ensure persistence here to be safe.
-        // I will add persistence.
+    const handleAddDivision = (newDivisions: Division | Division[]) => {
+        console.log('📥 handleAddDivision called with:', newDivisions);
+        if (!activeRanking) {
+            console.error('❌ No active ranking!');
+            return;
+        }
+
+        // Normalize to array
+        const divisionsArray = Array.isArray(newDivisions) ? newDivisions : [newDivisions];
+
+        // Add all divisions at once to prevent race conditions
+        const updated = {
+            ...activeRanking,
+            divisions: [...activeRanking.divisions, ...divisionsArray]
+        };
+
+        console.log('📥 Updating ranking with new divisions:', divisionsArray.length, 'division(s)');
+        console.log('📥 Updated ranking:', updated);
+
         updateRanking(updated);
+        console.log('✅ Ranking updated in DB');
     };
 
     // Players

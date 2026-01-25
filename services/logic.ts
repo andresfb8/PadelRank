@@ -270,7 +270,7 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
   }
 
   // Re-use logic but with a flat list
-  return generateStandings('global', allMatches, Array.from(allPlayers), ranking.format);
+  return generateStandings('global', allMatches, Array.from(allPlayers).filter(Boolean) as string[], ranking.format as any);
 }
 
 export function calculatePromotions(
