@@ -16,6 +16,7 @@ import { TournamentEngine } from '../services/TournamentEngine';
 import { SchedulerEngine } from '../services/SchedulerEngine';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { ScheduleModal } from './ScheduleModal';
+import { ScheduleGridModal } from './ScheduleGridModal';
 
 interface Props {
   ranking: Ranking;
@@ -40,25 +41,45 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [promotionData, setPromotionData] = useState<{ newDivisions: Division[], movements: any[] } | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [schedulingMatch, setSchedulingMatch] = useState<Match | null>(null); // New State for Option C
+  const [isGridModalOpen, setIsGridModalOpen] = useState(false);
+  const [isEditingCategory, setIsEditingCategory] = useState(false);
 
   const handleSaveSchedule = (matchId: string, schedule: { startTime?: string, court?: number }) => {
-    if (!activeDivision || !onUpdateRanking) return;
-    const matchIndex = activeDivision.matches.findIndex(m => m.id === matchId);
-    if (matchIndex === -1) return;
+    if (!onUpdateRanking) return;
 
-    const oldMatch = activeDivision.matches[matchIndex];
+    // Find the division containing the match
+    let targetDivIndex = -1;
+    let matchIndex = -1;
+
+    ranking.divisions.forEach((d, idx) => {
+      const mIdx = d.matches.findIndex(m => m.id === matchId);
+      if (mIdx !== -1) {
+        targetDivIndex = idx;
+        matchIndex = mIdx;
+      }
+    });
+
+    if (targetDivIndex === -1 || matchIndex === -1) {
+      console.error("Match not found for scheduling:", matchId);
+      return;
+    }
+
+    const targetDivision = ranking.divisions[targetDivIndex];
+    const oldMatch = targetDivision.matches[matchIndex];
     const updatedMatch = { ...oldMatch, ...schedule };
 
-    // Auto-update status if needed? No, schedule doesn't change Result Status (Pendiente -> Finalizado)
-    // But maybe track that it is scheduled? 'pendiente' is fine.
-
-    const updatedMatches = [...activeDivision.matches];
+    const updatedMatches = [...targetDivision.matches];
     updatedMatches[matchIndex] = updatedMatch;
 
-    const updatedDivision = { ...activeDivision, matches: updatedMatches };
+    const updatedDivision = { ...targetDivision, matches: updatedMatches };
+
+    // Update the ranking with the modified division
+    const newDivisions = [...ranking.divisions];
+    newDivisions[targetDivIndex] = updatedDivision;
+
     let updatedRanking = {
       ...ranking,
-      divisions: ranking.divisions.map(d => d.id === activeDivisionId ? updatedDivision : d)
+      divisions: newDivisions
     };
 
     // Check conflicts hook or other side-effects?
@@ -1042,72 +1063,103 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
       {/* Category Header for Elimination - shows category name */}
       {ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
-        <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">
-            {(() => {
-              // DEBUG: Log values to console
-              console.log('🔍 DEBUG Division:', {
-                numero: activeDivision.numero,
-                name: activeDivision.name,
-                category: activeDivision.category,
-                type: activeDivision.type
-              });
+        <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+          {isEditingCategory ? (
+            <div className="flex items-center gap-2 w-full">
+              <input
+                type="text"
+                defaultValue={activeDivision.category || (activeDivision.name ? activeDivision.name.replace(/Cuadro Principal/gi, '').replace(/Cuadro Consolación/gi, '').trim() : `División ${activeDivision.numero}`)}
+                className="px-3 py-2 border rounded-lg flex-1 text-xl font-bold text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = e.currentTarget.value;
+                    if (val && onUpdateRanking) {
+                      // Update all divisions with same number (category group)
+                      const updatedDivs = ranking.divisions.map(d =>
+                        d.numero === activeDivision.numero ? { ...d, category: val } : d
+                      );
+                      onUpdateRanking({ ...ranking, divisions: updatedDivs });
+                      setIsEditingCategory(false);
+                    }
+                  }
+                  if (e.key === 'Escape') setIsEditingCategory(false);
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsEditingCategory(false)}
+                  className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={(e) => {
+                    // Trigger save manually via finding input sibling? Or simpler: use Ref. 
+                    // For simplicity in this replace block without adding refs, assume Enter usage or add specific ID
+                    const input = e.currentTarget.parentElement?.parentElement?.querySelector('input') as HTMLInputElement;
+                    if (input && input.value && onUpdateRanking) {
+                      const updatedDivs = ranking.divisions.map(d =>
+                        d.numero === activeDivision.numero ? { ...d, category: input.value } : d
+                      );
+                      onUpdateRanking({ ...ranking, divisions: updatedDivs });
+                      setIsEditingCategory(false);
+                    }
+                  }}
+                  className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-gray-900">
+                {(() => {
+                  // Priority: category > cleaned name > fallback
+                  if (activeDivision.category) {
+                    return activeDivision.category;
+                  }
 
-              // Priority: category > cleaned name > fallback
-              if (activeDivision.category) {
-                return activeDivision.category;
-              }
+                  if (activeDivision.name) {
+                    const cleaned = activeDivision.name
+                      .replace(/Cuadro Principal/gi, '')
+                      .replace(/Cuadro Consolación/gi, '')
+                      .replace(/\s*-\s*Principal/gi, '')
+                      .replace(/\s*-\s*Consolación/gi, '')
+                      .trim();
 
-              if (activeDivision.name) {
-                const cleaned = activeDivision.name
-                  .replace(/Cuadro Principal/gi, '')
-                  .replace(/Cuadro Consolación/gi, '')
-                  .replace(/\s*-\s*Principal/gi, '')
-                  .replace(/\s*-\s*Consolación/gi, '')
-                  .trim();
+                    if (cleaned) return cleaned;
+                  }
 
-                console.log('🔍 Cleaned name:', cleaned);
-                if (cleaned) return cleaned;
-              }
-
-              return `División ${activeDivision.numero}`;
-            })()}
-          </h2>
+                  return `División ${activeDivision.numero}`;
+                })()}
+              </h2>
+              {isAdmin && (
+                <button
+                  onClick={() => setIsEditingCategory(true)}
+                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-600 transition-colors"
+                  title="Editar nombre de categoría"
+                >
+                  <Edit2 size={18} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {
         activeTab === 'standings' && (
           <Card className="overflow-hidden !p-0">
-            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                <Trophy size={18} className="text-yellow-500" />
-                {ranking.format === 'elimination' && activeDivision ? (
-                  // Show category name for elimination tournaments
-                  (() => {
-                    // Priority: category > cleaned name > fallback
-                    if (activeDivision.category) {
-                      return activeDivision.category;
-                    }
-
-                    if (activeDivision.name) {
-                      const cleaned = activeDivision.name
-                        .replace(/Cuadro Principal/gi, '')
-                        .replace(/Cuadro Consolación/gi, '')
-                        .replace(/\s*-\s*Principal/gi, '')
-                        .replace(/\s*-\s*Consolación/gi, '')
-                        .trim();
-
-                      if (cleaned) return cleaned;
-                    }
-
-                    return `División ${activeDivision.numero}`;
-                  })()
-                ) : (
-                  ranking.format === 'elimination' ? 'Cuadro de Torneo' : 'Tabla de Clasificación'
-                )}
-              </h3>
-            </div>
+            {ranking.format !== 'elimination' && (
+              <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                  <Trophy size={18} className="text-yellow-500" />
+                  Tabla de Clasificación
+                </h3>
+              </div>
+            )}
 
             {ranking.format === 'elimination' ? (
               <>
@@ -1133,6 +1185,15 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                       Cuadro de Consolación
                     </button>
                   )}
+
+                  <div className="flex-1"></div>
+
+                  <button
+                    onClick={() => setIsGridModalOpen(true)}
+                    className="px-4 py-2 rounded-lg font-medium text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm"
+                  >
+                    <Calendar size={16} /> Parrilla de Horarios
+                  </button>
                 </div>
                 {activeDivision ? (
                   <div className="p-4 bg-gray-50/50 min-h-[400px]">
@@ -1689,6 +1750,15 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
         onSave={handleSaveSchedulerConfig}
         initialConfig={ranking.schedulerConfig}
         initialConstraints={ranking.playerConstraints}
+      />
+
+      <ScheduleGridModal
+        isOpen={isGridModalOpen}
+        onClose={() => setIsGridModalOpen(false)}
+        matches={ranking.divisions.flatMap(d => d.matches)}
+        players={players}
+        divisions={ranking.divisions}
+        config={ranking.schedulerConfig}
       />
 
 

@@ -24,7 +24,33 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
   const [searchTerm, setSearchTerm] = useState('');
 
   const handleExportExcel = () => {
-    const data = Object.values(players).map(p => ({
+    // Always include example players at the top to show the format
+    const examplePlayers = [
+      {
+        Nombre: 'Juan',
+        Apellidos: 'García López',
+        Email: 'juan.garcia@ejemplo.com',
+        Telefono: '+34 600 123 456',
+        "Fecha Nacimiento": '1990-05-15'
+      },
+      {
+        Nombre: 'María',
+        Apellidos: 'Rodríguez Martín',
+        Email: 'maria.rodriguez@ejemplo.com',
+        Telefono: '+34 611 234 567',
+        "Fecha Nacimiento": '1992-08-22'
+      },
+      {
+        Nombre: 'Carlos',
+        Apellidos: 'Fernández Ruiz',
+        Email: 'carlos.fernandez@ejemplo.com',
+        Telefono: '+34 622 345 678',
+        "Fecha Nacimiento": '1988-12-03'
+      }
+    ];
+
+    // Add existing players after examples
+    const existingPlayers = Object.values(players).map(p => ({
       Nombre: p.nombre,
       Apellidos: p.apellidos,
       Email: p.email,
@@ -32,10 +58,12 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
       "Fecha Nacimiento": p.fechaNacimiento || ''
     }));
 
+    const data = [...examplePlayers, ...existingPlayers];
+
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Jugadores");
-    XLSX.writeFile(workbook, "jugadores_padel.xlsx");
+    XLSX.writeFile(workbook, "plantilla_jugadores_padel.xlsx");
   };
 
   const handleImportClick = () => {
