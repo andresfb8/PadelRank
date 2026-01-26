@@ -112,7 +112,8 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                               ranking.format === 'mexicano' ? 'Mexicano' :
                                 ranking.format === 'individual' ? 'Individual' :
                                   ranking.format === 'pairs' ? 'Ranking por Parejas' :
-                                    ranking.format === 'elimination' ? 'Eliminación Directa' : 'Ranking clásica CPSJ'}
+                                    ranking.format === 'elimination' ? 'Eliminación Directa' :
+                                      ranking.format === 'hybrid' ? 'Liga + Playoff' : 'Ranking clásica CPSJ'}
                           </span>
                         </div>
                         <div className="flex gap-1">
