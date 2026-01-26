@@ -31,7 +31,8 @@ import {
     addUser, // We still use this even though it might differ from Auth ID
     updateUser,
     deleteUser as deleteUserDB,
-    subscribeToUserProfile
+    subscribeToUserProfile,
+    duplicateRanking
 } from '../services/db';
 import { migratePlayersStats } from '../services/migration';
 import { MobileBottomNav } from './MobileBottomNav';
@@ -225,6 +226,18 @@ export const AdminLayout = () => {
     const handleUpdateRanking = async (r: Ranking) => await updateRanking(r);
     const handleDeleteRanking = async (id: string) => {
         if (confirm('¿Borrar torneo?')) await deleteRanking(id);
+    };
+    const handleDuplicateRanking = async (id: string) => {
+        if (!firebaseUser?.uid) return;
+        if (confirm('¿Duplicar este torneo? Se creará una copia exacta.')) {
+            try {
+                await duplicateRanking(id, firebaseUser.uid);
+                alert('✅ Torneo duplicado correctamente.');
+            } catch (error) {
+                console.error(error);
+                alert('Error al duplicar el torneo.');
+            }
+        }
     };
     const handleRankingSelect = (r: Ranking) => {
         setActiveRankingId(r.id);
@@ -631,7 +644,7 @@ export const AdminLayout = () => {
                         onImportPlayers={handleImportPlayers}
                         onSelectPlayer={handleSelectPlayer}
                     />}
-                    {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} />}
+                    {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDuplicateRanking} />}
                     {view === 'ranking_create' && <RankingWizard players={players} onCancel={() => setView('ranking_list')} onSave={handleSaveRanking} />}
                     {view === 'ranking_detail' && activeRanking && <RankingView
                         ranking={activeRanking}

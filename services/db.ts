@@ -10,8 +10,10 @@ import {
     where,
     limit,
     writeBatch,
-    setDoc, // Kept from original, not in user's example but not explicitly removed
-    getDocs // Kept from original, not in user's example but not explicitly removed
+    setDoc,
+    getDocs,
+    getDoc,
+    runTransaction
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Player, Ranking, User } from "../types";
@@ -145,7 +147,7 @@ export const updatePlayerStats = async (playerId: string, won: boolean) => {
 };
 
 // Enhanced updatePlayerStats with GetDoc
-import { getDoc, runTransaction } from "firebase/firestore";
+
 
 export const updatePlayerStatsFull = async (playerId: string, won: boolean) => {
     const playerRef = doc(db, "players", playerId);
@@ -238,6 +240,32 @@ export const updateRanking = async (ranking: Ranking) => {
 
 export const deleteRanking = async (id: string) => {
     return await deleteDoc(doc(db, "rankings", id));
+};
+
+export const duplicateRanking = async (rankingId: string, ownerId: string) => {
+    const rankingRef = doc(db, "rankings", rankingId);
+    const snap = await getDoc(rankingRef);
+
+    if (!snap.exists()) {
+        throw new Error("Tournament not found");
+    }
+
+    const data = snap.data() as Ranking;
+
+    // Create copy with safe defaults
+    const newRanking: any = {
+        ...data,
+        nombre: `${data.nombre} (Copia)`,
+        ownerId: ownerId,
+        // Ensure status allows editing if needed, but keeping original state is usually expected for full clone
+        // We'll keep everything as is.
+    };
+
+    // Remove ID if it was stored in the doc (it shouldn't be for addDoc, but good practice)
+    delete newRanking.id;
+
+    const sanitized = sanitizeForFirestore(newRanking);
+    return await addDoc(collection(db, "rankings"), sanitized);
 };
 
 // --- UTILS (SEED) ---

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon } from 'lucide-react';
+import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon, Copy } from 'lucide-react';
 import { Button } from './ui/Components';
 import { Ranking, User } from '../types';
 
@@ -9,9 +9,10 @@ interface Props {
   onSelect: (ranking: Ranking) => void;
   onCreateClick: () => void;
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
 }
 
-export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete }: Props) => {
+export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete, onDuplicate }: Props) => {
 
   const [tab, setTab] = React.useState<'activos' | 'historial'>('activos');
 
@@ -114,16 +115,28 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                                     ranking.format === 'elimination' ? 'Eliminación Directa' : 'Ranking clásica CPSJ'}
                           </span>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(ranking.id);
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                          title="Eliminar torneo"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDuplicate(ranking.id);
+                            }}
+                            className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                            title="Duplicar torneo"
+                          >
+                            <Copy size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(ranking.id);
+                            }}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                            title="Eliminar torneo"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
 
                       <h3 className="text-lg font-bold text-gray-900 mb-1">{ranking.nombre}</h3>
