@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash } from 'lucide-react';
-import { Ranking, RankingConfig } from '../types';
+import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target } from 'lucide-react';
+import { Ranking, RankingConfig, ScoringMode } from '../types';
 import { Button } from './ui/Components';
 
 interface Props {
@@ -34,7 +34,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
         }
     };
 
-    const handleChange = (key: keyof RankingConfig, value: number) => {
+    const handleChange = (key: keyof RankingConfig, value: any) => {
         setConfig(prev => ({
             ...prev,
             [key]: value
@@ -49,10 +49,22 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
         pointsPerLoss2_1: 1,
         pointsPerLoss2_0: 0,
         promotionCount: 2,
-        relegationCount: 2
+        relegationCount: 2,
+        scoringMode: '32' as ScoringMode,
+        customPoints: 32
     };
 
     const isReadOnly = !isAdmin || !onUpdateRanking;
+
+    // Determine which tabs to show based on format
+    const isElimination = ranking.format === 'elimination';
+    const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
+    const isClassic = ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs';
+
+    // Show Points if not Elimination (Elimination uses direct knockout)
+    // Show Promotions only for Classic/Individual/Pairs (Americano is single-event usually)
+    const showPointsTab = !isElimination;
+    const showPromotionsTab = isClassic;
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -84,18 +96,22 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     >
                         <Settings size={16} /> General
                     </button>
-                    <button
-                        onClick={() => setActiveTab('points')}
-                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'points' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Trophy size={16} /> Puntuación
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('promotions')}
-                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'promotions' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <ArrowUpCircle size={16} /> Ascensos/Descensos
-                    </button>
+                    {showPointsTab && (
+                        <button
+                            onClick={() => setActiveTab('points')}
+                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'points' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Trophy size={16} /> Puntuación
+                        </button>
+                    )}
+                    {showPromotionsTab && (
+                        <button
+                            onClick={() => setActiveTab('promotions')}
+                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'promotions' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <ArrowUpCircle size={16} /> Ascensos/Descensos
+                        </button>
+                    )}
                 </div>
 
                 {/* Content */}
@@ -120,95 +136,167 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                             {ranking.categoria}
                                         </div>
                                     </div>
+                                    {isElimination && (
+                                        <>
+                                            <div>
+                                                <label className="text-xs text-gray-500 uppercase font-bold">Consolación</label>
+                                                <div className="text-lg font-medium text-gray-900 mt-1">
+                                                    {ranking.config?.eliminationConfig?.consolation ? 'Sí' : 'No'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 uppercase font-bold">3er y 4to Puesto</label>
+                                                <div className="text-lg font-medium text-gray-900 mt-1">
+                                                    {ranking.config?.eliminationConfig?.thirdPlaceMatch ? 'Sí' : 'No'}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'points' && (
+                    {activeTab === 'points' && showPointsTab && (
                         <div className="space-y-4">
                             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
                                 <p className="text-sm text-blue-800 flex items-start gap-2">
                                     <Info size={16} className="mt-0.5 shrink-0" />
-                                    Estos valores determinan cuántos puntos obtiene cada jugador/pareja según el resultado del partido.
+                                    {isAmericanoOrMexicano
+                                        ? "Configura el sistema de puntuación total para los partidos."
+                                        : "Estos valores determinan cuántos puntos obtiene cada jugador/pareja según el resultado del partido."}
                                 </p>
                             </div>
 
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Victoria 2-0</label>
-                                    {isReadOnly ? (
-                                        <div className="text-2xl font-bold text-primary">{config.pointsPerWin2_0 ?? defaults.pointsPerWin2_0} pts</div>
-                                    ) : (
-                                        <input
-                                            type="number"
-                                            value={config.pointsPerWin2_0 ?? defaults.pointsPerWin2_0}
-                                            onChange={(e) => handleChange('pointsPerWin2_0', parseInt(e.target.value))}
-                                            className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                        />
-                                    )}
-                                </div>
+                            {isAmericanoOrMexicano ? (
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <Target size={18} className="text-blue-500" /> Puntos Totales por Partido
+                                    </h3>
+                                    <div className="grid gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Modo de Puntuación</label>
+                                            {isReadOnly ? (
+                                                <div className="text-xl font-bold text-gray-900">
+                                                    {config.scoringMode === 'custom'
+                                                        ? `Personalizado (${config.customPoints || defaults.customPoints} pts)`
+                                                        : `${config.scoringMode || defaults.scoringMode} Puntos`}
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {['16', '21', '24', '32', 'custom'].map((mode) => (
+                                                        <button
+                                                            key={mode}
+                                                            onClick={() => handleChange('scoringMode', mode)}
+                                                            className={`px-4 py-3 rounded-lg border text-sm font-bold transition-all ${(config.scoringMode || defaults.scoringMode) === mode
+                                                                    ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500'
+                                                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                                                }`}
+                                                        >
+                                                            {mode === 'custom' ? 'Personalizado' : mode}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
 
-                                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Victoria 2-1</label>
-                                    {isReadOnly ? (
-                                        <div className="text-2xl font-bold text-primary">{config.pointsPerWin2_1 ?? defaults.pointsPerWin2_1} pts</div>
-                                    ) : (
-                                        <input
-                                            type="number"
-                                            value={config.pointsPerWin2_1 ?? defaults.pointsPerWin2_1}
-                                            onChange={(e) => handleChange('pointsPerWin2_1', parseInt(e.target.value))}
-                                            className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                        />
-                                    )}
+                                        {config.scoringMode === 'custom' && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Puntos personalizados</label>
+                                                {isReadOnly ? (
+                                                    <div className="text-xl font-bold text-gray-900">{config.customPoints || defaults.customPoints}</div>
+                                                ) : (
+                                                    <input
+                                                        type="number"
+                                                        value={config.customPoints || ''}
+                                                        placeholder="Ej: 50"
+                                                        onChange={(e) => handleChange('customPoints', parseInt(e.target.value))}
+                                                        className="w-full text-xl font-bold p-3 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                                                    />
+                                                )}
+                                                <p className="text-xs text-gray-500 mt-1">Los puntos de cada pareja sumarán exactamente esta cantidad al final del partido.</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            ) : (
+                                // Classic Scoring Inputs
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Victoria 2-0</label>
+                                        {isReadOnly ? (
+                                            <div className="text-2xl font-bold text-primary">{config.pointsPerWin2_0 ?? defaults.pointsPerWin2_0} pts</div>
+                                        ) : (
+                                            <input
+                                                type="number"
+                                                value={config.pointsPerWin2_0 ?? defaults.pointsPerWin2_0}
+                                                onChange={(e) => handleChange('pointsPerWin2_0', parseInt(e.target.value))}
+                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
+                                            />
+                                        )}
+                                    </div>
 
-                                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Empate</label>
-                                    {isReadOnly ? (
-                                        <div className="text-2xl font-bold text-gray-600">{config.pointsDraw ?? defaults.pointsDraw} pts</div>
-                                    ) : (
-                                        <input
-                                            type="number"
-                                            value={config.pointsDraw ?? defaults.pointsDraw}
-                                            onChange={(e) => handleChange('pointsDraw', parseInt(e.target.value))}
-                                            className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                        />
-                                    )}
-                                </div>
+                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Victoria 2-1</label>
+                                        {isReadOnly ? (
+                                            <div className="text-2xl font-bold text-primary">{config.pointsPerWin2_1 ?? defaults.pointsPerWin2_1} pts</div>
+                                        ) : (
+                                            <input
+                                                type="number"
+                                                value={config.pointsPerWin2_1 ?? defaults.pointsPerWin2_1}
+                                                onChange={(e) => handleChange('pointsPerWin2_1', parseInt(e.target.value))}
+                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
+                                            />
+                                        )}
+                                    </div>
 
-                                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Derrota 1-2</label>
-                                    {isReadOnly ? (
-                                        <div className="text-2xl font-bold text-orange-600">{config.pointsPerLoss2_1 ?? defaults.pointsPerLoss2_1} pt</div>
-                                    ) : (
-                                        <input
-                                            type="number"
-                                            value={config.pointsPerLoss2_1 ?? defaults.pointsPerLoss2_1}
-                                            onChange={(e) => handleChange('pointsPerLoss2_1', parseInt(e.target.value))}
-                                            className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                        />
-                                    )}
-                                </div>
+                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Empate</label>
+                                        {isReadOnly ? (
+                                            <div className="text-2xl font-bold text-gray-600">{config.pointsDraw ?? defaults.pointsDraw} pts</div>
+                                        ) : (
+                                            <input
+                                                type="number"
+                                                value={config.pointsDraw ?? defaults.pointsDraw}
+                                                onChange={(e) => handleChange('pointsDraw', parseInt(e.target.value))}
+                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
+                                            />
+                                        )}
+                                    </div>
 
-                                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Derrota 0-2</label>
-                                    {isReadOnly ? (
-                                        <div className="text-2xl font-bold text-red-600">{config.pointsPerLoss2_0 ?? defaults.pointsPerLoss2_0} pts</div>
-                                    ) : (
-                                        <input
-                                            type="number"
-                                            value={config.pointsPerLoss2_0 ?? defaults.pointsPerLoss2_0}
-                                            onChange={(e) => handleChange('pointsPerLoss2_0', parseInt(e.target.value))}
-                                            className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                        />
-                                    )}
+                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Derrota 1-2</label>
+                                        {isReadOnly ? (
+                                            <div className="text-2xl font-bold text-orange-600">{config.pointsPerLoss2_1 ?? defaults.pointsPerLoss2_1} pt</div>
+                                        ) : (
+                                            <input
+                                                type="number"
+                                                value={config.pointsPerLoss2_1 ?? defaults.pointsPerLoss2_1}
+                                                onChange={(e) => handleChange('pointsPerLoss2_1', parseInt(e.target.value))}
+                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Derrota 0-2</label>
+                                        {isReadOnly ? (
+                                            <div className="text-2xl font-bold text-red-600">{config.pointsPerLoss2_0 ?? defaults.pointsPerLoss2_0} pts</div>
+                                        ) : (
+                                            <input
+                                                type="number"
+                                                value={config.pointsPerLoss2_0 ?? defaults.pointsPerLoss2_0}
+                                                onChange={(e) => handleChange('pointsPerLoss2_0', parseInt(e.target.value))}
+                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
+                                            />
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
 
-                    {activeTab === 'promotions' && (
+                    {activeTab === 'promotions' && showPromotionsTab && (
                         <div className="space-y-4">
                             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 mb-4">
                                 <p className="text-sm text-yellow-800 flex items-start gap-2">
