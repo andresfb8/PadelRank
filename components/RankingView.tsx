@@ -17,6 +17,7 @@ import { SchedulerEngine } from '../services/SchedulerEngine';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { ScheduleModal } from './ScheduleModal';
 import { ScheduleGridModal } from './ScheduleGridModal';
+import { RankingSettingsModal } from './RankingSettingsModal';
 
 interface Props {
   ranking: Ranking;
@@ -94,6 +95,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [isDivisionSettingsModalOpen, setIsDivisionSettingsModalOpen] = useState(false);
   const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
   const [isSchedulerConfigModalOpen, setIsSchedulerConfigModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const handleMatchClick = (m: Match) => {
     setSelectedMatch(m);
@@ -735,6 +737,14 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
               <Users size={16} /> <span className="hidden sm:inline">Sustituir Jugador</span>
             </Button>
           )}
+          <Button
+            variant="secondary"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="!p-2 text-gray-600 flex items-center gap-2 hover:bg-gray-100"
+            title={isAdmin ? "Configuración del Torneo" : "Información del Torneo"}
+          >
+            {isAdmin ? <Settings size={18} /> : <BookOpen size={18} />}
+          </Button>
           <Button
             variant="secondary"
             className={`!p-2 text-primary flex items-center gap-2 transition-all ${copied ? 'bg-green-50 !text-green-600' : ''}`}
@@ -1809,6 +1819,13 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
       />
 
 
+      <RankingSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        ranking={ranking}
+        onUpdateRanking={onUpdateRanking}
+        isAdmin={isAdmin}
+      />
     </div >
   );
 };
