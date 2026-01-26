@@ -26,7 +26,7 @@ export interface Player {
 }
 
 
-export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination';
+export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination' | 'hybrid';
 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
 
@@ -52,6 +52,11 @@ export interface RankingConfig {
     thirdPlaceMatch: boolean;
     type: 'individual' | 'pairs';
   };
+
+  // For Hybrid
+  hybridConfig?: {
+    qualifiersPerGroup: number; // Top N players from each group advance
+  };
 }
 
 export interface Ranking {
@@ -60,6 +65,7 @@ export interface Ranking {
   categoria: 'Masculino' | 'Femenino' | 'Mixto';
   fechaInicio: string;
   status: 'activo' | 'finalizado' | 'pausado';
+  phase?: 'league' | 'playoff'; // NEW: Track current phase for hybrid tournaments
   divisions: Division[];
   publicUrl?: string;
   ownerId?: string;

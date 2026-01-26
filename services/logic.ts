@@ -118,7 +118,7 @@ export function generateStandings(
   divisionId: string,
   matches: Match[],
   playerIds: string[],
-  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs'
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'hybrid' | 'hybrid'
 ): StandingRow[] {
   const map: Record<string, StandingRow> = {};
 
@@ -500,4 +500,32 @@ function generateNewPhaseMatches(players: string[], divIndex: number): Match[] {
   }
 
   return [];
+}
+
+export function getQualifiedPlayers(ranking: Ranking): string[] {
+  if (ranking.format !== 'hybrid') return [];
+  if (!ranking.config?.hybridConfig) return [];
+
+  const qualifiersPerGroup = ranking.config.hybridConfig.qualifiersPerGroup;
+  // Sort divisions by number to ensure Group A, B, C order
+  const divisions = [...ranking.divisions].sort((a, b) => a.numero - b.numero);
+
+  // Get Standings for all divisions
+  // Use 'classic' format logic for the groups as they are leagues
+  const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'classic'));
+
+  const qualifiedIds: string[] = [];
+
+  // Interleave logic: Div1#1, Div2#1... then Div1#2, Div2#2...
+  // This maximizes the chance that 1st places don't meet purely by seed index logic in existing generateBracket
+  for (let pos = 0; pos < qualifiersPerGroup; pos++) {
+    divisions.forEach((_, divIdx) => {
+      const standing = allStandings[divIdx];
+      if (standing && standing[pos]) {
+        qualifiedIds.push(standing[pos].playerId);
+      }
+    });
+  }
+
+  return qualifiedIds;
 }

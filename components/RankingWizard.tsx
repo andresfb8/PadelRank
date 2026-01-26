@@ -39,7 +39,9 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         relegationCount: 2,
         courts: 2,
         scoringMode: '24',  // Default for Mexicano/Americano
-        eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
+        scorignMode: '24', // Default for Mexicano/Americano
+        eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' },
+        hybridConfig: { qualifiersPerGroup: 2 }
     });
 
     // Players
@@ -99,6 +101,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     label: 'Eliminación Directa (Torneo)',
                     desc: 'Cuadro principal y de consolación. Cabezas de serie y avance por rondas.',
                     color: 'red'
+                },
+                {
+                    id: 'hybrid',
+                    label: 'Híbrido (Liga + Playoff) (BETA)',
+                    desc: 'Fase de Grupos (Liga) seguida de Fase Final (Eliminatoria). Ideal para "Mundialitos" o "Champions".',
+                    color: 'pink'
                 }
             ].map((f) => (
                 <div
@@ -152,6 +160,18 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                 ...prev,
                                 eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
                             }));
+                        } else if (f.id === 'hybrid') {
+                            setNumDivisions(1);
+                            setIndividualMaxPlayers(4); // Groups of 4 usually
+                            setConfig(prev => ({
+                                ...prev,
+                                pointsPerWin2_0: 3,
+                                pointsPerWin2_1: 2,
+                                pointsDraw: 1,
+                                pointsPerLoss2_1: 1,
+                                pointsPerLoss2_0: 0,
+                                hybridConfig: { qualifiersPerGroup: 2 }
+                            }));
                         }
 
                         // Default Official Status
@@ -168,8 +188,9 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     </div>
                     <p className="text-gray-500 text-sm">{f.desc}</p>
                 </div>
-            ))}
-        </div>
+            ))
+            }
+        </div >
     );
 
     const renderStep2 = () => (
@@ -258,6 +279,39 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                 ? 'Sistema tradicional: 6 juegos por set, mejor de 3 sets'
                                 : 'Los equipos acumulan puntos hasta alcanzar el total. El sistema autorellena la puntuación del rival.'}
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Hybrid Configuration */}
+            {format === 'hybrid' && (
+                <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Settings size={18} /> Configuración de Fase de Grupos</h3>
+
+                    <div className="bg-pink-50 border border-pink-100 p-4 rounded-lg mb-4 text-sm text-pink-800">
+                        <Info size={16} className="inline mr-2 mb-1" />
+                        En este formato, los jugadores competirán primero en grupos (ligas pequeñas) y los mejores de cada grupo pasarán a una fase final eliminatoria.
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <Input
+                            type="number"
+                            label="Clasifican por Grupo"
+                            value={config.hybridConfig?.qualifiersPerGroup || 2}
+                            onChange={(e: any) => setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, qualifiersPerGroup: parseInt(e.target.value) || 1 } })}
+                        />
+                        <div className="text-xs text-gray-500 mt-2">
+                            Número de jugadores/parejas de cada grupo que pasarán al Playoff (Cuadro Final).
+                            <br />Por ejemplo, si hay 4 grupos y clasifican 2, se creará un cuadro de Cuartos de Final (8 participantes).
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+                        <Input type="number" label="Victoria 2-0" value={config.pointsPerWin2_0} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Victoria 2-1" value={config.pointsPerWin2_1} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_1: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Empate" value={config.pointsDraw} onChange={(e: any) => setConfig({ ...config, pointsDraw: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Derrota 1-2" value={config.pointsPerLoss2_1} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_1: parseInt(e.target.value) || 0 })} />
+                        <Input type="number" label="Derrota 0-2" value={config.pointsPerLoss2_0} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_0: parseInt(e.target.value) || 0 })} />
                     </div>
                 </div>
             )}
@@ -388,7 +442,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             const shuffled = [...selectedPlayerIds].sort(() => Math.random() - 0.5);
 
             // Distribute based on Format
-            if (format === 'classic') {
+            if (format === 'classic' || format === 'hybrid') {
                 const playersPerDiv = 4;
                 const neededDivs = Math.ceil(shuffled.length / playersPerDiv);
 
@@ -475,7 +529,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                             <p className="text-sm text-gray-500">Selecciona todos los participantes para distribuirlos o añádelos manualmente abajo.</p>
                         </div>
                         {/* Auto Distribute Actions */}
-                        {(format === 'classic' || format === 'individual' || format === 'pairs') && (
+                        {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid') && (
                             <div className="flex gap-2">
                                 <Button onClick={handleAutoDistribute} className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
                                     <Wand2 size={16} className="mr-2" />
@@ -582,10 +636,10 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 <div className="border-t pt-6"></div>
 
                 {/* 2. Manual Assignments / View (Conditional per format) */}
-                {(format === 'classic') && (
+                {(format === 'classic' || format === 'hybrid') && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
-                            <h3 className="font-bold text-gray-800">2. Divisiones (Manual)</h3>
+                            <h3 className="font-bold text-gray-800">2. Grupos / Divisiones (Manual)</h3>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm">Num. Divisiones:</span>
                                 <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
@@ -793,7 +847,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
         const divisions: Division[] = [];
 
-        if (format === 'classic' || format === 'individual' || format === 'pairs' || format === 'elimination') {
+        if (format === 'classic' || format === 'individual' || format === 'pairs' || format === 'elimination' || format === 'hybrid') {
 
             if (format === 'elimination') {
                 // Loop through configured categories
