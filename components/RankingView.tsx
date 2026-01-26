@@ -1261,8 +1261,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                 <div className="md:hidden">
                   {activeTab === 'standings' && standings.map((row) => {
                     let displayName = 'Desconocido';
-                    const isPromoted = row.pos <= (ranking.config?.promotionCount || 2);
-                    const isRelegated = row.pos > standings.length - (ranking.config?.relegationCount || 2);
+                    const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
+                    const isPromoted = !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
+                    const isRelegated = !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
 
                     const formatCompactName = (name: string, surname?: string) => {
                       if (!name) return '?';
@@ -1303,9 +1304,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                                 <div className="font-semibold text-gray-900 text-base">{displayName}</div>
                               )}
                               <div className="text-xs text-gray-400 font-medium">
-                                {isPromoted ? <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span> :
-                                  isRelegated ? <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span> :
-                                    'Permanencia'}
+                                {isPromoted && <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span>}
+                                {isRelegated && <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span>}
+                                {!isAmericanoOrMexicano && !isPromoted && !isRelegated && 'Permanencia'}
                               </div>
                             </div>
                           </div>
@@ -1368,8 +1369,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                         }
 
                         const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
-                        const isPromoted = row.pos <= (ranking.config?.promotionCount || 2);
-                        const isRelegated = row.pos > standings.length - (ranking.config?.relegationCount || 2);
+                        const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
+                        const isPromoted = !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
+                        const isRelegated = !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
 
                         return (
                           <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
@@ -1419,8 +1421,12 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                 </div>
 
                 <div className="p-2 bg-gray-50 text-xs text-gray-400 flex gap-4 justify-end border-t">
-                  {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
-                  {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
+                  {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
+                    <>
+                      {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
+                      {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
+                    </>
+                  )}
                 </div>
               </>
             )}
