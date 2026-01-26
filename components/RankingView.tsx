@@ -987,7 +987,16 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                         #{row.pos}
                       </span>
                       <div>
-                        <div className="font-semibold text-gray-900 text-base">{displayName}</div>
+                        {onPlayerClick ? (
+                          <button
+                            onClick={() => onPlayerClick(row.playerId)}
+                            className="font-semibold text-gray-900 text-base hover:text-primary hover:underline text-left"
+                          >
+                            {displayName}
+                          </button>
+                        ) : (
+                          <div className="font-semibold text-gray-900 text-base">{displayName}</div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end">
@@ -1273,7 +1282,16 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                               #{row.pos}
                             </span>
                             <div>
-                              <div className="font-semibold text-gray-900 text-base">{displayName}</div>
+                              {onPlayerClick ? (
+                                <button
+                                  onClick={() => onPlayerClick(row.playerId)}
+                                  className="font-semibold text-gray-900 text-base hover:text-primary hover:underline text-left"
+                                >
+                                  {displayName}
+                                </button>
+                              ) : (
+                                <div className="font-semibold text-gray-900 text-base">{displayName}</div>
+                              )}
                               <div className="text-xs text-gray-400 font-medium">
                                 {isPromoted ? <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span> :
                                   isRelegated ? <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span> :
