@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User as UserIcon, Shield, Mail, Building, Lock, AlertCircle } from 'lucide-react';
+import { User as UserIcon, Shield, Mail, Building, Lock, AlertCircle, LogOut } from 'lucide-react';
 import { Card, Button, Input } from './ui/Components';
 import { updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { auth } from '../services/firebase';
@@ -8,9 +8,10 @@ import { User } from '../types';
 interface Props {
     onClose: () => void;
     user?: User;
+    onLogout?: () => void;
 }
 
-export const AdminProfile = ({ onClose, user }: Props) => {
+export const AdminProfile = ({ onClose, user, onLogout }: Props) => {
     const [isEditing, setIsEditing] = useState(false);
     const [email, setEmail] = useState(auth.currentUser?.email || '');
     const [newPassword, setNewPassword] = useState('');
@@ -101,7 +102,18 @@ export const AdminProfile = ({ onClose, user }: Props) => {
                         </div>
                     </>
                 )}
+
+                {onLogout && !isEditing && (
+                    <div className="mt-8 pt-6 border-t border-gray-100">
+                        <Button
+                            onClick={onLogout}
+                            className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 shadow-none"
+                        >
+                            <LogOut size={18} /> Cerrar Sesión
+                        </Button>
+                    </div>
+                )}
             </div>
-        </div>
+        </div >
     );
 };

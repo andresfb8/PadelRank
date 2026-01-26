@@ -685,7 +685,7 @@ export const AdminLayout = () => {
                         />
                     )}
 
-                    {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} />}
+                    {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} onLogout={handleLogout} />}
                 </main>
             </div>
 
