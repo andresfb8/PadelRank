@@ -11,7 +11,8 @@ import {
     Search,
     ChevronRight,
     Crown,
-    Calendar
+    Calendar,
+    Zap
 } from 'lucide-react';
 import { SUBSCRIPTION_PLANS, getPlanBadgeColor } from '../config/subscriptionPlans';
 
@@ -24,6 +25,8 @@ interface Props {
     onDelete: (id: string) => void;
     onCreate: (userData: { name: string; email: string; clubName: string; password?: string }) => void;
     onUpdatePlan: (userId: string, plan: 'basic' | 'pro' | 'star' | 'weekend' | 'trial') => void;
+    onUpdateUser: (userData: Partial<User> & { id: string }) => void;
+    onResetPassword: (email: string) => void;
     onViewClient: (userId: string) => void;
     onClearDB?: () => void;
 }
@@ -37,14 +40,18 @@ export const SuperAdminDashboard = ({
     onDelete,
     onCreate,
     onUpdatePlan,
+    onUpdateUser,
+    onResetPassword,
     onViewClient,
     onClearDB
 }: Props) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+    const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [newAdmin, setNewAdmin] = useState({ name: '', email: '', clubName: '', password: '' });
+    const [tempInternalNotes, setTempInternalNotes] = useState('');
 
     // Filter active admins (exclude superadmin and pending users)
     const activeAdmins = users.filter(u =>
@@ -97,11 +104,8 @@ export const SuperAdminDashboard = ({
     };
 
     const handleCreateSubmit = () => {
-        if (!newAdmin.name || !newAdmin.email || !newAdmin.clubName || !newAdmin.password) {
+        if (!newAdmin.name || !newAdmin.email || !newAdmin.clubName) {
             return alert("Todos los campos son obligatorios");
-        }
-        if (newAdmin.password.length < 6) {
-            return alert("La contraseña debe tener al menos 6 caracteres");
         }
         onCreate(newAdmin);
         setIsCreateModalOpen(false);
@@ -114,6 +118,26 @@ export const SuperAdminDashboard = ({
             setIsPlanModalOpen(false);
             setSelectedUser(null);
         }
+    };
+
+    const handleNotesSave = () => {
+        if (selectedUser) {
+            onUpdateUser({ id: selectedUser.id, internalNotes: tempInternalNotes });
+            setIsNotesModalOpen(false);
+            setSelectedUser(null);
+        }
+    };
+
+    const formatActivity = (dateStr?: string) => {
+        if (!dateStr) return 'Nunca';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 60) return `${diffMins}m`;
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `${diffHours}h`;
+        return date.toLocaleDateString();
     };
 
     return (
@@ -206,6 +230,7 @@ export const SuperAdminDashboard = ({
                                 <th className="px-6 py-4">Plan</th>
                                 <th className="px-6 py-4 text-center">Torneos</th>
                                 <th className="px-6 py-4 text-center">Jugadores</th>
+                                <th className="px-6 py-4 text-center">Actividad</th>
                                 <th className="px-6 py-4 text-center">Estado</th>
                                 <th className="px-6 py-4 text-center">Acciones</th>
                             </tr>
@@ -247,6 +272,10 @@ export const SuperAdminDashboard = ({
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
+                                            <div className="text-sm font-medium text-gray-900">{formatActivity(user.lastLogin)}</div>
+                                            <div className="text-[10px] text-gray-400">Último acceso</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
                                             <Badge type={user.status === 'active' ? 'success' : 'danger'}>
                                                 {user.status === 'active' ? 'Activo' : 'Bloqueado'}
                                             </Badge>
@@ -256,12 +285,23 @@ export const SuperAdminDashboard = ({
                                                 <button
                                                     onClick={() => {
                                                         setSelectedUser(user);
+                                                        setTempInternalNotes(user.internalNotes || '');
+                                                        setIsNotesModalOpen(true);
+                                                    }}
+                                                    className={`p-2 rounded-lg transition-colors ${user.internalNotes ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                    title="Notas Internas"
+                                                >
+                                                    <Edit size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedUser(user);
                                                         setIsPlanModalOpen(true);
                                                     }}
                                                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="Editar Plan"
+                                                    title="Gestionar Plan"
                                                 >
-                                                    <Edit size={18} />
+                                                    <div className="h-[18px] w-[18px] flex items-center justify-center font-bold text-[10px]">€</div>
                                                 </button>
                                                 <button
                                                     onClick={() => onViewClient(user.id)}
@@ -269,6 +309,17 @@ export const SuperAdminDashboard = ({
                                                     title="Ver Dashboard"
                                                 >
                                                     <ChevronRight size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm(`¿Enviar correo de reseteo a ${user.email}?`)) {
+                                                            onResetPassword(user.email);
+                                                        }
+                                                    }}
+                                                    className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                                    title="Reset Password"
+                                                >
+                                                    <Zap size={18} />
                                                 </button>
                                                 <button
                                                     onClick={() => {
@@ -372,13 +423,11 @@ export const SuperAdminDashboard = ({
                         onChange={(e: any) => setNewAdmin({ ...newAdmin, clubName: e.target.value })}
                         placeholder="Ej: Padel Center Madrid"
                     />
-                    <Input
-                        label="Contraseña Temporal"
-                        type="text"
-                        value={newAdmin.password}
-                        onChange={(e: any) => setNewAdmin({ ...newAdmin, password: e.target.value })}
-                        placeholder="Mínimo 6 caracteres"
-                    />
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                        <p className="text-sm text-blue-800">
+                            <strong>📧 Activación automática:</strong> Se enviará un correo al cliente con un enlace para que cree su propia contraseña de forma segura.
+                        </p>
+                    </div>
                     <div className="flex justify-end gap-3 pt-4 border-t">
                         <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>Cancelar</Button>
                         <Button onClick={handleCreateSubmit}>Crear Cliente</Button>
@@ -423,6 +472,39 @@ export const SuperAdminDashboard = ({
                             setSelectedUser(null);
                         }}>
                             Cancelar
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Internal Notes Modal */}
+            <Modal
+                isOpen={isNotesModalOpen}
+                onClose={() => {
+                    setIsNotesModalOpen(false);
+                    setSelectedUser(null);
+                }}
+                title={`Notas Internas: ${selectedUser?.name}`}
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-500">
+                        Estas notas son privadas y solo visibles para el SuperAdmin.
+                    </p>
+                    <textarea
+                        className="w-full h-40 p-4 border rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm"
+                        placeholder="Ej: Cliente preferente, necesita ayuda con torneos americanos..."
+                        value={tempInternalNotes}
+                        onChange={(e) => setTempInternalNotes(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-3 pt-4 border-t">
+                        <Button variant="secondary" onClick={() => {
+                            setIsNotesModalOpen(false);
+                            setSelectedUser(null);
+                        }}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleNotesSave}>
+                            Guardar Notas
                         </Button>
                     </div>
                 </div>

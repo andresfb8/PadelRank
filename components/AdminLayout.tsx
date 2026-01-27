@@ -1,10 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck, User as UserIcon } from 'lucide-react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { auth, db, secondaryAuth } from '../services/firebase';
+import {
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    signOut,
+    createUserWithEmailAndPassword,
+    setPersistence,
+    browserSessionPersistence,
+    sendPasswordResetEmail
+} from 'firebase/auth';
+import { auth, db, secondaryAuth, functions } from '../services/firebase';
 import { Player, Ranking, Match, Division, User } from '../types';
 import { onSnapshot, collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { RankingView } from './RankingView';
 import { RankingList } from './RankingList';
 import { RankingWizard } from './RankingWizard';
@@ -15,6 +24,7 @@ import { PairDetailView } from './PairDetailView';
 import { AdminProfile } from './AdminProfile';
 import { AdminManagement } from './AdminManagement';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
+import { SuperAdminAnalytics } from './SuperAdminAnalytics';
 import { AdminDashboard } from './AdminDashboard';
 import { HelpCenter } from './HelpCenter';
 import { PlanBadge } from './PlanBadge';
@@ -318,10 +328,16 @@ export const AdminLayout = () => {
     // Admin Mgmt
     // Admin Mgmt
     const handleCreateAdmin = async (d: { name: string, email: string, clubName: string, password?: string }) => {
-        const tempPassword = d.password || "PadelPro2025!";
+        // Generate a secure random password that will NEVER be shared
+        const generateSecurePassword = () => {
+            return crypto.randomUUID() + crypto.randomUUID(); // 72 character random string
+        };
+
+        const securePassword = generateSecurePassword();
+
         try {
             // 1. Create User in Auth (Secondary App to avoid logout)
-            const userCred = await createUserWithEmailAndPassword(secondaryAuth, d.email, tempPassword);
+            const userCred = await createUserWithEmailAndPassword(secondaryAuth, d.email, securePassword);
             const newUid = userCred.user.uid;
 
             // 2. Create User Profile in Firestore
@@ -331,14 +347,27 @@ export const AdminLayout = () => {
                 clubName: d.clubName,
                 role: 'admin',
                 status: 'active',
-                createdAt: new Date(),
+                createdAt: new Date().toISOString(),
                 ownerId: firebaseUser?.uid // SuperAdmin is the creator
             });
 
             // 3. Force logout of the secondary auth
             await signOut(secondaryAuth);
 
-            alert(`✅ Administrador creado correctamente.\n\n📧 Email: ${d.email}\n🔑 Clave: ${tempPassword}\n\nPor favor, entrega estas credenciales al usuario.`);
+            // 4. Send Activation Email via Cloud Function
+            try {
+                const sendActivationEmail = httpsCallable(functions, 'sendActivationEmail');
+                await sendActivationEmail({
+                    email: d.email,
+                    name: d.name,
+                    clubName: d.clubName
+                });
+                alert(`✅ Cliente creado correctamente.\n\n📧 Se ha enviado un correo de activación a: ${d.email}\n\nEl cliente recibirá un enlace para crear su contraseña.`);
+            } catch (emailError: any) {
+                console.error("Error sending activation email:", emailError);
+                alert(`✅ Admin creado, pero FALLÓ el envío del email de activación.\n\nError: ${emailError.message}\n\nPor favor, usa la función "Reset Password" para enviar el enlace manualmente.`);
+            }
+
         } catch (error: any) {
             console.error("Error creating admin:", error);
             if (error.code === 'auth/email-already-in-use') {
@@ -346,6 +375,31 @@ export const AdminLayout = () => {
             } else {
                 alert("Error creando administrador: " + error.message);
             }
+        }
+    };
+
+    const handleResetPassword = async (email: string) => {
+        try {
+            await sendPasswordResetEmail(auth, email);
+            alert(`✅ Correo de restablecimiento enviado a: ${email}`);
+        } catch (error: any) {
+            console.error("Error resetting password:", error);
+            alert("Error al enviar el correo de restablecimiento.");
+        }
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        try {
+            const deleteUserFunc = httpsCallable(functions, 'deleteUser');
+            await deleteUserFunc({ userId });
+            alert('✅ Usuario eliminado correctamente de Auth y Firestore');
+        } catch (error: any) {
+            console.error("Error deleting user:", error);
+            alert(`Error al eliminar usuario: ${error.message}`);
         }
     };
 
@@ -543,15 +597,32 @@ export const AdminLayout = () => {
                     )}
 
                     {view === 'dashboard' && !isPublicUser && (
-                        <AdminDashboard
-                            activeRankings={activeRankings}
-                            allRankings={rankings}
-                            players={players}
-                            userName={effectiveUser?.name}
-                            onNavigate={setView}
-                            onCreateTournament={() => setView('ranking_create')}
-                            onCreatePlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
-                        />
+                        currentUser?.role === 'superadmin' && !impersonatedUserId ? (
+                            <SuperAdminAnalytics
+                                users={users}
+                                rankings={rankings}
+                                players={players}
+                                onNavigate={setView}
+                                onCreateClient={async () => {
+                                    // Open the admin management view which has the create modal
+                                    setView('admin_management');
+                                }}
+                                onViewClient={(userId) => {
+                                    setImpersonatedUserId(userId);
+                                    setView('dashboard');
+                                }}
+                            />
+                        ) : (
+                            <AdminDashboard
+                                activeRankings={activeRankings}
+                                allRankings={rankings}
+                                players={players}
+                                userName={effectiveUser?.name}
+                                onNavigate={setView}
+                                onCreateTournament={() => setView('ranking_create')}
+                                onCreatePlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
+                            />
+                        )
                     )}
 
                     {view === 'player_detail' && selectedPlayerForDetail && (
@@ -634,7 +705,7 @@ export const AdminLayout = () => {
                             players={players}
                             onApprove={(id) => updateUser({ id, status: 'active', plan: 'pro' })}
                             onReject={(id) => updateUser({ id, status: 'rejected' })}
-                            onDelete={(id) => deleteUserDB(id)}
+                            onDelete={handleDeleteUser}
                             onCreate={async (userData) => {
                                 await handleCreateAdmin(userData);
                                 // Set default plan to 'pro' for new users
@@ -646,6 +717,8 @@ export const AdminLayout = () => {
                             onUpdatePlan={(userId, plan) => {
                                 updateUser({ id: userId, plan });
                             }}
+                            onUpdateUser={updateUser}
+                            onResetPassword={handleResetPassword}
                             onViewClient={(userId) => {
                                 setImpersonatedUserId(userId);
                                 setView('dashboard');

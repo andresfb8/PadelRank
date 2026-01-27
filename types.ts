@@ -11,6 +11,9 @@ export interface User {
   plan?: 'basic' | 'pro' | 'star' | 'weekend' | 'trial';
   planExpiry?: number; // timestamp for Weekend Warrior plan
   stripeCustomerId?: string; // For future Stripe integration
+  createdAt?: string; // ISO timestamp for when the user was created
+  internalNotes?: string; // Private notes for SuperAdmin use
+  lastLogin?: string; // ISO timestamp of the last time the user logged in
 }
 
 export interface Player {
