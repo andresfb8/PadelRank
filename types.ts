@@ -56,6 +56,7 @@ export interface RankingConfig {
   // For Hybrid
   hybridConfig?: {
     qualifiersPerGroup: number; // Top N players from each group advance
+    pairsPerGroup?: number; // Number of pairs per group
   };
 }
 
@@ -92,6 +93,7 @@ export interface Division {
   matches: Match[];
   name?: string; // Optional custom name (e.g. "Champions League")
   type?: 'main' | 'consolation'; // For Elimination
+  stage?: 'group' | 'playoff'; // To distinguish phases in Hybrid
   category?: string; // E.g. "Primera Masculina", "Segunda Femenina"
 }
 

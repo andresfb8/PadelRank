@@ -41,7 +41,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
         scoringMode: '24',  // Default for Mexicano/Americano
         scorignMode: '24', // Default for Mexicano/Americano
         eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' },
-        hybridConfig: { qualifiersPerGroup: 2 }
+        hybridConfig: { qualifiersPerGroup: 2, pairsPerGroup: 4 }
     });
 
     // Players
@@ -300,7 +300,13 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                             value={config.hybridConfig?.qualifiersPerGroup || 2}
                             onChange={(e: any) => setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, qualifiersPerGroup: parseInt(e.target.value) || 1 } })}
                         />
-                        <div className="text-xs text-gray-500 mt-2">
+                        <Input
+                            type="number"
+                            label="Parejas por Grupo"
+                            value={config.hybridConfig?.pairsPerGroup || 4}
+                            onChange={(e: any) => setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, pairsPerGroup: parseInt(e.target.value) || 2 } })}
+                        />
+                        <div className="text-xs text-gray-500 mt-2 md:col-span-2">
                             Número de jugadores/parejas de cada grupo que pasarán al Playoff (Cuadro Final).
                             <br />Por ejemplo, si hay 4 grupos y clasifican 2, se creará un cuadro de Cuartos de Final (8 participantes).
                         </div>
@@ -442,7 +448,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             const shuffled = [...selectedPlayerIds].sort(() => Math.random() - 0.5);
 
             // Distribute based on Format
-            if (format === 'classic' || format === 'hybrid') {
+            if (format === 'classic') {
                 const playersPerDiv = 4;
                 const neededDivs = Math.ceil(shuffled.length / playersPerDiv);
 
@@ -464,12 +470,17 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 }
                 setAssignments(newAssignments);
             }
-            else if (format === 'pairs') {
+            else if (format === 'pairs' || format === 'hybrid') {
                 // For Pairs, we need to create pairs random? Or just fill slots?
                 // User request says "Mezcle entre divisiones".
                 // Assuming randomized pairs too? Or just randomized players into pair slots?
                 // Let's pair them 1-2, 3-4, etc.
-                const playersPerDiv = 4; // 2 pairs
+                // For Hybrid: Use Configured Pairs Per Group. For Pairs League: Default 4 (2 pairs)? Or reuse same logic?
+                // The user only asked for Hybrid. Assuming Pairs standard is 4 players (2 pairs) for small leagues? Or maybe more.
+                // Let's rely on individualMaxPlayers for Pure Pairs format if needed, but for Hybrid use hybridConfig.
+                // Actually, let's stick to 'playersPerDiv' variable logic.
+                const targetPairsPerGroup = format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : 2; // Default 2 pairs (4 players) for standard pairs if not specified
+                const playersPerDiv = targetPairsPerGroup * 2;
                 const neededDivs = Math.ceil(shuffled.length / playersPerDiv);
 
                 if (shuffled.length % 2 !== 0) {
@@ -636,7 +647,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                 <div className="border-t pt-6"></div>
 
                 {/* 2. Manual Assignments / View (Conditional per format) */}
-                {(format === 'classic' || format === 'hybrid') && (
+                {(format === 'classic' || format === 'individual') && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. Grupos / Divisiones (Manual)</h3>
@@ -646,14 +657,14 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                             </div>
                         </div>
 
+                        {/* Classic/Individual Rendering Logic (Simplified as before) */}
                         {Array.from({ length: numDivisions }).map((_, divIdx) => (
                             <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
                                 <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
                                 <div className="grid md:grid-cols-2 gap-3">
-                                    {Array.from({ length: 4 }).map((_, pIdx) => {
+                                    {Array.from({ length: format === 'classic' ? 4 : individualMaxPlayers }).map((_, pIdx) => {
                                         const currentList = assignments[divIdx] || [];
                                         const val = currentList[pIdx] || '';
-                                        // Used Logic same as before
                                         const used = new Set<string>();
                                         Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
                                         const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
@@ -661,7 +672,7 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                         return (
                                             <div key={pIdx}>
                                                 <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
-                                                <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, 4)} placeholder="Seleccionar..." />
+                                                <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, format === 'classic' ? 4 : individualMaxPlayers)} placeholder="Seleccionar..." />
                                             </div>
                                         )
                                     })}
@@ -671,60 +682,25 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     </div>
                 )}
 
-                {(format === 'individual') && (
-                    <div>
-                        <div className="flex items-center gap-4 mb-4">
-                            <h3 className="font-bold text-gray-800">2. Divisiones (Manual)</h3>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm">Num. Divisiones:</span>
-                                <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
-                            </div>
-                        </div>
-                        {/* Render logic repeated for Individual (simplified list) */}
-                        {Array.from({ length: numDivisions }).map((_, divIdx) => (
-                            <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
-                                <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
-                                <div className="grid md:grid-cols-2 gap-3">
-                                    {Array.from({ length: individualMaxPlayers }).map((_, pIdx) => {
-                                        const currentList = assignments[divIdx] || [];
-                                        const val = currentList[pIdx] || '';
-                                        const used = new Set<string>();
-                                        Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
-                                        const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
-                                        return (
-                                            <div key={pIdx} className="flex gap-2 items-center">
-                                                <span className="text-xs text-gray-400 w-6">{pIdx + 1}.</span>
-                                                <div className="flex-1">
-                                                    <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, individualMaxPlayers)} placeholder="..." />
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
 
-                {(format === 'pairs') && (
+                {(format === 'pairs' || format === 'hybrid') && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
-                            <h3 className="font-bold text-gray-800">2. Divisiones (Manual)</h3>
+                            <h3 className="font-bold text-gray-800">2. {format === 'hybrid' ? 'Grupos (Parejas Fijas)' : 'Divisiones (Parejas)'}</h3>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm">Num. Divisiones:</span>
+                                <span className="text-sm">{format === 'hybrid' ? 'Num. Grupos:' : 'Num. Divisiones:'}</span>
                                 <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
                             </div>
                         </div>
                         {Array.from({ length: numDivisions }).map((_, divIdx) => (
                             <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
-                                <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
+                                <h4 className="font-bold mb-2">{format === 'hybrid' ? `Grupo ${String.fromCharCode(65 + divIdx)}` : `División ${divIdx + 1}`}</h4>
                                 <div className="grid gap-4">
-                                    {Array.from({ length: individualMaxPlayers }).map((_, pairIdx) => {
+                                    {Array.from({ length: format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers) }).map((_, pairIdx) => {
                                         const currentList = assignments[divIdx] || [];
                                         const val = currentList[pairIdx] || '';
                                         const [p1Id, p2Id] = val ? val.split('::') : ['', ''];
 
-                                        // Complex used check (skipped for brevity, same as previous impl)
                                         const used = new Set<string>();
                                         Object.values(assignments).forEach((arr: string[]) => arr?.forEach(pairStr => {
                                             if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('::'); if (u1) used.add(u1); if (u2) used.add(u2); }
@@ -740,11 +716,11 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                                                 <div className="flex-1 grid grid-cols-2 gap-2">
                                                     <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
                                                         const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, individualMaxPlayers);
+                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers));
                                                     }} placeholder="A" />
                                                     <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
                                                         const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, individualMaxPlayers);
+                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers));
                                                     }} placeholder="B" />
                                                 </div>
                                             </div>
@@ -755,8 +731,6 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                         ))}
                     </div>
                 )}
-
-
 
                 {(format === 'elimination' && config.eliminationConfig?.type === 'pairs') && (
                     <div>
@@ -908,21 +882,24 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
             } else {
                 for (let i = 0; i < numDivisions; i++) {
                     const p = assignments[i] || [];
-                    // Filter empty players
                     const activePlayers = p.filter(x => x);
 
-                    const minP = format === 'pairs' ? 2 : 4;
-                    if (activePlayers.length < minP) return alert(`Mínimo ${format === 'pairs' ? '2 Parejas' : '4 Jugadores'} en Div ${i + 1}`);
+                    // Check limits
+                    if (format === 'pairs' || format === 'hybrid') {
+                        const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
+                        if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
+                    } else {
+                        const minP = 4;
+                        if (activePlayers.length < minP) return alert(`Mínimo 4 jugadores en Div ${i + 1}`);
+                    }
 
                     let matches: any[] = [];
                     if (format === 'classic') {
                         if (activePlayers.length !== 4) return alert(`La División ${i + 1} debe tener exactamente 4 jugadores en liga clásica`);
                         matches = MatchGenerator.generateClassic4(activePlayers, i);
-                    } else if (format === 'pairs') {
+                    } else if (format === 'pairs' || format === 'hybrid') {
                         // Pairs Generation
                         const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
-                        if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
-
                         const pairs = pairStrings.map(s => s.split('::'));
                         // Flatten players for division.players
                         const flatPlayers = pairs.flat();
@@ -942,6 +919,8 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                             numero: i + 1,
                             status: 'activa',
                             players: flatPlayers, // Store flat list of IDs
+                            stage: format === 'hybrid' ? 'group' : undefined, // Mark as group stage for hybrid
+                            name: format === 'hybrid' ? `Grupo ${String.fromCharCode(65 + i)}` : undefined, // Group A, B, etc.
                             matches: matches
                         });
                         continue;
@@ -982,8 +961,8 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
 
         // Filter valid Guest Players (only those selected)
         const activeGuestPlayers = guestPlayers.filter(g =>
-            format === 'classic' || format === 'individual' || format === 'pairs'
-                ? Object.values(assignments).flat().includes(g.id)
+            format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid'
+                ? Object.values(assignments).flat().map((pair: unknown) => (pair as string).includes('::') ? (pair as string).split('::') : (pair as string)).flat().includes(g.id)
                 : selectedPlayerIds.includes(g.id)
         );
 

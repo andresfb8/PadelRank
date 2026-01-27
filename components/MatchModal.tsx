@@ -12,7 +12,7 @@ interface Props {
   players: Record<string, Player>;
   onSave: (matchId: string, result: any) => void;
   rankingConfig?: RankingConfig;
-  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination';
+  format?: import('../types').RankingFormat;
   schedulerConfig?: import('../services/SchedulerEngine').SchedulerConfig;
   occupiedSlots?: { start: Date; end: Date; court: number }[];
 }

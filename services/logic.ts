@@ -123,14 +123,14 @@ export function generateStandings(
   const map: Record<string, StandingRow> = {};
 
   // Init
-  if (format === 'pairs') {
+  if (format === 'pairs' || format === 'hybrid') {
     // PAIRS LOGIC: We track TEAMS, not individual players.
     // Key is "p1Id-p2Id". We assume pairs are consistent.
 
     // 1. Initialize map for all pairs found in ANY match (active or pending)
     matches.forEach(m => {
-      const pair1Key = `${m.pair1.p1Id}-${m.pair1.p2Id}`;
-      const pair2Key = `${m.pair2.p1Id}-${m.pair2.p2Id}`;
+      const pair1Key = `${m.pair1.p1Id}::${m.pair1.p2Id}`;
+      const pair2Key = `${m.pair2.p1Id}::${m.pair2.p2Id}`;
 
       if (!map[pair1Key]) map[pair1Key] = { playerId: pair1Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
       if (!map[pair2Key]) map[pair2Key] = { playerId: pair2Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
@@ -140,8 +140,8 @@ export function generateStandings(
     matches.forEach(m => {
       if (m.status !== 'finalizado' && m.status !== 'no_disputado') return;
 
-      const pair1Key = `${m.pair1.p1Id}-${m.pair1.p2Id}`;
-      const pair2Key = `${m.pair2.p1Id}-${m.pair2.p2Id}`;
+      const pair1Key = `${m.pair1.p1Id}::${m.pair1.p2Id}`;
+      const pair2Key = `${m.pair2.p1Id}::${m.pair2.p2Id}`;
 
       // P1 Stats
       map[pair1Key].pts += m.points.p1;
@@ -255,19 +255,14 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
     div.players.forEach(p => allPlayers.add(p));
   });
 
-  // Include historical matches if any
-  if (ranking.history) {
-    ranking.history.forEach(m => allMatches.push(m));
-    // We assume players in history are already covered or we don't strictly need to add them to 'allPlayers'
-    // for the table if they are no longer in any division, BUT if we want to show them in global
-    // even if they dropped out, we should extract IDs from history match pairs too.
-    ranking.history.forEach(m => {
-      allPlayers.add(m.pair1.p1Id);
-      allPlayers.add(m.pair1.p2Id);
-      allPlayers.add(m.pair2.p1Id);
-      allPlayers.add(m.pair2.p2Id);
-    });
-  }
+  // We can reuse generateStandings by creating a "Virtual" division containing all matches and all players
+  // This ensures we respect the format (Classic vs Pairs vs Hybrid) logic
+
+  // Clean empty/null matches/players just in case
+  const validMatches = allMatches.filter(m => !!m);
+  const validPlayers = Array.from(allPlayers).filter(p => !!p);
+
+  return generateStandings('global', validMatches, validPlayers, ranking.format as any);
 
   // Re-use logic but with a flat list
   return generateStandings('global', allMatches, Array.from(allPlayers).filter(Boolean) as string[], ranking.format as any);

@@ -31,7 +31,27 @@ interface Props {
   onPlayerClick?: (playerId: string) => void;
 }
 
-export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick }: Props) => {
+export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick }: Props) => {
+  const players = React.useMemo(() => {
+    const merged = { ...initialPlayers };
+    if (ranking.guestPlayers) {
+      ranking.guestPlayers.forEach(g => {
+        if (!merged[g.id]) {
+          // Minimal Player object for Guest
+          merged[g.id] = {
+            id: g.id,
+            nombre: g.nombre,
+            apellidos: g.apellidos || '',
+            email: '',
+            telefono: '',
+            stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }
+          } as Player;
+        }
+      });
+    }
+    return merged;
+  }, [initialPlayers, ranking.guestPlayers]);
+
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules'>('standings');
   const [bracketType, setBracketType] = useState<'main' | 'consolation'>('main');
@@ -44,6 +64,9 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
   const [schedulingMatch, setSchedulingMatch] = useState<Match | null>(null); // New State for Option C
   const [isGridModalOpen, setIsGridModalOpen] = useState(false);
   const [isEditingCategory, setIsEditingCategory] = useState(false);
+  const [viewMode, setViewMode] = useState<'groups' | 'playoff'>(
+    ranking.format === 'hybrid' && ranking.phase === 'playoff' ? 'playoff' : 'groups'
+  );
 
   const handleSaveSchedule = (matchId: string, schedule: { startTime?: string, court?: number }) => {
     if (!onUpdateRanking) return;
@@ -667,22 +690,28 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
     const qualified = getQualifiedPlayers(ranking);
     if (qualified.length < 4) return alert("No hay suficientes jugadores clasificados para un cuadro (mínimo 4).");
 
-    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} jugadores clasificados. La fase de grupos se archivará. ¿Continuar?`)) return;
+    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} jugadores clasificados. La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar?`)) return;
 
     // 2. Generate Bracket
-    // Default to including Consolation for Hybrid as it's usually desired, or check config? Assuming true for now.
-    const divs = TournamentEngine.generateBracket(qualified, true);
+    // Default to including Consolation for Hybrid as it's usually desired.
+    const newDivs = TournamentEngine.generateBracket(qualified, true);
 
-    // 3. Update Ranking
+    // 3. Mark Stages
+    const currentDivisions = ranking.divisions.map(d => ({ ...d, stage: 'group' as const }));
+    const bracketDivisions = newDivs.map(d => ({ ...d, stage: 'playoff' as const }));
+
+    // 4. Update Ranking with BOTH sets of divisions
     const updatedRanking: Ranking = {
       ...ranking,
       phase: 'playoff',
-      history: [...(ranking.history || []), ...ranking.divisions.flatMap(d => d.matches.filter(m => m.status === 'finalizado'))],
-      divisions: divs
+      // We don't archive matches to history anymore because we keep the divisions alive!
+      // history: [...(ranking.history || []), ...ranking.divisions.flatMap(d => d.matches.filter(m => m.status === 'finalizado'))], 
+      divisions: [...currentDivisions, ...bracketDivisions]
     };
 
     onUpdateRanking(updatedRanking);
-    setActiveDivisionId(divs[0].id);
+    setActiveDivisionId(bracketDivisions[0].id);
+    setViewMode('playoff');
   };
 
   return (
@@ -792,11 +821,41 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
 
 
+      {/* Hybrid Phase Switcher */}
+      {ranking.format === 'hybrid' && ranking.phase === 'playoff' && (
+        <div className="flex justify-center mb-4">
+          <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+            <button
+              onClick={() => {
+                setViewMode('groups');
+                const d = ranking.divisions.find(d => d.stage === 'group' || (!d.stage && d.type !== 'main' && d.type !== 'consolation'));
+                if (d) setActiveDivisionId(d.id);
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              Fase de Grupos
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('playoff');
+                const d = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
+                if (d) setActiveDivisionId(d.id);
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              Playoff Final
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Bracket View for Hybrid Playoff Phase */}
       {
-        ranking.format === 'hybrid' && ranking.phase === 'playoff' ? (
+        ranking.format === 'hybrid' && ranking.phase === 'playoff' && viewMode === 'playoff' ? (
           <BracketView
-            divisions={ranking.divisions}
+            divisions={ranking.divisions.filter(d => d.stage === 'playoff' || d.type === 'main' || d.type === 'consolation')}
             players={players}
             onMatchClick={handleMatchClick}
             onScheduleClick={isAdmin ? (m) => setSchedulingMatch(m) : undefined}
@@ -816,7 +875,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                       }`}
                   >
-                    <BarChart size={16} /> Global
+                    <BarChart size={16} /> Estadísticas Globales
                   </button>
                 )}
                 <button
@@ -829,7 +888,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                   <BookOpen size={16} /> Normas
                 </button>
                 {ranking.divisions
-                  .filter(div => div.type !== 'consolation') // Hide consolation divisions from main tabs
+                  .filter(div => div.type !== 'consolation' && div.stage !== 'playoff') // Hide consolation and playoff divisions from main tabs
                   .sort((a, b) => a.numero - b.numero)
                   .map(div => (
                     <button
@@ -1003,8 +1062,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
             {activeTab === 'global' && (
               <Card className="overflow-hidden !p-0">
                 <div className="p-4 border-b bg-gray-50">
-                  <h3 className="font-semibold text-gray-700 flex items-center gap-2"><BarChart size={18} className="text-primary" /> Ranking General Unificado</h3>
-                  <p className="text-xs text-gray-500 mt-1">Estadísticas acumuladas de todos los jugadores independientemente de su división.</p>
+                  <h3 className="font-semibold text-gray-700 flex items-center gap-2"><BarChart size={18} className="text-primary" /> Estadísticas Globales</h3>
+                  <p className="text-xs text-gray-500 mt-1">Comparativa de rendimiento entre todos los participantes.</p>
                 </div>
                 {/* Mobile Card View */}
                 <div className="md:hidden">
@@ -1016,8 +1075,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                       return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
                     };
 
-                    if (ranking.format === 'pairs') {
-                      const [p1Id, p2Id] = row.playerId.split('-');
+                    if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+                      const [p1Id, p2Id] = row.playerId.split('::');
                       const p1 = players[p1Id];
                       const p2 = players[p2Id];
                       displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
@@ -1089,7 +1148,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                       <tr>
                         <th className="px-4 py-3 text-center w-12 sticky left-0 bg-gray-50 z-10">#</th>
                         <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">
-                          {ranking.format === 'pairs' ? 'Pareja' : 'Jugador'}
+                          {(ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador'}
                         </th>
                         <th className="px-4 py-3 text-center">Partidos</th>
                         <th className="px-4 py-3 text-center">PTS</th>
@@ -1103,8 +1162,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                     <tbody className="divide-y divide-gray-100">
                       {globalStandings.map((row) => {
                         let displayName = 'Desconocido';
-                        if (ranking.format === 'pairs') {
-                          const [p1Id, p2Id] = row.playerId.split('-');
+                        if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+                          const [p1Id, p2Id] = row.playerId.split('::');
                           const p1 = players[p1Id];
                           const p2 = players[p2Id];
                           displayName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
@@ -1307,16 +1366,19 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                         {activeTab === 'standings' && standings.map((row) => {
                           let displayName = 'Desconocido';
                           const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
-                          const isPromoted = !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
-                          const isRelegated = !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
+                          const isHybrid = ranking.format === 'hybrid';
+
+                          const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
+                          const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
+                          const isQualified = isHybrid && row.pos <= (ranking.config?.hybridConfig?.qualifiersPerGroup || 2);
 
                           const formatCompactName = (name: string, surname?: string) => {
                             if (!name) return '?';
                             return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
                           };
 
-                          if (ranking.format === 'pairs') {
-                            const [p1Id, p2Id] = row.playerId.split('-');
+                          if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+                            const [p1Id, p2Id] = row.playerId.split('::');
                             const p1 = players[p1Id];
                             const p2 = players[p2Id];
                             displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
@@ -1328,7 +1390,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                           const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
 
                           return (
-                            <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
+                            <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted || isQualified ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
                               <div className="flex justify-between items-start mb-3">
                                 <div className="flex items-center gap-3">
                                   <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
@@ -1351,7 +1413,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                                     <div className="text-xs text-gray-400 font-medium">
                                       {isPromoted && <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span>}
                                       {isRelegated && <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span>}
-                                      {!isAmericanoOrMexicano && !isPromoted && !isRelegated && 'Permanencia'}
+                                      {isQualified && <span className="text-green-600 flex items-center gap-1">✅ Clasificado</span>}
+                                      {!isAmericanoOrMexicano && !isPromoted && !isRelegated && !isQualified && 'Permanencia'}
                                     </div>
                                   </div>
                                 </div>
@@ -1403,8 +1466,8 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                           <tbody className="divide-y divide-gray-100">
                             {activeTab === 'standings' && standings.map((row) => {
                               let displayName = 'Desconocido';
-                              if (ranking.format === 'pairs') {
-                                const [p1Id, p2Id] = row.playerId.split('-');
+                              if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+                                const [p1Id, p2Id] = row.playerId.split('::');
                                 const p1 = players[p1Id];
                                 const p2 = players[p2Id];
                                 displayName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
@@ -1415,11 +1478,13 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
 
                               const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
                               const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
-                              const isPromoted = !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
-                              const isRelegated = !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
+                              const isHybrid = ranking.format === 'hybrid';
+                              const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
+                              const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
+                              const isQualified = isHybrid && row.pos <= (ranking.config?.hybridConfig?.qualifiersPerGroup || 2);
 
                               return (
-                                <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
+                                <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
                                   <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10 border-r border-gray-100/50">
                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
                                       row.pos === 2 ? 'bg-gray-100 text-gray-700' :
@@ -1443,6 +1508,7 @@ export const RankingView = ({ ranking, players, onMatchClick, onBack, onAddDivis
                                       )}
                                       {isPromoted && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">ASC</span>}
                                       {isRelegated && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">DESC</span>}
+                                      {isQualified && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">Q</span>}
                                     </div>
 
                                   </td>
