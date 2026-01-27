@@ -5,9 +5,13 @@ import { Player, Ranking, RankingFormat, RankingConfig, Division, ScoringMode } 
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
 import { TournamentEngine } from '../services/TournamentEngine';
+import { User } from '../types';
+import { SUBSCRIPTION_PLANS, canUseFormat, canCreateTournament } from '../config/subscriptionPlans';
 
 interface Props {
     players: Record<string, Player>;
+    currentUser?: User;
+    activeRankingsCount?: number;
     onCancel: () => void;
     onSave: (ranking: Ranking) => void;
 }
@@ -18,7 +22,9 @@ const STEPS = [
     { number: 3, title: 'Jugadores', icon: Users },
 ];
 
-export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
+export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, onCancel, onSave }: Props) => {
+    const userPlan = currentUser?.plan || 'pro';
+    const planLimits = SUBSCRIPTION_PLANS[userPlan];
     const [step, setStep] = useState(1);
 
     // --- State ---
@@ -108,87 +114,105 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
                     desc: 'Fase de Grupos (Liga) seguida de Fase Final (Eliminatoria). Ideal para "Mundialitos" o "Champions".',
                     color: 'pink'
                 }
-            ].map((f) => (
-                <div
-                    key={f.id}
-                    className={`p-6 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] ${format === f.id ? `border-${f.color}-500 bg-${f.color}-50 ring-2 ring-${f.color}-200` : 'border-gray-200 hover:border-gray-300 bg-white'}`}
-                    onClick={() => {
-                        setFormat(f.id as RankingFormat);
-                        // Reset assignments when changing format
-                        setAssignments({});
-                        setNumDivisions(1);
+            ].filter(f => f.id !== 'classic' || currentUser?.email?.toLowerCase().includes('info@clubdepadelsanjavier') || currentUser?.role === 'superadmin')
+                .map((f) => {
+                    const formatCheck = canUseFormat(f.id, userPlan, currentUser?.email, currentUser?.role === 'superadmin');
+                    const isDisabled = !formatCheck.allowed;
 
-                        // Pairs Defaults
-                        if (f.id === 'pairs') {
-                            setIndividualMaxPlayers(6);
-                            setConfig(prev => ({
-                                ...prev,
-                                promotionCount: 0,
-                                relegationCount: 0,
-                                pointsPerWin2_0: 3,
-                                pointsPerWin2_1: 2,
-                                pointsDraw: 1,
-                                pointsPerLoss2_1: 1,
-                                pointsPerLoss2_0: 0
-                            }));
-                        }
-                        // Update Config Points if Classic
-                        else if (f.id === 'classic') {
-                            setIndividualMaxPlayers(4); // Reset if coming from pairs
-                            setConfig(prev => ({
-                                ...prev,
-                                pointsPerWin2_0: 4,
-                                pointsPerWin2_1: 3,
-                                pointsDraw: 2,
-                                pointsPerLoss2_1: 1,
-                                pointsPerLoss2_0: 0
-                            }));
-                            // Reset to defaults for other formats
-                            setIndividualMaxPlayers(12); // Default
-                            setConfig(prev => ({
-                                ...prev,
-                                pointsPerWin2_0: 3,
-                                pointsPerWin2_1: 2,
-                                pointsDraw: 1,
-                                pointsPerLoss2_1: 1,
-                                pointsPerLoss2_0: 0
-                            }));
-                        } else if (f.id === 'elimination') {
-                            setNumDivisions(1); // Default to 1 category
-                            setIndividualMaxPlayers(8); // Default pairs per category
-                            setConfig(prev => ({
-                                ...prev,
-                                eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
-                            }));
-                        } else if (f.id === 'hybrid') {
-                            setNumDivisions(1);
-                            setIndividualMaxPlayers(4); // Groups of 4 usually
-                            setConfig(prev => ({
-                                ...prev,
-                                pointsPerWin2_0: 3,
-                                pointsPerWin2_1: 2,
-                                pointsDraw: 1,
-                                pointsPerLoss2_1: 1,
-                                pointsPerLoss2_0: 0,
-                                hybridConfig: { qualifiersPerGroup: 2 }
-                            }));
-                        }
+                    return (
+                        <div
+                            key={f.id}
+                            className={`p-6 rounded-xl border-2 transition-all ${isDisabled
+                                ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                                : `cursor-pointer hover:scale-[1.02] ${format === f.id ? `border-${f.color}-500 bg-${f.color}-50 ring-2 ring-${f.color}-200` : 'border-gray-200 hover:border-gray-300 bg-white'}`
+                                }`}
+                            onClick={() => {
+                                if (isDisabled) {
+                                    alert(formatCheck.message);
+                                    return;
+                                }
+                                setFormat(f.id as RankingFormat);
+                                // Reset assignments when changing format
+                                setAssignments({});
+                                setNumDivisions(1);
 
-                        // Default Official Status
-                        if (f.id === 'americano' || f.id === 'mexicano') {
-                            setIsOfficial(false);
-                        } else {
-                            setIsOfficial(true);
-                        }
-                    }}
-                >
-                    <div className="flex justify-between items-start mb-2">
-                        <h3 className={`text-lg font-bold text-gray-900`}>{f.label}</h3>
-                        {format === f.id && <CheckCircle className={`text-${f.color}-500`} size={24} />}
-                    </div>
-                    <p className="text-gray-500 text-sm">{f.desc}</p>
-                </div>
-            ))
+                                // Pairs Defaults
+                                if (f.id === 'pairs') {
+                                    setIndividualMaxPlayers(6);
+                                    setConfig(prev => ({
+                                        ...prev,
+                                        promotionCount: 0,
+                                        relegationCount: 0,
+                                        pointsPerWin2_0: 3,
+                                        pointsPerWin2_1: 2,
+                                        pointsDraw: 1,
+                                        pointsPerLoss2_1: 1,
+                                        pointsPerLoss2_0: 0
+                                    }));
+                                }
+                                // Update Config Points if Classic
+                                else if (f.id === 'classic') {
+                                    setIndividualMaxPlayers(4); // Reset if coming from pairs
+                                    setConfig(prev => ({
+                                        ...prev,
+                                        pointsPerWin2_0: 4,
+                                        pointsPerWin2_1: 3,
+                                        pointsDraw: 2,
+                                        pointsPerLoss2_1: 1,
+                                        pointsPerLoss2_0: 0
+                                    }));
+                                    // Reset to defaults for other formats
+                                    setIndividualMaxPlayers(12); // Default
+                                    setConfig(prev => ({
+                                        ...prev,
+                                        pointsPerWin2_0: 3,
+                                        pointsPerWin2_1: 2,
+                                        pointsDraw: 1,
+                                        pointsPerLoss2_1: 1,
+                                        pointsPerLoss2_0: 0
+                                    }));
+                                } else if (f.id === 'elimination') {
+                                    setNumDivisions(1); // Default to 1 category
+                                    setIndividualMaxPlayers(8); // Default pairs per category
+                                    setConfig(prev => ({
+                                        ...prev,
+                                        eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
+                                    }));
+                                } else if (f.id === 'hybrid') {
+                                    setNumDivisions(1);
+                                    setIndividualMaxPlayers(4); // Groups of 4 usually
+                                    setConfig(prev => ({
+                                        ...prev,
+                                        pointsPerWin2_0: 3,
+                                        pointsPerWin2_1: 2,
+                                        pointsDraw: 1,
+                                        pointsPerLoss2_1: 1,
+                                        pointsPerLoss2_0: 0,
+                                        hybridConfig: { qualifiersPerGroup: 2 }
+                                    }));
+                                }
+
+                                // Default Official Status
+                                if (f.id === 'americano' || f.id === 'mexicano') {
+                                    setIsOfficial(false);
+                                } else {
+                                    setIsOfficial(true);
+                                }
+                            }}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <h3 className={`text-lg font-bold text-gray-900`}>{f.label}</h3>
+                                {format === f.id && <CheckCircle className={`text-${f.color}-500`} size={24} />}
+                            </div>
+                            <p className="text-gray-500 text-sm">{f.desc}</p>
+                            {isDisabled && (
+                                <div className="mt-2 text-xs text-orange-600 font-medium">
+                                    🔒 Mejora tu plan para acceder
+                                </div>
+                            )}
+                        </div>
+                    );
+                })
             }
         </div >
     );
@@ -816,6 +840,12 @@ export const RankingWizard = ({ players, onCancel, onSave }: Props) => {
     // --- Actions ---
 
     const handleSaveRanking = () => {
+        // Check tournament limit
+        const tournamentCheck = canCreateTournament(activeRankingsCount, userPlan, currentUser?.role === 'superadmin');
+        if (!tournamentCheck.allowed) {
+            return alert(tournamentCheck.message);
+        }
+
         // Validation
         if (!name) return alert("Falta el nombre");
 

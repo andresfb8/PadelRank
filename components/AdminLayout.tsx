@@ -14,6 +14,10 @@ import { PlayerDetailView } from './PlayerDetailView';
 import { PairDetailView } from './PairDetailView';
 import { AdminProfile } from './AdminProfile';
 import { AdminManagement } from './AdminManagement';
+import { SuperAdminDashboard } from './SuperAdminDashboard';
+import { AdminDashboard } from './AdminDashboard';
+import { HelpCenter } from './HelpCenter';
+import { PlanBadge } from './PlanBadge';
 import { PlayerModal } from './PlayerModal';
 import { Button } from './ui/Components';
 import {
@@ -52,8 +56,17 @@ export const AdminLayout = () => {
     const [activeRankingId, setActiveRankingId] = useState<string | null>(null);
 
     // Derived User
+    // Impersonation State
+    const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
+
     // Derived User State
     const [currentUser, setCurrentUser] = useState<User | undefined>(undefined);
+
+    // Effective User (The user we are "viewing as" or the actual user)
+    const effectiveUser = impersonatedUserId
+        ? (users.find(u => u.id === impersonatedUserId) || currentUser)
+        : currentUser;
+
     const activeRanking = rankings.find(r => r.id === activeRankingId);
 
     // Migration
@@ -122,39 +135,51 @@ export const AdminLayout = () => {
 
     // Subscribe Data (Rankings/Players) based on Login
     useEffect(() => {
-        if (!currentUser) {
+        if (!effectiveUser) {
             setPlayers({});
             setRankings([]);
             return;
         }
 
-        const ownerIdFilter = currentUser.role === 'superadmin' ? undefined : currentUser.id;
+        // Logic:
+        // 1. If SuperAdmin AND NOT impersonating -> Show ALL (undefined ownerIdFilter)
+        // 2. If Impersonating -> Show ONLY that user's data (effectiveUser.id)
+        // 3. If Normal Admin -> Show ONLY their data (effectiveUser.id)
+
+        const ownerIdFilter = (currentUser?.role === 'superadmin' && !impersonatedUserId)
+            ? undefined
+            : effectiveUser.id;
 
         // Sub Players
         const unsubscribePlayers = subscribeToPlayers((data) => {
             // Client-Side Visibility Filter
             let visibleData = data;
-            if (currentUser?.role !== 'superadmin') {
+
+            // If filtering by owner (Normal Admin or Impersonated View)
+            if (ownerIdFilter) {
                 visibleData = {};
                 (Object.values(data) as Player[]).forEach(p => {
                     // Strict Ownership or Public (no owner)
-                    if (!p.ownerId || p.ownerId === currentUser?.id) {
+                    if (!p.ownerId || p.ownerId === ownerIdFilter) {
                         visibleData[p.id] = p;
                     }
                 });
+            } else {
+                // SuperAdmin Global View (No Impersonation)
+                visibleData = data;
             }
             setPlayers(visibleData);
         }, ownerIdFilter);
 
         // Sub Rankings
-        // Sub Rankings
         const unsubscribeRankings = subscribeToRankings((data) => {
-            // Client-Side Visibility Filter: Show if Own, Public (no owner), or Superadmin
+            // Client-Side Visibility Filter
             let visibleData = data;
-            if (currentUser?.role !== 'superadmin') {
+            if (ownerIdFilter) {
                 // Strict Ownership or Public
-                visibleData = data.filter(r => !r.ownerId || r.ownerId === currentUser?.id);
+                visibleData = data.filter(r => !r.ownerId || r.ownerId === ownerIdFilter);
             }
+            // Else: SuperAdmin sees all
             setRankings(visibleData);
         }, ownerIdFilter);
 
@@ -162,7 +187,7 @@ export const AdminLayout = () => {
             unsubscribePlayers();
             unsubscribeRankings();
         };
-    }, [currentUser]);
+    }, [effectiveUser, impersonatedUserId, currentUser]); // Re-run if effectiveUser changes
 
 
     // UI State
@@ -215,7 +240,7 @@ export const AdminLayout = () => {
     const handleSaveRanking = async (newRanking: Ranking) => {
         try {
             const { id, ...rankingData } = newRanking;
-            await addRanking({ ...rankingData, ownerId: firebaseUser?.uid } as any);
+            await addRanking({ ...rankingData, ownerId: effectiveUser?.id } as any); // Use effectiveUser
             alert("✅ Torneo creado correctamente.");
             setView('ranking_list');
         } catch (error) {
@@ -228,10 +253,10 @@ export const AdminLayout = () => {
         if (confirm('¿Borrar torneo?')) await deleteRanking(id);
     };
     const handleDuplicateRanking = async (id: string) => {
-        if (!firebaseUser?.uid) return;
+        if (!effectiveUser?.id) return;
         if (confirm('¿Duplicar este torneo? Se creará una copia exacta.')) {
             try {
-                await duplicateRanking(id, firebaseUser.uid);
+                await duplicateRanking(id, effectiveUser.id);
                 alert('✅ Torneo duplicado correctamente.');
             } catch (error) {
                 console.error(error);
@@ -272,7 +297,7 @@ export const AdminLayout = () => {
             if (playerData.id) await updatePlayer(playerData);
             else {
                 const { id, ...rest } = playerData;
-                await addPlayer({ ...rest, ownerId: firebaseUser?.uid, stats: { pj: 0, pg: 0, pp: 0, winrate: 0 } } as any);
+                await addPlayer({ ...rest, ownerId: effectiveUser?.id, stats: { pj: 0, pg: 0, pp: 0, winrate: 0 } } as any);
             }
             setIsPlayerModalOpen(false);
             setEditingPlayer(null);
@@ -282,7 +307,7 @@ export const AdminLayout = () => {
     };
     const handleImportPlayers = async (data: any[]) => {
         try {
-            const toSave = data.map(p => ({ ...p, stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }, ownerId: firebaseUser?.uid }));
+            const toSave = data.map(p => ({ ...p, stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }, ownerId: effectiveUser?.id }));
             await importPlayersBatch(toSave);
             alert("Importados correctamente.");
         } catch (e) { alert("Error importando."); }
@@ -409,13 +434,29 @@ export const AdminLayout = () => {
 
 
     const isPublicUser = currentUser?.role === 'public';
-    const playerList = Object.values(players) as Player[];
+    // const playerList = Object.values(players) as Player[]; // Not used?
     const activeRankings = rankings.filter(r => r.status === 'activo');
 
     return (
         <div className="min-h-screen flex bg-[#F0F4F8] text-gray-900 relative">
+            {/* IMPERSONATION BANNER */}
+            {impersonatedUserId && (
+                <div className="fixed top-0 left-0 right-0 h-10 bg-amber-400 z-50 flex items-center justify-between px-4 text-amber-900 font-bold shadow-md animate-in slide-in-from-top">
+                    <div className="flex items-center gap-2">
+                        <Users size={16} />
+                        <span>Viendo como: {effectiveUser?.name || effectiveUser?.email}</span>
+                    </div>
+                    <button
+                        onClick={() => setImpersonatedUserId(null)}
+                        className="bg-white/20 hover:bg-white/40 px-3 py-1 rounded text-xs transition-colors"
+                    >
+                        Salir de Vista Cliente
+                    </button>
+                </div>
+            )}
+
             {/* Sidebar (Desktop Only) */}
-            <aside className="hidden lg:block sticky top-0 h-screen w-64 bg-white border-r border-gray-100 z-30">
+            <aside className={`hidden lg:block sticky top-0 h-screen w-64 bg-white border-r border-gray-100 z-30 ${impersonatedUserId ? 'mt-10 h-[calc(100vh-2.5rem)]' : ''}`}>
                 <div className="h-full flex flex-col">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-center">
                         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
@@ -427,42 +468,59 @@ export const AdminLayout = () => {
                             <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'dashboard' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
                         )}
 
-                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Trophy size={20} /> {isPublicUser ? 'Torneos' : 'Mis Torneos'}</button>
+                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
+                            <Trophy size={20} />
+                            {currentUser?.role === 'superadmin' && !impersonatedUserId ? 'Control Central' : (isPublicUser ? 'Torneos' : 'Mis Torneos')}
+                        </button>
 
                         {!isPublicUser && (
                             <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'players' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
                         )}
 
-                        {currentUser?.role === 'superadmin' && (
+                        {currentUser?.role === 'superadmin' && !impersonatedUserId && (
                             <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'admin_management' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
                         )}
+
+                        {/* Add Exit Impersonation Button in Sidebar too */}
+                        {impersonatedUserId && (
+                            <button onClick={() => setImpersonatedUserId(null)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-amber-600 bg-amber-50 hover:bg-amber-100 font-bold border border-amber-200">
+                                <LogOut size={20} /> Salir de Vista
+                            </button>
+                        )}
                     </nav>
-                    <div className="p-4 border-t border-gray-100">
+                    <div className="p-4 border-t border-gray-100 space-y-3">
+                        {!isPublicUser && effectiveUser && (
+                            <PlanBadge
+                                user={effectiveUser}
+                                totalPlayers={Object.keys(players).length}
+                                activeTournaments={activeRankings.length}
+                            />
+                        )}
                         <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"><LogOut size={20} /> Cerrar Sesión</button>
                     </div>
                 </div>
             </aside>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col min-w-0 pb-24 lg:pb-0">
+            <div className={`flex-1 flex flex-col min-w-0 pb-24 lg:pb-0 ${impersonatedUserId ? 'mt-10' : ''}`}>
                 <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm lg:shadow-none">
                     <div className="lg:hidden text-primary font-bold flex items-center gap-2">
                         <Trophy size={24} /> PadelRank
                     </div>
                     <div className="flex items-center gap-4 ml-auto">
                         <div className="text-right hidden md:block">
-                            <div className="text-sm font-bold text-gray-900">{currentUser?.name || currentUser?.email}</div>
+                            <div className="text-sm font-bold text-gray-900">{effectiveUser?.name || effectiveUser?.email}</div>
                             <div className="mt-0.5 flex justify-end">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${currentUser?.role === 'superadmin' ? 'bg-purple-100/50 text-purple-700 border-purple-200' :
-                                    currentUser?.role === 'admin' ? 'bg-blue-100/50 text-blue-700 border-blue-200' :
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${effectiveUser?.role === 'superadmin' ? 'bg-purple-100/50 text-purple-700 border-purple-200' :
+                                    effectiveUser?.role === 'admin' ? 'bg-blue-100/50 text-blue-700 border-blue-200' :
                                         'bg-gray-100/50 text-gray-600 border-gray-200'
                                     }`}>
-                                    {isPublicUser ? 'Jugador' : currentUser?.role}
+                                    {isPublicUser ? 'Jugador' : effectiveUser?.role}
                                 </span>
                             </div>
                         </div>
                         <button onClick={() => !isPublicUser && setView('profile')} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold hover:opacity-90 transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500 cursor-default' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
-                            {currentUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
+                            {effectiveUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
                         </button>
                     </div>
                 </header>
@@ -474,7 +532,7 @@ export const AdminLayout = () => {
                             <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center text-primary-600 mb-2">
                                 <Trophy size={48} />
                             </div>
-                            <h2 className="text-3xl font-bold text-gray-900">¡Bienvenido, {currentUser?.name}!</h2>
+                            <h2 className="text-3xl font-bold text-gray-900">¡Bienvenido, {effectiveUser?.name}!</h2>
                             <p className="text-gray-500 max-w-md">
                                 Explora los <strong>"Torneos"</strong> disponibles para ver clasificaciones y estadísticas.
                             </p>
@@ -485,125 +543,15 @@ export const AdminLayout = () => {
                     )}
 
                     {view === 'dashboard' && !isPublicUser && (
-                        <div className="space-y-6">
-                            <div className="grid gap-6 md:grid-cols-3">
-                                <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
-                                    <div>
-                                        <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Torneos Activos</h3>
-                                        <p className="text-4xl font-bold text-gray-900">{activeRankings.length}</p>
-                                        <div className="h-14 w-14 bg-blue-50/80 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm">
-                                            <Trophy size={28} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
-                                    <div>
-                                        <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Jugadores</h3>
-                                        <p className="text-4xl font-bold text-gray-900">{Object.keys(players).length}</p>
-                                    </div>
-                                    <div className="h-14 w-14 bg-green-50/80 rounded-2xl flex items-center justify-center text-green-600 shadow-sm">
-                                        <Users size={28} />
-                                    </div>
-                                </div>
-                                <div className="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center justify-between hover:shadow-lg transition-shadow duration-300">
-                                    <div>
-                                        <h3 className="text-secondary-500 text-sm font-semibold mb-1 uppercase tracking-wider">Pendientes</h3>
-                                        <p className="text-4xl font-bold text-gray-900">{rankings.reduce((acc, r) => acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.filter(m => m.status === 'pendiente').length, 0), 0)}</p>
-                                    </div>
-                                    <div className="h-14 w-14 bg-orange-50/80 rounded-2xl flex items-center justify-center text-orange-600 shadow-sm">
-                                        <ShieldCheck size={28} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                <div className="lg:col-span-2 bg-white rounded-2xl shadow-soft border border-gray-100 p-8">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                                        <Trophy className="text-primary-600" size={24} />
-                                        Progreso de Torneos
-                                    </h3>
-                                    <div className="space-y-6">
-                                        {activeRankings.map(ranking => {
-                                            const totalMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.length, 0);
-                                            const completedMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'finalizado').length, 0);
-                                            const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
-                                            const colorClass = ranking.format === 'mexicano' ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
-                                                ranking.format === 'americano' ? 'bg-gradient-to-r from-purple-400 to-indigo-500' :
-                                                    'bg-gradient-to-r from-blue-400 to-cyan-500';
-                                            return (
-                                                <div key={ranking.id} className="bg-gray-50 rounded-lg p-4">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <span className="font-medium text-gray-800">{ranking.nombre}</span>
-                                                        <span className="text-xs font-semibold text-gray-500">{percentage}% Completado</span>
-                                                    </div>
-                                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                                        <div className={`h-2.5 rounded-full ${colorClass}`} style={{ width: `${percentage}%` }}></div>
-                                                    </div>
-                                                    <div className="mt-2 text-xs text-gray-400 flex justify-between">
-                                                        <span>{completedMatches} / {totalMatches} Partidos</span>
-                                                        <span className="uppercase">{ranking.format}</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {activeRankings.length === 0 && (
-                                            <p className="text-center text-gray-400 py-4">No hay torneos activos</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-2xl shadow-soft border border-gray-100 p-8">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                                        <Users className="text-accent-500" size={24} />
-                                        Top Jugadores (Winrate)
-                                    </h3>
-                                    <div className="space-y-4">
-                                        {playerList
-                                            .filter(p => p.stats && p.stats.pj >= 5)
-                                            .sort((a, b) => b.stats.winrate - a.stats.winrate)
-                                            .slice(0, 5)
-                                            .map((player, idx) => (
-                                                <div key={player.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${idx === 0 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-50' : idx === 1 ? 'bg-gray-100 text-gray-600 ring-2 ring-gray-50' : idx === 2 ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-50' : 'bg-gray-50 text-gray-400'}`}>
-                                                            {idx + 1}
-                                                        </div>
-                                                        <div className="text-sm font-semibold text-gray-700 truncate max-w-[140px]" title={`${player.nombre} ${player.apellidos}`}>
-                                                            {player.nombre} {player.apellidos}
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="text-base font-bold text-gray-900">{player.stats.winrate}%</div>
-                                                        <div className="text-xs text-secondary-400 font-medium">{player.stats.pg}W - {player.stats.pp}L</div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        {playerList.filter(p => p.stats && p.stats.pj >= 5).length === 0 && (
-                                            <p className="text-sm text-gray-400 text-center py-6 italic">Faltan datos (mín 5 partidos)</p>
-                                        )}
-                                    </div>
-                                    <div className="mt-6 pt-4 border-t border-gray-100 text-center">
-                                        <button
-                                            onClick={() => setView('players')}
-                                            className="text-primary-600 text-sm font-semibold hover:text-primary-700 hover:underline transition-colors"
-                                        >
-                                            Ver Ranking Completo &rarr;
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <Button onClick={() => setView('ranking_create')} className="bg-indigo-600 hover:bg-indigo-700 h-auto py-4 flex flex-col items-center gap-2">
-                                    <Trophy size={24} />
-                                    <span>Nuevo Torneo</span>
-                                </Button>
-                                <Button onClick={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }} className="bg-emerald-600 hover:bg-emerald-700 h-auto py-4 flex flex-col items-center gap-2">
-                                    <Users size={24} />
-                                    <span>Nuevo Jugador</span>
-                                </Button>
-                            </div>
-                        </div>
+                        <AdminDashboard
+                            activeRankings={activeRankings}
+                            allRankings={rankings}
+                            players={players}
+                            userName={effectiveUser?.name}
+                            onNavigate={setView}
+                            onCreateTournament={() => setView('ranking_create')}
+                            onCreatePlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
+                        />
                     )}
 
                     {view === 'player_detail' && selectedPlayerForDetail && (
@@ -637,6 +585,7 @@ export const AdminLayout = () => {
 
                     {view === 'players' && <PlayerList
                         players={players}
+                        currentUser={effectiveUser}
                         onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
                         onEditPlayer={(p) => { setEditingPlayer(p); setIsPlayerModalOpen(true) }}
                         onDeletePlayer={handleDeletePlayer}
@@ -645,7 +594,13 @@ export const AdminLayout = () => {
                         onSelectPlayer={handleSelectPlayer}
                     />}
                     {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDuplicateRanking} />}
-                    {view === 'ranking_create' && <RankingWizard players={players} onCancel={() => setView('ranking_list')} onSave={handleSaveRanking} />}
+                    {view === 'ranking_create' && <RankingWizard
+                        players={players}
+                        currentUser={effectiveUser}
+                        activeRankingsCount={rankings.filter(r => r.status === 'activo' && r.ownerId === effectiveUser?.id).length}
+                        onCancel={() => setView('ranking_list')}
+                        onSave={handleSaveRanking}
+                    />}
                     {view === 'ranking_detail' && activeRanking && <RankingView
                         ranking={activeRanking}
                         players={players}
@@ -673,14 +628,28 @@ export const AdminLayout = () => {
                     />}
 
                     {view === 'admin_management' && currentUser?.role === 'superadmin' && (
-                        <AdminManagement
+                        <SuperAdminDashboard
                             users={users}
-                            onApprove={(id) => updateUser({ id, status: 'active' })}
+                            rankings={rankings}
+                            players={players}
+                            onApprove={(id) => updateUser({ id, status: 'active', plan: 'pro' })}
                             onReject={(id) => updateUser({ id, status: 'rejected' })}
                             onDelete={(id) => deleteUserDB(id)}
-                            onBlock={(id) => updateUser({ id, status: 'blocked' })}
-                            onUnblock={(id) => updateUser({ id, status: 'active' })}
-                            onCreate={handleCreateAdmin}
+                            onCreate={async (userData) => {
+                                await handleCreateAdmin(userData);
+                                // Set default plan to 'pro' for new users
+                                const newUserId = users.find(u => u.email === userData.email)?.id;
+                                if (newUserId) {
+                                    updateUser({ id: newUserId, plan: 'pro' });
+                                }
+                            }}
+                            onUpdatePlan={(userId, plan) => {
+                                updateUser({ id: userId, plan });
+                            }}
+                            onViewClient={(userId) => {
+                                setImpersonatedUserId(userId);
+                                setView('dashboard');
+                            }}
                             onClearDB={clearDatabase}
                         />
                     )}
@@ -710,6 +679,8 @@ export const AdminLayout = () => {
                     </div>
                 </div>
             )}
+
+            <HelpCenter />
         </div>
     );
 };

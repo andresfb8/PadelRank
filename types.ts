@@ -7,6 +7,10 @@ export interface User {
   role: Role;
   clubName?: string;
   status: 'active' | 'pending' | 'rejected' | 'blocked';
+  // SaaS Subscription fields
+  plan?: 'basic' | 'pro' | 'star' | 'weekend' | 'trial';
+  planExpiry?: number; // timestamp for Weekend Warrior plan
+  stripeCustomerId?: string; // For future Stripe integration
 }
 
 export interface Player {

@@ -688,9 +688,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
     // 1. Get Qualified Players (Group Seeds)
     const qualified = getQualifiedPlayers(ranking);
-    if (qualified.length < 4) return alert("No hay suficientes jugadores clasificados para un cuadro (mínimo 4).");
+    if (qualified.length < 4) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 4).");
 
-    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} jugadores clasificados. La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar?`)) return;
+    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} parejas clasificadas. La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar?`)) return;
 
     // 2. Generate Bracket
     // Default to including Consolation for Hybrid as it's usually desired.
@@ -1393,9 +1393,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted || isQualified ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
                               <div className="flex justify-between items-start mb-3">
                                 <div className="flex items-center gap-3">
-                                  <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                    row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                      row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500 bg-gray-50'
+                                  <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
+                                      isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                                        isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
+                                          'text-gray-500 bg-gray-50'
                                     }`}>
                                     #{row.pos}
                                   </span>
@@ -1486,9 +1487,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               return (
                                 <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
                                   <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10 border-r border-gray-100/50">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                      row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                        row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500'
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
+                                        isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                                          isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
+                                            'text-gray-500'
                                       }`}>
                                       {row.pos}
                                     </div>
@@ -1562,9 +1564,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {matches.map((m) => {
                           const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-                          const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
+                          const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
                           const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
-                          const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
+                          const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
 
                           if (m.status === 'descanso') {
                             return (

@@ -24,7 +24,16 @@ export class TournamentEngine {
         // Extract individual player IDs from pairs
         const allPlayerIds: string[] = [];
         participants.forEach(pairStr => {
-            const [p1Id, p2Id] = pairStr.split('-');
+            let p1Id = '';
+            let p2Id = '';
+            if (pairStr.includes('::')) {
+                [p1Id, p2Id] = pairStr.split('::');
+            } else if (pairStr.includes('-')) {
+                [p1Id, p2Id] = pairStr.split('-');
+            } else {
+                p1Id = pairStr;
+            }
+
             if (p1Id && p1Id !== 'BYE') allPlayerIds.push(p1Id);
             if (p2Id && p2Id !== 'BYE') allPlayerIds.push(p2Id);
         });

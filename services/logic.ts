@@ -506,8 +506,8 @@ export function getQualifiedPlayers(ranking: Ranking): string[] {
   const divisions = [...ranking.divisions].sort((a, b) => a.numero - b.numero);
 
   // Get Standings for all divisions
-  // Use 'classic' format logic for the groups as they are leagues
-  const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'classic'));
+  // Use 'hybrid' format logic for the groups as they are pairs-based in hybrid mode
+  const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'hybrid'));
 
   const qualifiedIds: string[] = [];
 

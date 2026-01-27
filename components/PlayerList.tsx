@@ -3,9 +3,12 @@ import { Button } from './ui/Components';
 import { Player } from '../types';
 import { Trash2, ArrowUpDown, ArrowUp, ArrowDown, Edit, Download, Upload, User } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { User as UserType } from '../types';
+import { canAddPlayer, SUBSCRIPTION_PLANS } from '../config/subscriptionPlans';
 
 interface Props {
   players: Record<string, Player>;
+  currentUser?: UserType;
   onAddPlayer: () => void;
   onEditPlayer: (player: Player) => void;
   onDeletePlayer: (id: string) => void;
@@ -17,7 +20,19 @@ interface Props {
 type SortField = 'nombre' | 'pj' | 'pg' | 'pp' | 'winrate';
 type SortDirection = 'asc' | 'desc';
 
-export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer, onDeletePlayers, onImportPlayers, onSelectPlayer }: Props) => {
+export const PlayerList = ({ players, currentUser, onAddPlayer, onEditPlayer, onDeletePlayer, onDeletePlayers, onImportPlayers, onSelectPlayer }: Props) => {
+  const userPlan = currentUser?.plan || 'pro';
+  const planLimits = SUBSCRIPTION_PLANS[userPlan];
+  const totalPlayers = Object.keys(players).length;
+
+  const handleAddPlayerClick = () => {
+    const limitCheck = canAddPlayer(totalPlayers, userPlan, currentUser?.role === 'superadmin');
+    if (!limitCheck.allowed) {
+      alert(limitCheck.message);
+      return;
+    }
+    onAddPlayer();
+  };
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('nombre');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -182,7 +197,12 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
         <div>
           <h2 className="text-xl font-bold text-gray-900">Base de Datos</h2>
           <p className="text-gray-500 text-sm">
-            {Object.keys(players).length} jugadores registrados
+            {totalPlayers} jugadores registrados
+            {planLimits.maxPlayers !== Infinity && (
+              <span className={`ml-2 ${totalPlayers >= planLimits.maxPlayers * 0.8 ? 'text-orange-600 font-bold' : 'text-gray-400'}`}>
+                ({totalPlayers}/{planLimits.maxPlayers})
+              </span>
+            )}
           </p>
         </div>
 
@@ -217,7 +237,7 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
             )}
             {/* Desktop Only Add Button */}
             <div className="hidden md:block">
-              <Button onClick={onAddPlayer}>+ Nuevo</Button>
+              <Button onClick={handleAddPlayerClick}>+ Nuevo</Button>
             </div>
           </div>
         </div>
@@ -351,7 +371,7 @@ export const PlayerList = ({ players, onAddPlayer, onEditPlayer, onDeletePlayer,
 
       {/* Mobile Floating Action Button (FAB) */}
       <button
-        onClick={onAddPlayer}
+        onClick={handleAddPlayerClick}
         className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg shadow-primary-600/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50 ring-4 ring-white"
       >
         <span className="text-3xl font-light mb-1">+</span>
