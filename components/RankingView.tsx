@@ -816,6 +816,28 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               <div className="flex items-center gap-2"> <Share2 size={18} /> <span className="md:hidden text-sm">Compartir</span> </div>
             )}
           </Button>
+          <Button
+            variant="secondary"
+            className="!p-2 text-red-600 bg-red-50 border-red-100 hover:bg-red-100 flex items-center gap-2"
+            title="Exportar a PDF"
+            onClick={() => {
+              import('../services/export').then(({ exportRankingToPDF }) => {
+                const currentStandings = activeTab === 'global' ? globalStandings : standings;
+                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
+
+                exportRankingToPDF(ranking, () => currentStandings, players, {
+                  rankingName: ranking.nombre,
+                  categoryName: catName,
+                  clubName: 'PadelRank' // We could fetch club name if available in context
+                });
+              });
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></svg>
+              <span className="hidden md:inline text-sm font-medium">PDF</span>
+            </div>
+          </Button>
         </div>
       </div>
 
@@ -1394,9 +1416,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               <div className="flex justify-between items-start mb-3">
                                 <div className="flex items-center gap-3">
                                   <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                      isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                        isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
-                                          'text-gray-500 bg-gray-50'
+                                    isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                                      isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
+                                        'text-gray-500 bg-gray-50'
                                     }`}>
                                     #{row.pos}
                                   </span>
@@ -1488,9 +1510,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                 <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
                                   <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10 border-r border-gray-100/50">
                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                        isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                          isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
-                                            'text-gray-500'
+                                      isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
+                                        isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
+                                          'text-gray-500'
                                       }`}>
                                       {row.pos}
                                     </div>
