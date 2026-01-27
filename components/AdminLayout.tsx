@@ -609,7 +609,7 @@ export const AdminLayout = () => {
                         onAddDivision={handleAddDivision}
                         onUpdateRanking={handleUpdateRanking}
                         onPlayerClick={(playerId) => {
-                            if (activeRanking.format === 'pairs') {
+                            if (activeRanking.format === 'pairs' || activeRanking.format === 'hybrid') {
                                 setSelectedPairIdForDetail(playerId); // playerId is actually pairId here
                                 setView('pair_detail');
                             } else {

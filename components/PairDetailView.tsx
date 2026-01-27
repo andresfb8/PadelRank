@@ -11,7 +11,8 @@ interface Props {
 }
 
 export const PairDetailView = ({ pairId, players, rankings, onBack }: Props) => {
-    const [p1Id, p2Id] = pairId.split('-');
+    const separator = pairId.includes('::') ? '::' : '-';
+    const [p1Id, p2Id] = pairId.split(separator);
 
     const getPlayerName = (id: string) => {
         if (!id) return 'Desconocido';
