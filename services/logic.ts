@@ -503,7 +503,10 @@ export function getQualifiedPlayers(ranking: Ranking): string[] {
 
   const qualifiersPerGroup = ranking.config.hybridConfig.qualifiersPerGroup;
   // Sort divisions by number to ensure Group A, B, C order
-  const divisions = [...ranking.divisions].sort((a, b) => a.numero - b.numero);
+  // FILTER: Only consider GROUP divisions, ignore existing Playoff brackets
+  const divisions = ranking.divisions
+    .filter(d => d.type !== 'main' && d.type !== 'consolation')
+    .sort((a, b) => a.numero - b.numero);
 
   // Get Standings for all divisions
   // Use 'hybrid' format logic for the groups as they are pairs-based in hybrid mode
@@ -523,4 +526,50 @@ export function getQualifiedPlayers(ranking: Ranking): string[] {
   }
 
   return qualifiedIds;
+}
+
+/**
+ * Updates a specific participant in a match manualy.
+ * "God Mode" function to correct bracket errors.
+ */
+export function updateMatchParticipant(
+  ranking: Ranking,
+  matchId: string,
+  pairIndex: 1 | 2, // 1 for pair1, 2 for pair2
+  newParticipantId: string // "p1::p2" or "p1"
+): Division[] {
+  const newDivisions = [...ranking.divisions];
+  let found = false;
+
+  for (const div of newDivisions) {
+    const match = div.matches.find(m => m.id === matchId);
+    if (match) {
+      found = true;
+      const targetPair = pairIndex === 1 ? match.pair1 : match.pair2;
+
+      // Parse new ID
+      if (newParticipantId === 'BYE') {
+        targetPair.p1Id = 'BYE';
+        targetPair.p2Id = '';
+      } else if (newParticipantId.includes('::')) {
+        const [p1, p2] = newParticipantId.split('::');
+        targetPair.p1Id = p1;
+        targetPair.p2Id = p2;
+      } else {
+        targetPair.p1Id = newParticipantId;
+        targetPair.p2Id = '';
+      }
+
+      // Remove placeholder since we are assigning a real player
+      delete targetPair.placeholder;
+
+      break;
+    }
+  }
+
+  if (!found) {
+    console.error(`Match ${matchId} not found in ranking.`);
+  }
+
+  return newDivisions;
 }

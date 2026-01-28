@@ -186,6 +186,33 @@ export class TournamentEngine {
         return [mainDiv, consolationDiv];
     }
 
+    /**
+     * Regenerates the playoff bracket by removing existing playoff divisions and creating new ones.
+     * Dangerous operation - wipes existing playoff data.
+     */
+    static regeneratePlayoff(
+        ranking: Ranking,
+        qualifiedParticipants: string[],
+        hasConsolation: boolean
+    ): Division[] {
+        // Keep non-playoff divisions (Group Phase)
+        const groupDivisions = ranking.divisions.filter(d =>
+            d.type !== 'main' && d.type !== 'consolation'
+        );
+
+        // Generate new Bracket
+        const newPlayoffDivisions = this.generateBracket(qualifiedParticipants, hasConsolation);
+
+        // Mark playoff divisions with stage
+        const markedPlayoffDivisions = newPlayoffDivisions.map(d => ({
+            ...d,
+            stage: 'playoff' as const
+        }));
+
+        // Merge Back
+        return [...groupDivisions, ...markedPlayoffDivisions];
+    }
+
     // --- Helpers ---
 
     private static setPair(pair: MatchPair, val: string) {

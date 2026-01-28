@@ -1,22 +1,24 @@
 
-import React from 'react';
-import { Match, Division, Player } from '../types';
-import { Trophy, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Match, Division, Player, Ranking } from '../types';
+import { Trophy, Calendar, Clock, AlertTriangle, Edit2, Lock, Unlock } from 'lucide-react';
 import { SchedulerEngine } from '../services/SchedulerEngine';
-import { Ranking } from '../types';
+import { updateMatchParticipant } from '../services/logic';
 
 interface BracketViewProps {
     divisions: Division[]; // Changed from single division to array
     players: Record<string, Player>;
     onMatchClick: (match: Match) => void;
     onScheduleClick?: (match: Match) => void; // New Prop
+    onUpdateRanking?: (ranking: Ranking) => void; // Needed for updates
     bracketType?: 'main' | 'consolation';
     ranking: Ranking; // Need full ranking for scheduler config
 }
 
-export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick, bracketType = 'main', ranking }: BracketViewProps) => {
+export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick, onUpdateRanking, bracketType = 'main', ranking }: BracketViewProps) => {
     // Merge all matches from all divisions (main + consolation)
     const allMatches = divisions.flatMap(d => d.matches);
+    const [isEditMode, setIsEditMode] = useState(false);
 
     // Filter matches based on bracket type
     // Main bracket: matches whose roundName doesn't contain "(Cons.)"
@@ -57,9 +59,39 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
         return n2 ? `${n1} / ${n2}` : n1;
     };
 
+    const handleParticipantClick = (matchId: string, pairIndex: 1 | 2, currentId: string) => {
+        if (!isEditMode || !onUpdateRanking) return;
+
+        const newId = prompt("Editar Participante (Modo Dios)\n\nIntroduce el ID del jugador/pareja (o 'BYE').\nFormato Pareja: 'ID1::ID2'", currentId);
+
+        if (newId !== null && newId !== currentId) {
+            const newDivisions = updateMatchParticipant(ranking, matchId, pairIndex, newId);
+
+            // Reconstruct ranking
+            const newRanking = { ...ranking, divisions: newDivisions };
+            onUpdateRanking(newRanking);
+        }
+    };
+
     return (
-        <div className="overflow-x-auto pb-4">
-            <div className="flex gap-8 min-w-max p-4">
+        <div className="overflow-x-auto pb-4 relative">
+            {/* Edit Mode Toggle */}
+            {onUpdateRanking && (
+                <div className="absolute top-0 right-0 z-10 p-2">
+                    <button
+                        onClick={() => setIsEditMode(!isEditMode)}
+                        className={`
+                            p-2 rounded-full shadow-sm border transition-all
+                            ${isEditMode ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'}
+                        `}
+                        title={isEditMode ? "Desactivar Modo Edición" : "Activar Modo Edición (Modo Dios)"}
+                    >
+                        {isEditMode ? <Unlock size={16} /> : <Lock size={16} />}
+                    </button>
+                </div>
+            )}
+
+            <div className="flex gap-8 min-w-max p-4 pt-12">
                 {rounds.map(round => (
                     <div key={round} className="flex flex-col justify-around gap-4 min-w-[220px]">
                         <h3 className="text-center font-bold text-gray-500 mb-4 uppercase text-xs tracking-wider">
@@ -73,17 +105,29 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                     className={`
                                         bg-white rounded-lg border shadow-sm w-full transition-all relative group flex flex-col
                                         ${match.status === 'finalizado' ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}
+                                        ${isEditMode ? 'ring-2 ring-amber-300 ring-opacity-50' : ''}
                                     `}
                                 >
                                     {/* Score Area - Opens MatchModal */}
                                     <div
                                         className="p-3 cursor-pointer hover:bg-gray-50 rounded-t-lg"
-                                        onClick={() => onMatchClick(match)}
+                                        onClick={() => !isEditMode && onMatchClick(match)}
                                     >
                                         <div className="flex flex-col gap-3">
                                             {/* Pair 1 */}
                                             <div className={`text-sm flex justify-between items-center transition-colors ${match.points?.p1 > match.points?.p2 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
-                                                <span className="truncate font-medium">{getPairName(match.pair1)}</span>
+                                                <span
+                                                    className={`truncate font-medium ${isEditMode ? 'cursor-text hover:bg-amber-100 px-1 rounded border border-transparent hover:border-amber-300' : ''}`}
+                                                    onClick={(e) => {
+                                                        if (isEditMode) {
+                                                            e.stopPropagation();
+                                                            const currentId = match.pair1.p1Id && match.pair1.p2Id ? `${match.pair1.p1Id}::${match.pair1.p2Id}` : match.pair1.p1Id;
+                                                            handleParticipantClick(match.id, 1, currentId);
+                                                        }
+                                                    }}
+                                                >
+                                                    {getPairName(match.pair1)}
+                                                </span>
                                                 {match.status === 'finalizado' && (
                                                     <span className="bg-gray-100 px-2 py-0.5 rounded text-xs ml-2 font-mono ring-1 ring-gray-200">
                                                         {renderScore(match, 'p1')}
@@ -95,7 +139,18 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
 
                                             {/* Pair 2 */}
                                             <div className={`text-sm flex justify-between items-center transition-colors ${match.points?.p2 > match.points?.p1 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
-                                                <span className="truncate font-medium">{getPairName(match.pair2)}</span>
+                                                <span
+                                                    className={`truncate font-medium ${isEditMode ? 'cursor-text hover:bg-amber-100 px-1 rounded border border-transparent hover:border-amber-300' : ''}`}
+                                                    onClick={(e) => {
+                                                        if (isEditMode) {
+                                                            e.stopPropagation();
+                                                            const currentId = match.pair2.p1Id && match.pair2.p2Id ? `${match.pair2.p1Id}::${match.pair2.p2Id}` : match.pair2.p1Id;
+                                                            handleParticipantClick(match.id, 2, currentId);
+                                                        }
+                                                    }}
+                                                >
+                                                    {getPairName(match.pair2)}
+                                                </span>
                                                 {match.status === 'finalizado' && (
                                                     <span className="bg-gray-100 px-2 py-0.5 rounded text-xs ml-2 font-mono ring-1 ring-gray-200">
                                                         {renderScore(match, 'p2')}
@@ -107,7 +162,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
 
                                     {/* Schedule Bar - Opens ScheduleModal */}
                                     {/* Schedule Bar - Visible if Scheduled OR if Admin */}
-                                    {((match.startTime || match.court) || onScheduleClick) && (
+                                    {((match.startTime || match.court) || onScheduleClick) && !isEditMode && (
                                         <div
                                             className={`
                                                 border-t border-gray-100 py-1.5 px-3 bg-gray-50 flex items-center justify-between rounded-b-lg transition-colors

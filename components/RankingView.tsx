@@ -725,7 +725,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
     // 1. Get Qualified Players (Group Seeds)
     const qualified = getQualifiedPlayers(ranking);
-    if (qualified.length < 4) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 4).");
+    if (qualified.length < 2) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 2).");
 
     if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} parejas clasificadas. La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar?`)) return;
 
@@ -793,24 +793,55 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         </div>
         <div className="flex gap-2 w-full md:w-auto justify-end">
           {isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || ranking.format === 'americano' || ranking.format === 'pairs') && (
+            <Button onClick={() => setIsManualMatchModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Importar partido pasado">
+              <Save size={16} /> <span className="hidden sm:inline">Importar Partido</span>
+            </Button>
+          )}
+
+          {/* Hybrid Playoff Regeneration Button - SEPARATE BLOCK */}
+          {isAdmin && onUpdateRanking && ranking.format === 'hybrid' && ranking.phase === 'playoff' && (
             <div className="flex gap-2">
-              {ranking.format === 'pairs' && (
-                <Button onClick={() => setIsManualMatchModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Importar partido pasado">
-                  <Save size={16} /> <span className="hidden sm:inline">Importar Partido</span>
-                </Button>
-              )}
-              {ranking.format === 'pairs' && (
-                <Button onClick={handleAddPairAndRegenerate} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Gestionar Parejas y Regenerar">
-                  <Users size={16} /> <span className="hidden sm:inline">Gestionar Parejas</span>
-                </Button>
-              )}
-              {ranking.format !== 'pairs' && (
-                <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-                  <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
-                </Button>
-              )}
+              <Button
+                onClick={() => {
+                  if (confirm("⚠️ ¡PELIGRO! Esta acción BORRARÁ todo el cuadro de playoff actual y todos sus resultados. Se volverá a generar basado en la clasificación actual de los grupos.\n\n¿Estás seguro de que quieres continuar?")) {
+                    const qualified = getQualifiedPlayers(ranking);
+                    if (qualified.length < 2) return alert("Error: No hay suficientes clasificados (mínimo 2).");
+
+                    const newDivisions = TournamentEngine.regeneratePlayoff(ranking, qualified, true);
+                    const updatedRanking = {
+                      ...ranking,
+                      divisions: newDivisions
+                    };
+                    onUpdateRanking(updatedRanking);
+                    alert("✅ Playoff regenerado correctamente.");
+                    // Force refresh active ID and switch to playoff view
+                    const mainDiv = newDivisions.find(d => d.type === 'main');
+                    if (mainDiv) {
+                      setActiveDivisionId(mainDiv.id);
+                      setViewMode('playoff');
+                    }
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 text-sm px-3 py-2 shadow-sm border border-red-700"
+                title="Borrar y regenerar cuadro desde grupos"
+              >
+                <Trash2 size={16} /> <span className="hidden sm:inline">Regenerar Playoff</span>
+              </Button>
             </div>
           )}
+
+          {ranking.format === 'pairs' && (
+            <Button onClick={handleAddPairAndRegenerate} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Gestionar Parejas y Regenerar">
+              <Users size={16} /> <span className="hidden sm:inline">Gestionar Parejas</span>
+            </Button>
+          )}
+          {ranking.format !== 'pairs' && (
+            <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
+              <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
+            </Button>
+          )}
+
+
           {isAdmin && onUpdateRanking && ranking.format === 'elimination' && (
             <div className="flex gap-2">
               <Button onClick={() => setIsSchedulerConfigModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 text-sm px-3 py-2">
@@ -876,39 +907,41 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             </div>
           </Button>
         </div>
-      </div>
+      </div >
 
 
 
       {/* Hybrid Phase Switcher */}
-      {ranking.format === 'hybrid' && ranking.phase === 'playoff' && (
-        <div className="flex justify-center mb-4">
-          <div className="bg-gray-100 p-1 rounded-lg inline-flex">
-            <button
-              onClick={() => {
-                setViewMode('groups');
-                const d = ranking.divisions.find(d => d.stage === 'group' || (!d.stage && d.type !== 'main' && d.type !== 'consolation'));
-                if (d) setActiveDivisionId(d.id);
-              }}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              Fase de Grupos
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('playoff');
-                const d = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
-                if (d) setActiveDivisionId(d.id);
-              }}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              Playoff Final
-            </button>
+      {
+        ranking.format === 'hybrid' && ranking.phase === 'playoff' && (
+          <div className="flex justify-center mb-4">
+            <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+              <button
+                onClick={() => {
+                  setViewMode('groups');
+                  const d = ranking.divisions.find(d => d.stage === 'group' || (!d.stage && d.type !== 'main' && d.type !== 'consolation'));
+                  if (d) setActiveDivisionId(d.id);
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                Fase de Grupos
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('playoff');
+                  const d = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
+                  if (d) setActiveDivisionId(d.id);
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                Playoff Final
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Bracket View for Hybrid Playoff Phase */}
       {
@@ -1426,6 +1459,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             onScheduleClick={isAdmin ? setSchedulingMatch : undefined}
                             bracketType={bracketType}
                             ranking={ranking}
+                            onUpdateRanking={onUpdateRanking}
                           />
                         </div>
                       ) : (
@@ -1795,7 +1829,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             }
 
           </>
-        )}
+        )
+      }
 
       {/* Match Result Modal */}
       {
