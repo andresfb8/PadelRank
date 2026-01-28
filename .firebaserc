@@ -2,6 +2,17 @@
   "projects": {
     "default": "padelrank-pro-app-2025"
   },
-  "targets": {},
+  "targets": {
+    "padelrank-pro-app-2025": {
+      "hosting": {
+        "app": [
+          "padelrank-pro-app-2025"
+        ],
+        "www": [
+          "racketgrid-web"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

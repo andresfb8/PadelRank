@@ -30,12 +30,12 @@ export const sendWelcomeEmail = onCall({
 
     try {
         const { data, error } = await resend.emails.send({
-            from: 'PadelRank <onboarding@resend.dev>', // Use resend.dev for testing until domain is verified
+            from: 'Racket Grid <onboarding@resend.dev>', // Use resend.dev for testing until domain is verified
             to: [email],
-            subject: '¡Bienvenido a PadelRank Pro!',
+            subject: '¡Bienvenido a Racket Grid!',
             html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1 style="color: #4F46E5;">¡Bienvenido a PadelRank, ${name}!</h1>
+                    <h1 style="color: #4F46E5;">¡Bienvenido a Racket Grid, ${name}!</h1>
                     <p>Tu cuenta para gestionar las competiciones de <strong>${clubName}</strong> ha sido creada exitosamente.</p>
                     
                     <div style="background-color: #F3F4F6; padding: 20px; border-radius: 10px; margin: 20px 0;">
@@ -47,7 +47,7 @@ export const sendWelcomeEmail = onCall({
                     </div>
 
                     <p>Accede a tu panel de control aquí:</p>
-                    <a href="https://padelrank-pro.web.app/admin" style="display: inline-block; background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Panel de Admin</a>
+                    <a href="https://www.racketgrid.com/admin" style="display: inline-block; background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Panel de Admin</a>
                     
                     <p style="color: #6B7280; font-size: 14px; margin-top: 30px;">
                         Por favor, cambia tu contraseña inmediatamente después del primer inicio de sesión por motivos de seguridad.
@@ -86,19 +86,19 @@ export const sendActivationEmail = onCall({
     try {
         // 3. Generate Password Reset Link using Firebase Admin
         const resetLink = await admin.auth().generatePasswordResetLink(email, {
-            url: 'https://padelrank-pro.web.app/', // Redirect after password reset
+            url: 'https://www.racketgrid.com/', // Redirect after password reset
         });
 
         // 4. Send Activation Email via Resend
         const resend = new Resend(resendApiKey.value());
 
         const { data, error } = await resend.emails.send({
-            from: 'PadelRank <onboarding@resend.dev>',
+            from: 'Racket Grid <onboarding@resend.dev>',
             to: [email],
-            subject: '🎾 Activa tu cuenta de PadelRank Pro',
+            subject: '🎾 Activa tu cuenta de Racket Grid',
             html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1 style="color: #4F46E5;">¡Bienvenido a PadelRank, ${name}!</h1>
+                    <h1 style="color: #4F46E5;">¡Bienvenido a Racket Grid, ${name}!</h1>
                     <p>Tu cuenta para gestionar las competiciones de <strong>${clubName || 'tu club'}</strong> ha sido creada.</p>
                     
                     <div style="background-color: #F3F4F6; padding: 20px; border-radius: 10px; margin: 20px 0;">
@@ -119,7 +119,7 @@ export const sendActivationEmail = onCall({
                     <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
                     
                     <p style="color: #9CA3AF; font-size: 12px; text-align: center;">
-                        PadelRank Pro - Sistema de Gestión de Torneos de Pádel
+                        Racket Grid - Sistema de Gestión de Torneos
                     </p>
                 </div>
             `

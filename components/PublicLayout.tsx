@@ -59,7 +59,7 @@ export const PublicLayout = ({ rankingId }: Props) => {
         <div className="min-h-screen bg-gray-50 text-gray-900">
             <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm">
                 <div className="flex items-center gap-2 font-bold text-primary text-xl">
-                    <Trophy size={24} /> PadelRank <span className="text-xs text-gray-400 font-normal uppercase tracking-wider border-l pl-2 ml-2">Vista Pública</span>
+                    <Trophy size={24} /> Racket Grid <span className="text-xs text-gray-400 font-normal uppercase tracking-wider border-l pl-2 ml-2">Vista Pública</span>
                 </div>
                 <div>
                     {/* Optional: Add a 'Login' button here if we want to allow admins to jump to login */}

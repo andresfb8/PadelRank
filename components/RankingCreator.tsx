@@ -88,7 +88,7 @@ export const RankingCreator = ({ players, onCancel, onSave }: Props) => {
             fechaInicio: startDate,
             status: 'activo',
             divisions,
-            publicUrl: `https://padelrank.app/ranking/r-${Date.now()}` // Mock URL
+            publicUrl: `https://racketgrid.com/ranking/r-${Date.now()}` // Mock URL
         };
 
         onSave(newRanking);

@@ -468,7 +468,7 @@ export const AdminLayout = () => {
                         <div className="h-16 w-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary-600">
                             <Trophy size={32} />
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900">PadelRank Pro</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">Racket Grid</h1>
                         <p className="text-gray-500 mt-2">Acceso a Gestión</p>
                     </div>
 
@@ -516,7 +516,7 @@ export const AdminLayout = () => {
                 <div className="h-full flex flex-col">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-center">
                         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
-                            <Trophy /> PadelRank
+                            <Trophy size={24} /> Racket Grid
                         </h2>
                     </div>
                     <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
@@ -568,7 +568,7 @@ export const AdminLayout = () => {
             <div className={`flex-1 flex flex-col min-w-0 pb-24 lg:pb-0 ${impersonatedUserId ? 'mt-10' : ''}`}>
                 <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm lg:shadow-none">
                     <div className="lg:hidden text-primary font-bold flex items-center gap-2">
-                        <Trophy size={24} /> PadelRank
+                        <Trophy size={24} /> Racket Grid
                     </div>
                     <button
                         onClick={() => !isPublicUser && setView('profile')}

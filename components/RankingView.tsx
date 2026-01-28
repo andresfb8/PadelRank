@@ -865,7 +865,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 exportRankingToPDF(ranking, () => currentStandings, players, {
                   rankingName: ranking.nombre,
                   categoryName: catName,
-                  clubName: 'PadelRank' // We could fetch club name if available in context
+                  clubName: 'Racket Grid' // We could fetch club name if available in context
                 });
               });
             }}

@@ -207,7 +207,7 @@ export const HelpCenter = () => {
                 {/* Footer */}
                 <div className="p-4 bg-gray-100 text-center border-t border-gray-200">
                     <p className="text-xs text-gray-500">
-                        PadelRank Pro v1.2 • <a href="#" className="underline hover:text-gray-800">Soporte Técnico</a>
+                        Racket Grid v1.2 • <a href="#" className="underline hover:text-gray-800">Soporte Técnico</a>
                     </p>
                 </div>
             </div>

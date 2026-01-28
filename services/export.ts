@@ -174,7 +174,7 @@ export const exportRankingToPDF = (
     ranking: Ranking,
     standingsCallback: () => StandingRow[],
     players: Record<string, Player>,
-    config: ExportConfig = { rankingName: 'Torneo PadelRank' }
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
 ) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
@@ -186,7 +186,7 @@ export const exportRankingToPDF = (
 
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
-    const subtitle = config.categoryName ? `${config.categoryName} • ${config.clubName || 'PadelRank'}` : (config.clubName || 'Generado por PadelRank');
+    const subtitle = config.categoryName ? `${config.categoryName} • ${config.clubName || 'Racket Grid'}` : (config.clubName || 'Generado por Racket Grid');
     doc.text(subtitle, pageWidth / 2, 28, { align: 'center' });
 
     doc.setLineWidth(0.5);
@@ -333,11 +333,11 @@ export const exportRankingToPDF = (
                 doc.text(str, pageWidth - 20, doc.internal.pageSize.height - 10, { align: 'right' });
 
                 // Footer: Branding
-                doc.text("PadelRank.pro", 15, doc.internal.pageSize.height - 10);
+                doc.text("RacketGrid.com", 15, doc.internal.pageSize.height - 10);
             }
         });
     }
 
-    const fileName = `Export_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
 };
