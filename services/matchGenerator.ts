@@ -192,6 +192,35 @@ export const MatchGenerator = {
         return matches;
     },
 
+    // --- MEXICANO RANDOM (Shuffled Groups) ---
+    // Generate a random round for Mexicano, shuffling players instead of using strict ranking
+    generateMexicanoRoundRandom: (players: Player[], roundNumber: number, courts: number = 20): Match[] => {
+        // Shuffle all players randomly
+        const shuffled = [...players].sort(() => Math.random() - 0.5);
+
+        const matches: Match[] = [];
+        let courtIndex = 1;
+
+        // Group by 4 (same as regular Mexicano, but with shuffled players)
+        for (let i = 0; i < shuffled.length; i += 4) {
+            const group = shuffled.slice(i, i + 4);
+            if (group.length < 4) break; // Remainder sits out
+
+            // Players for this court
+            const p1 = group[0].id;
+            const p2 = group[1].id;
+            const p3 = group[2].id;
+            const p4 = group[3].id;
+
+            // 1 & 4 vs 2 & 3 (Balanced)
+            const currentCourt = ((courtIndex - 1) % courts) + 1;
+            matches.push(createMatch(0, roundNumber, p1, p4, p2, p3, currentCourt));
+            courtIndex++;
+        }
+
+        return matches;
+    },
+
     // --- INDIVIDUAL (Random Pairs / League with promotion) ---
     // If user wants random matches for a league.
     generateIndividualRound: (playerIds: string[], divIndex: number, roundNumber: number): Match[] => {

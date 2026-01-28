@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2, Clock, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2, Clock, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Shuffle } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers } from '../services/logic';
@@ -52,6 +52,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     return merged;
   }, [initialPlayers, ranking.guestPlayers]);
 
+  // Disable player click for Americano and Mexicano formats
+  const isPlayerClickEnabled = ranking.format !== 'americano' && ranking.format !== 'mexicano';
+
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules'>('standings');
   const [bracketType, setBracketType] = useState<'main' | 'consolation'>('main');
@@ -86,6 +89,24 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const getSortIcon = (key: string) => {
     if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="opacity-30" />;
     return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />;
+  };
+
+  // Helper function to get players resting in a specific round (Americano/Mexicano)
+  const getRestingPlayers = (divisionPlayers: string[], matches: Match[], roundNumber: number): string[] => {
+    // Get all players in matches for this round
+    const playingPlayers = new Set<string>();
+
+    matches
+      .filter(m => m.jornada === roundNumber && m.status !== 'descanso')
+      .forEach(m => {
+        playingPlayers.add(m.pair1.p1Id);
+        playingPlayers.add(m.pair1.p2Id);
+        playingPlayers.add(m.pair2.p1Id);
+        playingPlayers.add(m.pair2.p2Id);
+      });
+
+    // Return players NOT in matches
+    return divisionPlayers.filter(p => !playingPlayers.has(p));
   };
 
   const handleSaveSchedule = (matchId: string, schedule: { startTime?: string, court?: number }) => {
@@ -549,6 +570,43 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     alert(`✅ Roda ${nextRound} generada (${newMatches.length} partidos).`);
   };
 
+  const handleGenerateRandomRound = () => {
+    if (!onUpdateRanking || !activeDivision) return;
+    if (ranking.format !== 'mexicano') return;
+
+    const currentRound = activeDivision.matches.reduce((max, m) => Math.max(max, m.jornada), 0);
+
+    // In Mexicano/Americano, previous round must be finished mainly for ranking based gen, 
+    // but for random round it's less critical strictly speaking, BUT good practice to finish rounds.
+    if (currentRound > 0 && activeDivision.matches.some(m => m.status === 'pendiente')) {
+      return alert("Debes finalizar todos los partidos de la ronda actual antes de generar la siguiente.");
+    }
+
+    const nextRound = currentRound + 1;
+
+    const pObjs = activeDivision.players.map(id => {
+      const guest = ranking.guestPlayers?.find(g => g.id === id);
+      return players[id] || (guest ? { ...guest, stats: { winrate: 50 }, email: '', telefono: '', fechaNacimiento: '' } as Player : { id, nombre: '?', apellidos: '', stats: { winrate: 0 } as any } as Player);
+    });
+
+    const newMatches = MatchGenerator.generateMexicanoRoundRandom(pObjs, nextRound, ranking.config?.courts);
+
+    if (newMatches.length === 0) return alert("No se pudieron generar partidos. Verifica el número de jugadores.");
+
+    const updatedDiv = {
+      ...activeDivision,
+      matches: [...activeDivision.matches, ...newMatches]
+    };
+
+    const updatedRanking = {
+      ...ranking,
+      divisions: ranking.divisions.map(d => d.id === updatedDiv.id ? updatedDiv : d)
+    };
+
+    onUpdateRanking(updatedRanking);
+    alert(`✅ Ronda Aleatoria ${nextRound} generada (${newMatches.length} partidos).`);
+  };
+
   const handleAddPairAndRegenerate = async () => {
     setIsAddPairModalOpen(true);
   };
@@ -792,7 +850,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto justify-end">
-          {isAdmin && onUpdateRanking && (ranking.format === 'mexicano' || ranking.format === 'americano' || ranking.format === 'pairs') && (
+          {/* Import Match Button - Only for Pairs format */}
+          {isAdmin && onUpdateRanking && ranking.format === 'pairs' && (
             <Button onClick={() => setIsManualMatchModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Importar partido pasado">
               <Save size={16} /> <span className="hidden sm:inline">Importar Partido</span>
             </Button>
@@ -836,9 +895,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             </Button>
           )}
           {ranking.format !== 'pairs' && (
-            <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-              <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
+                <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
+              </Button>
+              {ranking.format === 'mexicano' && (
+                <Button onClick={handleGenerateRandomRound} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Generar ronda con emparejamientos aleatorios">
+                  <Shuffle size={16} /> <span className="hidden sm:inline">Ronda Aleatoria</span>
+                </Button>
+              )}
+            </div>
           )}
 
 
@@ -1193,7 +1259,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               #{row.pos}
                             </span>
                             <div>
-                              {onPlayerClick ? (
+                              {isPlayerClickEnabled && onPlayerClick ? (
                                 <button
                                   onClick={() => onPlayerClick(row.playerId)}
                                   className="font-semibold text-gray-900 text-base hover:text-primary hover:underline text-left"
@@ -1283,7 +1349,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
                             <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10">{row.pos}</td>
                             <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                              {onPlayerClick ? (
+                              {isPlayerClickEnabled && onPlayerClick ? (
                                 <button
                                   onClick={() => onPlayerClick(row.playerId)}
                                   className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
@@ -1508,7 +1574,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                     #{row.pos}
                                   </span>
                                   <div>
-                                    {onPlayerClick ? (
+                                    {isPlayerClickEnabled && onPlayerClick ? (
                                       <button
                                         onClick={() => onPlayerClick(row.playerId)}
                                         className="font-semibold text-gray-900 text-base hover:text-primary hover:underline text-left"
@@ -1618,7 +1684,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                   </td>
                                   <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                     <div className="flex items-center gap-2">
-                                      {onPlayerClick ? (
+                                      {isPlayerClickEnabled && onPlayerClick ? (
                                         <button
                                           onClick={() => onPlayerClick(row.playerId)}
                                           className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
@@ -1822,6 +1888,42 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           );
                         })}
                       </div>
+
+                      {/* Resting Players Section - Only for Americano/Mexicano */}
+                      {(ranking.format === 'americano' || ranking.format === 'mexicano') && (() => {
+                        const restingPlayers = getRestingPlayers(activeDivision.players, activeDivision.matches, Number(round));
+
+                        if (restingPlayers.length === 0) return null;
+
+                        return (
+                          <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                                <circle cx="12" cy="12" r="10" />
+                                <rect x="9" y="9" width="6" height="6" />
+                              </svg>
+                              <h4 className="font-semibold text-gray-700 text-sm">
+                                Descansan esta ronda ({restingPlayers.length})
+                              </h4>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {restingPlayers.map(playerId => {
+                                const player = players[playerId];
+                                if (!player) return null;
+
+                                return (
+                                  <div
+                                    key={playerId}
+                                    className="px-3 py-1.5 bg-white rounded-md border border-gray-300 text-sm text-gray-700 font-medium shadow-sm"
+                                  >
+                                    {player.nombre} {player.apellidos}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -1877,6 +1979,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             players={players}
             occupiedPlayerIds={occupiedPlayerIds}
             rankingFormat={ranking.format}
+            rankingConfig={ranking.config}
             hasConsolation={ranking.config?.eliminationConfig?.consolation}
             onSave={(div) => {
               onAddDivision(div);

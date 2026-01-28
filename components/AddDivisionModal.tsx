@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, Button } from './ui/Components';
-import { Player, Division, Match, RankingFormat } from '../types';
+import { Player, Division, Match, RankingFormat, RankingConfig } from '../types';
 import { TournamentEngine } from '../services/TournamentEngine';
 
 interface Props {
@@ -11,12 +11,59 @@ interface Props {
   occupiedPlayerIds?: Set<string>;
   onSave: (division: Division | Division[]) => void;
   rankingFormat?: RankingFormat; // Add format to determine modal behavior
+  rankingConfig?: RankingConfig; // Add config to get division size settings
   hasConsolation?: boolean; // For elimination tournaments
 }
 
-export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players, occupiedPlayerIds = new Set(), onSave, rankingFormat, hasConsolation = false }: Props) => {
-  // League mode: 4 fixed players
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>(['', '', '', '']);
+export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players, occupiedPlayerIds = new Set(), onSave, rankingFormat, rankingConfig, hasConsolation = false }: Props) => {
+  // 🎯 DYNAMIC CONFIGURATION BASED ON FORMAT AND TOURNAMENT CONFIG
+  const getFormatConfig = () => {
+    switch (rankingFormat) {
+      case 'classic':
+        return { mode: 'fixed-players', count: 4, label: 'jugadores' };
+
+      case 'individual':
+        // Use configured maxPlayersPerDivision from wizard
+        const maxPlayers = rankingConfig?.maxPlayersPerDivision || 6;
+        return { mode: 'fixed-players', count: maxPlayers, label: 'jugadores' };
+
+      case 'pairs':
+        // Use configured pairsPerGroup (if available, otherwise default to 4)
+        const pairsPerGroup = rankingConfig?.hybridConfig?.pairsPerGroup || 4;
+        return { mode: 'pairs', count: pairsPerGroup, label: 'parejas' };
+
+      case 'americano':
+      case 'mexicano':
+        // Flexible mode (no fixed size from config)
+        return { mode: 'flexible-players', minCount: 4, maxCount: 20, label: 'jugadores' };
+
+      case 'elimination':
+        // Free configuration per category
+        return { mode: 'elimination-pairs', minCount: 2, maxCount: 64, label: 'parejas' };
+
+      case 'hybrid':
+        // Use configured pairsPerGroup from wizard
+        const hybridPairs = rankingConfig?.hybridConfig?.pairsPerGroup || 4;
+        return { mode: 'pairs', count: hybridPairs, label: 'parejas' };
+
+      default:
+        return { mode: 'fixed-players', count: 4, label: 'jugadores' };
+    }
+  };
+
+  const formatConfig = getFormatConfig();
+  const isEliminationMode = formatConfig.mode === 'elimination-pairs';
+  const isPairsMode = formatConfig.mode === 'pairs';
+  const isFlexibleMode = formatConfig.mode === 'flexible-players';
+
+  // Initialize selectedPlayers with dynamic size
+  const initialPlayerCount = formatConfig.mode === 'fixed-players' || formatConfig.mode === 'pairs'
+    ? (formatConfig.count || 4) * (isPairsMode ? 2 : 1) // Pairs need double slots (2 players per pair)
+    : (formatConfig.minCount || 4);
+
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>(
+    Array(initialPlayerCount).fill('')
+  );
   const [searchTerm, setSearchTerm] = useState('');
 
   // Elimination mode: manual pair formation
@@ -27,8 +74,6 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
   const [newPairP2, setNewPairP2] = useState(''); // Player 2 ID for new pair
   const [newGuestP1, setNewGuestP1] = useState('');
   const [newGuestP2, setNewGuestP2] = useState('');
-
-  const isEliminationMode = rankingFormat === 'elimination';
 
   const handlePlayerSelect = (index: number, id: string) => {
     const newSelected = [...selectedPlayers];
@@ -175,22 +220,103 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
       setNewPairP2('');
       setNewGuestP1('');
       setNewGuestP2('');
+    } else if (isPairsMode) {
+      // PAIRS MODE (pairs, hybrid)
+      // Validate pairs are formed (selectedPlayers should have pairs of IDs)
+      const validPlayers = selectedPlayers.filter(p => p);
+
+      const expectedPlayers = (formatConfig.count || 4) * 2; // N pairs = N*2 players
+
+      if (validPlayers.length !== expectedPlayers) {
+        return alert(`Debes seleccionar exactamente ${formatConfig.count} parejas (${expectedPlayers} jugadores)`);
+      }
+
+      if (validPlayers.length % 2 !== 0) {
+        return alert('Debes seleccionar un número par de jugadores para formar parejas');
+      }
+
+      // Check for duplicates
+      const uniquePlayers = new Set(validPlayers);
+      if (uniquePlayers.size !== validPlayers.length) {
+        return alert('Hay jugadores duplicados');
+      }
+
+      // Form pairs from selected players
+      const pairs: string[][] = [];
+      for (let i = 0; i < validPlayers.length; i += 2) {
+        if (validPlayers[i] && validPlayers[i + 1]) {
+          pairs.push([validPlayers[i], validPlayers[i + 1]]);
+        }
+      }
+
+      if (pairs.length !== (formatConfig.count || 4)) {
+        return alert(`Debes formar exactamente ${formatConfig.count} parejas`);
+      }
+
+      // Generate matches using MatchGenerator.generatePairsLeague
+      const newDivision: Division = {
+        id: `div-new-${crypto.randomUUID()}`,
+        numero: nextDivisionNumber,
+        status: 'activa',
+        players: validPlayers,
+        matches: [] // Will be generated by parent or here
+      };
+
+      // Import MatchGenerator if needed
+      const { MatchGenerator } = require('../services/matchGenerator');
+      newDivision.matches = MatchGenerator.generatePairsLeague(pairs, nextDivisionNumber);
+
+      onSave(newDivision);
+      onClose();
+      setSelectedPlayers(Array(initialPlayerCount).fill(''));
     } else {
-      // League mode validation
-      if (selectedPlayers.some(p => !p)) return alert("Selecciona 4 jugadores");
-      if (new Set(selectedPlayers).size !== 4) return alert("Hay jugadores duplicados");
+      // LEAGUE MODE (classic, individual, americano, mexicano)
+      const validPlayers = selectedPlayers.filter(p => p);
+      const uniquePlayers = new Set(validPlayers);
+
+      // Validation based on mode
+      if (formatConfig.mode === 'fixed-players') {
+        // Classic: exactly 4 players
+        if (validPlayers.length !== formatConfig.count) {
+          return alert(`Selecciona exactamente ${formatConfig.count} jugadores`);
+        }
+        if (uniquePlayers.size !== formatConfig.count) {
+          return alert('Hay jugadores duplicados');
+        }
+      } else if (isFlexibleMode) {
+        // Individual/Americano/Mexicano: flexible count
+        if (validPlayers.length < (formatConfig.minCount || 4)) {
+          return alert(`Selecciona al menos ${formatConfig.minCount} jugadores`);
+        }
+        if (uniquePlayers.size !== validPlayers.length) {
+          return alert('Hay jugadores duplicados');
+        }
+      }
 
       const newDivision: Division = {
         id: `div-new-${crypto.randomUUID()}`,
         numero: nextDivisionNumber,
         status: 'activa',
-        players: selectedPlayers,
-        matches: generateCalendar(selectedPlayers)
+        players: validPlayers,
+        matches: formatConfig.mode === 'fixed-players' ? generateCalendar(validPlayers) : []
       };
 
       onSave(newDivision);
       onClose();
-      setSelectedPlayers(['', '', '', '']);
+      setSelectedPlayers(Array(initialPlayerCount).fill(''));
+    }
+  };
+
+  // Add/Remove player slots for flexible modes
+  const handleAddPlayerSlot = () => {
+    if (selectedPlayers.length < (formatConfig.maxCount || 20)) {
+      setSelectedPlayers([...selectedPlayers, '']);
+    }
+  };
+
+  const handleRemovePlayerSlot = (index: number) => {
+    if (selectedPlayers.length > (formatConfig.minCount || 4)) {
+      setSelectedPlayers(selectedPlayers.filter((_, i) => i !== index));
     }
   };
 
@@ -209,7 +335,11 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEliminationMode ? `Añadir Categoría ${nextDivisionNumber}` : `Añadir División ${nextDivisionNumber}`}>
+    <Modal isOpen={isOpen} onClose={onClose} title={
+      isEliminationMode
+        ? `Añadir Categoría ${nextDivisionNumber}`
+        : `Añadir División ${nextDivisionNumber} - ${rankingFormat?.toUpperCase() || 'CLASSIC'}`
+    }>
       <div className="space-y-4">
         {isEliminationMode ? (
           /* ELIMINATION MODE: Category name + Participant selection */
@@ -371,22 +501,29 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
             </div>
           </>
         ) : (
-          /* LEAGUE MODE: Original 4-player interface */
+          /* STANDARD MODES: Classic, Individual, Americano, Mexicano, Pairs, Hybrid */
           <>
             <p className="text-sm text-gray-500 mb-4">
-              Selecciona 4 jugadores para crear la nueva división. Solo aparecen jugadores que no están participando actualmente en el torneo.
+              {isPairsMode
+                ? `Selecciona exactamente ${formatConfig.count} parejas (${(formatConfig.count || 4) * 2} jugadores). Los jugadores se emparejarán en orden.`
+                : isFlexibleMode
+                  ? `Selecciona entre ${formatConfig.minCount} y ${formatConfig.maxCount} jugadores para la división.`
+                  : `Selecciona exactamente ${formatConfig.count} jugadores para crear la división.`
+              }
             </p>
             <div className="mb-4">
               <input
                 type="text"
-                placeholder="Buscar jugador por nombre or apellidos..."
+                placeholder="Buscar jugador por nombre o apellidos..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {[0, 1, 2, 3].map((idx) => {
+
+            {/* Player Selection Grid */}
+            <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+              {selectedPlayers.map((selectedId, idx) => {
                 const available = getAvailablePlayers(idx);
                 // Filter available by search term
                 const filtered = available.filter(p =>
@@ -398,8 +535,24 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
                 const currentSelectedId = selectedPlayers[idx];
 
                 return (
-                  <div key={idx}>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Jugador {idx + 1}</label>
+                  <div key={idx} className="relative">
+                    <label className="text-xs font-medium text-gray-500 mb-1 block flex items-center justify-between">
+                      <span>
+                        {isPairsMode
+                          ? `${idx % 2 === 0 ? 'Pareja ' + Math.floor(idx / 2 + 1) : ''} - Jugador ${(idx % 2) + 1}`
+                          : `Jugador ${idx + 1}`
+                        }
+                      </span>
+                      {isFlexibleMode && idx >= (formatConfig.minCount || 4) && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePlayerSlot(idx)}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </label>
                     <select
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       value={currentSelectedId}
@@ -412,7 +565,7 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
                         <option key={p.id} value={p.id}>{p.nombre} {p.apellidos}</option>
                       ))}
 
-                      {/* Persistence: Show currently selected player if they are valid but NOT in the top 5 (e.g. filtered out by limit or search) */}
+                      {/* Persistence: Show currently selected player if they are valid but NOT in the top 5 */}
                       {currentSelectedId &&
                         !displayedOptions.some(p => p.id === currentSelectedId) &&
                         players[currentSelectedId] && (
@@ -425,6 +578,17 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
                 );
               })}
             </div>
+
+            {/* Add More Players Button (Flexible Modes) */}
+            {isFlexibleMode && selectedPlayers.length < (formatConfig.maxCount || 20) && (
+              <button
+                type="button"
+                onClick={handleAddPlayerSlot}
+                className="w-full mt-4 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
+              >
+                + Añadir más jugadores ({selectedPlayers.length}/{formatConfig.maxCount})
+              </button>
+            )}
           </>
         )}
 
