@@ -113,6 +113,26 @@ export const HELP_ARTICLES: HelpArticle[] = [
     },
     // Ranking
     {
+        id: 'adm-status',
+        categoryId: 'admin',
+        title: 'Finalizar o Pausar Competición',
+        content: `
+            <p>Puedes cambiar el estado de un torneo en cualquier momento para organizarte mejor:</p>
+            <h4 class="font-bold mt-2">Pasos:</h4>
+            <ol class="list-decimal pl-4 mt-1 space-y-1">
+                <li>Entra en el torneo que quieres gestionar.</li>
+                <li>En la cabecera, pulsa sobre el botón de estado (donde pone "ACTIVO", "PAUSADO", etc.).</li>
+                <li>Elige el nuevo estado:</li>
+            </ol>
+            <ul class="list-disc pl-8 mt-2 space-y-1 text-sm bg-gray-50 p-2 rounded">
+                 <li><strong>Finalizado:</strong> El torneo se mueve a la pestaña "Historial". Ya no aparecerá en la lista principal de activos, pero se guardan todos los datos.</li>
+                 <li><strong>Pausado:</strong> Útil para detener temporalmente la competición (vacaciones, lluvia...).</li>
+                 <li><strong>Activo:</strong> El estado normal para jugar.</li>
+            </ul>
+        `,
+        tags: ['estado', 'finalizar', 'pausar', 'historial', 'cerrar']
+    },
+    {
         id: 'pl-import',
         categoryId: 'players',
         title: 'Importar Jugadores Masivamente',

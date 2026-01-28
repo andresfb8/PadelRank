@@ -167,8 +167,8 @@ export const AdminDashboard = ({
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h4 className="font-bold text-gray-800 line-clamp-1" title={ranking.nombre}>{ranking.nombre}</h4>
                                                     <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${ranking.format === 'mexicano' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                                            ranking.format === 'americano' ? 'bg-violet-50 text-violet-700 border-violet-100' :
-                                                                'bg-blue-50 text-blue-700 border-blue-100'
+                                                        ranking.format === 'americano' ? 'bg-violet-50 text-violet-700 border-violet-100' :
+                                                            'bg-blue-50 text-blue-700 border-blue-100'
                                                         }`}>
                                                         {ranking.format === 'americano' ? 'AME' :
                                                             ranking.format === 'mexicano' ? 'MEX' :
@@ -244,22 +244,7 @@ export const AdminDashboard = ({
                         </div>
                     </div>
 
-                    {/* Quick Tips or News (Placeholder for future "Club Hub" features) */}
-                    <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl shadow-lg p-6 text-white relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-12 bg-white opacity-5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                        <div className="relative z-10">
-                            <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-                                <ShieldCheck size={20} />
-                                Consejo Pro
-                            </h3>
-                            <p className="text-indigo-100 text-sm mb-4">
-                                ¿Sabías que puedes invitar jugadores rápidamente compartiendo el enlace público de tu torneo?
-                            </p>
-                            <Button className="bg-white/20 hover:bg-white/30 text-white border-0 text-xs backdrop-blur-sm">
-                                Ver documentación
-                            </Button>
-                        </div>
-                    </div>
+
                 </div>
 
                 {/* Right Column: Top Players & Quick Actions */}

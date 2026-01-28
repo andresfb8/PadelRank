@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2, Clock, AlertTriangle } from 'lucide-react';
+import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2, Clock, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers } from '../services/logic';
@@ -67,6 +67,26 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [viewMode, setViewMode] = useState<'groups' | 'playoff'>(
     ranking.format === 'hybrid' && ranking.phase === 'playoff' ? 'playoff' : 'groups'
   );
+
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'desc'; // Default to descending for stats (higher is better)
+    if (sortConfig && sortConfig.key === key) {
+      if (sortConfig.direction === 'desc') direction = 'asc';
+      else {
+        setSortConfig(null); // Reset on third click
+        return;
+      }
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="opacity-30" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />;
+  };
 
   const handleSaveSchedule = (matchId: string, schedule: { startTime?: string, court?: number }) => {
     if (!onUpdateRanking) return;
@@ -306,8 +326,25 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     : activeDivision ? [activeDivision] : [];
 
   // Data for current view
-  const standings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any) : [];
-  const globalStandings = activeTab === 'global' ? generateGlobalStandings(ranking) : [];
+  // Data for current view with Sorting Logic applying to both standard and global standings
+  const rawStandings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any) : [];
+  const rawGlobalStandings = activeTab === 'global' ? generateGlobalStandings(ranking) : [];
+
+  const sortData = (data: any[]) => {
+    if (!sortConfig) return data;
+
+    return [...data].sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const standings = sortData(rawStandings);
+  const globalStandings = sortData(rawGlobalStandings);
 
   // Calculate players already in the tournament to prevent duplicates in new divisions
   const occupiedPlayerIds = new Set<string>();
@@ -1172,13 +1209,27 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                         <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">
                           {(ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador'}
                         </th>
-                        <th className="px-4 py-3 text-center">Partidos</th>
-                        <th className="px-4 py-3 text-center">PTS</th>
-                        <th className="px-4 py-3 text-center">PG</th>
-                        <th className="px-4 py-3 text-center">PP</th>
-                        <th className="px-4 py-3 text-center hidden sm:table-cell">Dif Sets</th>
-                        <th className="px-4 py-3 text-center hidden sm:table-cell">Dif Juegos</th>
-                        <th className="px-4 py-3 text-center">% Vic</th>
+                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pj')}>
+                          <div className="flex items-center justify-center gap-1">Partidos {getSortIcon('pj')}</div>
+                        </th>
+                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pts')}>
+                          <div className="flex items-center justify-center gap-1">PTS {getSortIcon('pts')}</div>
+                        </th>
+                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pg')}>
+                          <div className="flex items-center justify-center gap-1">PG {getSortIcon('pg')}</div>
+                        </th>
+                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pp')}>
+                          <div className="flex items-center justify-center gap-1">PP {getSortIcon('pp')}</div>
+                        </th>
+                        <th className="px-4 py-3 text-center hidden sm:table-cell cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('setsDiff')}>
+                          <div className="flex items-center justify-center gap-1">Dif Sets {getSortIcon('setsDiff')}</div>
+                        </th>
+                        <th className="px-4 py-3 text-center hidden sm:table-cell cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('gamesDiff')}>
+                          <div className="flex items-center justify-center gap-1">Dif Juegos {getSortIcon('gamesDiff')}</div>
+                        </th>
+                        <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('winrate')}>
+                          <div className="flex items-center justify-center gap-1">% Vic {getSortIcon('winrate')}</div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1477,13 +1528,27 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             <tr className="bg-gray-50 border-b border-gray-200">
                               <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 w-12 text-center">#</th>
                               <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Jugador</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16">PJ</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16">PTS</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-green-600 uppercase w-16">PG</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-red-500 uppercase w-16">PP</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16">Dif S</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16">Dif J</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase w-20">% Vic</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pj')}>
+                                <div className="flex items-center justify-center gap-1">PJ {getSortIcon('pj')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pts')}>
+                                <div className="flex items-center justify-center gap-1">PTS {getSortIcon('pts')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-green-600 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pg')}>
+                                <div className="flex items-center justify-center gap-1">PG {getSortIcon('pg')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-red-500 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pp')}>
+                                <div className="flex items-center justify-center gap-1">PP {getSortIcon('pp')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('setsDiff')}>
+                                <div className="flex items-center justify-center gap-1">Dif S {getSortIcon('setsDiff')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gamesDiff')}>
+                                <div className="flex items-center justify-center gap-1">Dif J {getSortIcon('gamesDiff')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase w-20 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('winrate')}>
+                                <div className="flex items-center justify-center gap-1">% Vic {getSortIcon('winrate')}</div>
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">

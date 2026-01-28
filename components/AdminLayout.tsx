@@ -19,10 +19,12 @@ import { RankingList } from './RankingList';
 import { RankingWizard } from './RankingWizard';
 import { MatchModal } from './MatchModal';
 import { PlayerList } from './PlayerList';
+import { PlayerDatabaseView } from './players/PlayerDatabaseView';
 import { PlayerDetailView } from './PlayerDetailView';
 import { PairDetailView } from './PairDetailView';
 import { AdminProfile } from './AdminProfile';
 import { AdminManagement } from './AdminManagement';
+import { AdminAccountView } from './profile/AdminAccountView';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { SuperAdminAnalytics } from './SuperAdminAnalytics';
 import { AdminDashboard } from './AdminDashboard';
@@ -535,6 +537,13 @@ export const AdminLayout = () => {
                             <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'admin_management' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
                         )}
 
+                        {/* Mi Cuenta - Only for non-public users */}
+                        {!isPublicUser && (
+                            <button onClick={() => handleNavClick('profile')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'profile' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
+                                <UserIcon size={20} /> Mi Cuenta
+                            </button>
+                        )}
+
                         {/* Add Exit Impersonation Button in Sidebar too */}
                         {impersonatedUserId && (
                             <button onClick={() => setImpersonatedUserId(null)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-amber-600 bg-amber-50 hover:bg-amber-100 font-bold border border-amber-200">
@@ -543,7 +552,7 @@ export const AdminLayout = () => {
                         )}
                     </nav>
                     <div className="p-4 border-t border-gray-100 space-y-3">
-                        {!isPublicUser && effectiveUser && (
+                        {!isPublicUser && effectiveUser && (effectiveUser.role !== 'superadmin' || impersonatedUserId) && (
                             <PlanBadge
                                 user={effectiveUser}
                                 totalPlayers={Object.keys(players).length}
@@ -561,7 +570,11 @@ export const AdminLayout = () => {
                     <div className="lg:hidden text-primary font-bold flex items-center gap-2">
                         <Trophy size={24} /> PadelRank
                     </div>
-                    <div className="flex items-center gap-4 ml-auto">
+                    <button
+                        onClick={() => !isPublicUser && setView('profile')}
+                        className={`flex items-center gap-4 ml-auto ${!isPublicUser ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
+                        disabled={isPublicUser}
+                    >
                         <div className="text-right hidden md:block">
                             <div className="text-sm font-bold text-gray-900">{effectiveUser?.name || effectiveUser?.email}</div>
                             <div className="mt-0.5 flex justify-end">
@@ -573,10 +586,10 @@ export const AdminLayout = () => {
                                 </span>
                             </div>
                         </div>
-                        <button onClick={() => !isPublicUser && setView('profile')} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold hover:opacity-90 transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500 cursor-default' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
                             {effectiveUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
-                        </button>
-                    </div>
+                        </div>
+                    </button>
                 </header>
 
                 <main className="flex-1 p-6 overflow-y-auto">
@@ -654,15 +667,15 @@ export const AdminLayout = () => {
                         />
                     )}
 
-                    {view === 'players' && <PlayerList
+                    {view === 'players' && <PlayerDatabaseView
                         players={players}
+                        rankings={rankings}
                         currentUser={effectiveUser}
                         onAddPlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
                         onEditPlayer={(p) => { setEditingPlayer(p); setIsPlayerModalOpen(true) }}
                         onDeletePlayer={handleDeletePlayer}
                         onDeletePlayers={handleDeletePlayers}
                         onImportPlayers={handleImportPlayers}
-                        onSelectPlayer={handleSelectPlayer}
                     />}
                     {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDuplicateRanking} />}
                     {view === 'ranking_create' && <RankingWizard
@@ -727,7 +740,17 @@ export const AdminLayout = () => {
                         />
                     )}
 
-                    {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} onLogout={handleLogout} />}
+                    {view === 'profile' && effectiveUser && (
+                        <AdminAccountView
+                            user={effectiveUser}
+                            onBack={() => setView('dashboard')}
+                            totalPlayers={Object.keys(players).length}
+                            activeTournaments={activeRankings.length}
+                        />
+                    )}
+
+                    {/* Legacy profile modal - can be removed later */}
+                    {/* {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} onLogout={handleLogout} />} */}
                 </main>
             </div>
 
