@@ -2,23 +2,38 @@ import React, { useState } from 'react';
 import {
     Trophy,
     Users,
+    Settings,
     Activity,
     ChevronRight,
     Check,
     Smartphone,
-    X,
-    Menu,
+    Layout,
+    BarChart3,
+    ShieldCheck,
+    Zap,
+    Star,
     LogIn,
+    Menu,
+    X,
+    Calendar,
+    Layers,
+    TrendingUp,
+    History,
+    Award,
+    ArrowUpRight,
+    ArrowDownRight,
+    MousePointer2,
     Clock,
     Search,
     Plus,
-    Sparkles,
-    UserCheck,
+    Flame,
+    Target,
+    UserMinus,
     Cpu,
+    UserCheck,
+    Sparkles,
     Gift,
-    Mail,
-    Star,
-    ShieldCheck
+    Mail
 } from 'lucide-react';
 
 const App = () => {
@@ -44,7 +59,7 @@ const App = () => {
             ],
             notIncluded: [
                 "Portal del jugador",
-                "White Label",
+                "Marca personalizada",
                 "Playoffs Pro"
             ],
             color: "border-slate-200 bg-white text-slate-900"
@@ -55,14 +70,16 @@ const App = () => {
             period: "/mes",
             description: "La solución completa para clubes en crecimiento.",
             features: [
+                "Todo lo del plan básico y además:",
                 "Hasta 150 jugadores",
                 "Torneos ilimitados",
                 "Categorías ilimitadas",
+                "Liga + Playoff",
                 "Portal auto-servicio",
                 "Validación de resultados",
             ],
             notIncluded: [
-                "Cuadros Playoffs Pro",
+                "Torneos de fin de Semana",
                 "Multi-admin avanzado"
             ],
             featured: true,
@@ -75,6 +92,7 @@ const App = () => {
             period: "/mes",
             description: "Potencia total e ilimitada para grandes centros.",
             features: [
+                "Todo lo del plan básico y además:",
                 "Usuarios ilimitados",
                 "Todo ilimitado",
                 "Playoffs (Main + Consolación)",
@@ -339,10 +357,10 @@ const App = () => {
                 <div className="w-full text-center">
                     <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-[1.1]">
                         La plataforma definitiva para <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-400 font-black">Clubes de Racket Grid</span>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-400 font-black">Clubes de Padel</span>
                     </h1>
                     <p className="text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
-                        Gestión inteligente de rankings, torneos de eliminación directa y americanos. Controla cada pista con nuestra parrilla de horarios en tiempo real.
+                        Gestión inteligente de todo tipo de torneos. Controla el torneo de una forma sencilla y facilita el seguimiento del evento a todos los participantes.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <a
@@ -363,19 +381,24 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Feature Sections */}
-            <section id="features" className="py-16 md:py-24 bg-white">
+            {/* Feature Sections with Improved Differentiation */}
+            <section id="features" className="py-16 md:py-24 bg-white space-y-32">
                 <div className="w-full px-6 md:px-12 lg:px-24">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-32">
+
+                    {/* Card 01: Rankings */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-50/50 border border-slate-100">
                         <div>
-                            <h2 className="text-4xl font-extrabold text-slate-900 mb-6">Todos tus Formatos en una sola App</h2>
+                            <div className="flex items-center gap-4 mb-6">
+                                <span className="text-5xl font-black text-indigo-100">01</span>
+                                <h2 className="text-4xl font-extrabold text-slate-900">Todos tus Formatos en una sola App</h2>
+                            </div>
                             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                                 Racket Grid automatiza el cálculo de puntos y ascensos al instante, desde ligas anuales hasta torneos rápidos.
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {tournamentFormats.map((f, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                        <Check className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                                    <div key={i} className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                        <Check className="w-5 h-5 text-indigo-600 shrink-0" />
                                         <span className="font-bold text-slate-900 text-sm">{f.title}</span>
                                     </div>
                                 ))}
@@ -387,13 +410,17 @@ const App = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-32">
+                    {/* Card 02: Schedule */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-white border border-slate-50 shadow-sm">
                         <div className="order-2 lg:order-1 relative group">
                             <div className="absolute -inset-4 bg-green-100/30 rounded-[2.5rem] blur-xl"></div>
                             <ScheduleGridMockup />
                         </div>
                         <div className="order-1 lg:order-2">
-                            <h2 className="text-4xl font-extrabold text-slate-900 mb-6">Parrilla de Horarios Inteligente</h2>
+                            <div className="flex items-center gap-4 mb-6">
+                                <span className="text-5xl font-black text-green-100">02</span>
+                                <h2 className="text-4xl font-extrabold text-slate-900">Parrilla de Horarios Inteligente</h2>
+                            </div>
                             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                                 Visualiza la ocupación de tus pistas de un vistazo. Programa partidos directamente en la cuadrícula asegurando visibilidad total.
                             </p>
@@ -413,9 +440,13 @@ const App = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-32">
+                    {/* Card 03: Player Database */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-50/50 border border-slate-100">
                         <div>
-                            <h2 className="text-4xl font-extrabold text-slate-900 mb-6">Gestión de Socios Centralizada</h2>
+                            <div className="flex items-center gap-4 mb-6">
+                                <span className="text-5xl font-black text-indigo-100">03</span>
+                                <h2 className="text-4xl font-extrabold text-slate-900">Gestión de Socios Centralizada</h2>
+                            </div>
                             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                                 Controla niveles, estados de socio y disponibilidad sin necesidad de hojas de cálculo externas.
                             </p>
@@ -439,13 +470,17 @@ const App = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                    {/* Card 04: Player Experience */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-white border border-slate-50 shadow-sm">
                         <div className="order-2 lg:order-1 relative group">
                             <div className="absolute -inset-4 bg-orange-100/20 rounded-[2.5rem] blur-xl"></div>
                             <PlayerStatsMockup />
                         </div>
                         <div className="order-1 lg:order-2">
-                            <h2 className="text-4xl font-extrabold text-slate-900 mb-6">Experiencia Pro para el Jugador</h2>
+                            <div className="flex items-center gap-4 mb-6">
+                                <span className="text-5xl font-black text-orange-100">04</span>
+                                <h2 className="text-4xl font-extrabold text-slate-900">Experiencia Pro para el Jugador</h2>
+                            </div>
                             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                                 Visualiza winrate, rachas, némesis y un historial completo de partidos con eficiencia detallada.
                             </p>
@@ -467,7 +502,7 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Admin Dashboard - Botones deshabilitados según petición */}
+            {/* Admin Dashboard - Buttons visual only */}
             <section className="py-16 md:py-24 bg-slate-900 text-white overflow-hidden">
                 <div className="w-full px-6 md:px-12 lg:px-24">
                     <div className="text-center mb-16">
@@ -490,7 +525,6 @@ const App = () => {
                             </div>
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Botones no pulsables */}
                             <div className="bg-indigo-600/50 p-8 rounded-3xl flex items-center justify-between cursor-default opacity-80 border border-indigo-400/30">
                                 <div><h4 className="text-2xl font-bold mb-1">Nuevo Torneo</h4><p className="text-indigo-100 text-sm opacity-60">Configuración en segundos</p></div>
                                 <Trophy className="w-12 h-12 opacity-20" />
@@ -529,7 +563,7 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Pricing - Botones a WhatsApp */}
+            {/* Pricing */}
             <section id="pricing" className="py-16 md:py-24 bg-slate-50">
                 <div className="w-full px-6 md:px-12 lg:px-24">
                     <div className="text-center mb-16">
@@ -546,12 +580,14 @@ const App = () => {
                                     </span>
                                 )}
                                 <div className="mb-6">
-                                    <h3 className="text-xl font-bold mb-2 text-slate-900">{plan.name}</h3>
-                                    {plan.hasTrial && (
-                                        <div className="inline-flex items-center gap-1 text-green-600 font-black text-xs uppercase mb-2 bg-green-50 px-2 py-1 rounded">
-                                            <Gift className="w-3 h-3" /> ¡Primer mes GRATIS!
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
+                                        {plan.hasTrial && (
+                                            <div className="inline-flex items-center gap-1 text-green-600 font-black text-[10px] uppercase bg-green-50 px-2 py-0.5 rounded border border-green-100">
+                                                <Gift className="w-2.5 h-2.5" /> Mes GRATIS
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="flex items-baseline gap-1 mb-1">
                                         <span className="text-4xl font-extrabold text-slate-900">{plan.price}€</span>
                                         <span className="text-slate-500 font-medium text-sm">{plan.period}</span>
@@ -562,8 +598,14 @@ const App = () => {
                                 <div className="space-y-3 mb-8 flex-grow">
                                     {plan.features.map((feature, idx) => (
                                         <div key={idx} className="flex items-start gap-3 text-sm">
-                                            <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                                            <span className="leading-tight text-slate-700">{feature}</span>
+                                            {feature.includes("Todo lo del plan") ? (
+                                                <span className="font-bold text-indigo-600 leading-tight block mb-2">{feature}</span>
+                                            ) : (
+                                                <>
+                                                    <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                                                    <span className="leading-tight text-slate-700">{feature}</span>
+                                                </>
+                                            )}
                                         </div>
                                     ))}
                                     {plan.notIncluded && plan.notIncluded.map((feature, idx) => (
@@ -586,7 +628,6 @@ const App = () => {
                         ))}
                     </div>
 
-                    {/* Weekend Warrior a WhatsApp */}
                     <div className="relative group max-w-5xl mx-auto">
                         <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-indigo-700 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
                         <div className="relative bg-white border border-indigo-100 p-8 md:p-10 rounded-[2.5rem] shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8">
@@ -615,7 +656,7 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Footer con email */}
+            {/* Footer */}
             <footer className="bg-white border-t border-slate-100 py-12 px-6 md:px-12 lg:px-24">
                 <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
                     <div className="flex flex-col md:flex-row items-center gap-8">
