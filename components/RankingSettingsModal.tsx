@@ -13,7 +13,7 @@ interface Props {
 
 export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking, isAdmin }: Props) => {
     const [config, setConfig] = useState<RankingConfig>(ranking.config || {});
-    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv'>('general');
 
     useEffect(() => {
         if (isOpen) {
@@ -112,6 +112,12 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                             <ArrowUpCircle size={16} /> Ascensos/Descensos
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('tv')}
+                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'tv' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Settings size={16} /> Modo TV
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -189,8 +195,8 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                                             key={mode}
                                                             onClick={() => handleChange('scoringMode', mode)}
                                                             className={`px-4 py-3 rounded-lg border text-sm font-bold transition-all ${(config.scoringMode || defaults.scoringMode) === mode
-                                                                    ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500'
-                                                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500'
+                                                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                                                                 }`}
                                                         >
                                                             {mode === 'custom' ? 'Personalizado' : mode}
@@ -357,6 +363,102 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'tv' && (
+                        <div className="space-y-6">
+                            <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 mb-4">
+                                <p className="text-sm text-purple-800 flex items-start gap-2">
+                                    <Info size={16} className="mt-0.5 shrink-0" />
+                                    Configura el "Modo TV" para mostrar la clasificación y resultados en una pantalla grande.
+                                </p>
+                            </div>
+
+                            {/* Enable/Disable + Main Logic */}
+                            <div className="bg-white p-4 items-center gap-4 hidden">
+                                {/* Disabled for MVP - always enabled via URL */}
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-lg border">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Duración Diapositivas (segundos)</label>
+                                    <input
+                                        type="number"
+                                        value={ranking.tvConfig?.slideDuration || 15}
+                                        onChange={(e) => {
+                                            const val = Math.max(5, parseInt(e.target.value) || 15);
+                                            onUpdateRanking?.({
+                                                ...ranking,
+                                                tvConfig: {
+                                                    ...(ranking.tvConfig || {
+                                                        enabled: true,
+                                                        showStandings: true,
+                                                        showMatches: true,
+                                                        showQR: true,
+                                                        showSponsors: true,
+                                                        sponsors: [],
+                                                        slideDuration: 15
+                                                    }),
+                                                    slideDuration: val
+                                                }
+                                            });
+                                        }}
+                                        disabled={isReadOnly}
+                                        className="w-full border rounded p-2"
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Mínimo 5 segundos.</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-4 rounded-lg border divide-y">
+                                <h4 className="font-bold text-gray-800 mb-2">Contenido Visible</h4>
+
+                                {[
+                                    { key: 'showStandings', label: 'Mostrar Clasificación' },
+                                    { key: 'showMatches', label: 'Mostrar Partidos' },
+                                    { key: 'showQR', label: 'Mostrar Código QR' },
+                                    { key: 'showSponsors', label: 'Mostrar Patrocinadores' }
+                                ].map((item) => (
+                                    <div key={item.key} className="flex items-center justify-between py-3">
+                                        <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                                        <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                            <input
+                                                type="checkbox"
+                                                name={item.key}
+                                                id={`toggle-${item.key}`}
+                                                checked={(ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true}
+                                                onChange={(e) => {
+                                                    const val = e.target.checked;
+                                                    onUpdateRanking?.({
+                                                        ...ranking,
+                                                        tvConfig: {
+                                                            ...(ranking.tvConfig || {
+                                                                enabled: true,
+                                                                slideDuration: 15,
+                                                                showStandings: true,
+                                                                showMatches: true,
+                                                                showQR: true,
+                                                                showSponsors: true,
+                                                                sponsors: []
+                                                            }), // Defaults if null
+                                                            [item.key]: val
+                                                        }
+                                                    });
+                                                }}
+                                                disabled={isReadOnly}
+                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                                                style={{
+                                                    right: (ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? '0' : 'auto',
+                                                    left: (ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? 'auto' : '0',
+                                                    borderColor: (ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? '#3b82f6' : '#e5e7eb'
+                                                }}
+                                            />
+                                            <label htmlFor={`toggle-${item.key}`} className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${(ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? 'bg-blue-500' : 'bg-gray-300'}`}></label>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Calendar, Trophy, Share2, ArrowLeft, Check, Copy, Plus, ChevronDown, BarChart, Flag, BookOpen, Edit2, Save, Settings, PauseCircle, CheckCircle, Users, Trash2, Clock, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Shuffle } from 'lucide-react';
+import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
+import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
@@ -395,7 +396,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     if (clubSlug) {
       const distinctSlug = formatSlug(clubSlug);
       if (distinctSlug) {
-        url = `${baseUrl}/${distinctSlug}/?id=${ranking.id}`;
+        url = `${baseUrl}/${distinctSlug}?id=${ranking.id}`;
       }
     }
 
@@ -590,7 +591,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     };
 
     onUpdateRanking(updatedRanking);
-    alert(`✅ Roda ${nextRound} generada (${newMatches.length} partidos).`);
+    alert(`✅ Roda ${nextRound} generada(${newMatches.length} partidos).`);
   };
 
   const handleGenerateRandomRound = () => {
@@ -627,7 +628,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     };
 
     onUpdateRanking(updatedRanking);
-    alert(`✅ Ronda Aleatoria ${nextRound} generada (${newMatches.length} partidos).`);
+    alert(`✅ Ronda Aleatoria ${nextRound} generada(${newMatches.length} partidos).`);
   };
 
   const handleAddPairAndRegenerate = async () => {
@@ -840,7 +841,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     const qualified = getQualifiedPlayers(ranking);
     if (qualified.length < 2) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 2).");
 
-    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} parejas clasificadas. La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar?`)) return;
+    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} parejas clasificadas.La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar ? `)) return;
 
     // 2. Generate Bracket
     // Default to including Consolation for Hybrid as it's usually desired.
@@ -880,10 +881,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               {isAdmin && onUpdateRanking ? (
                 <button
                   onClick={() => setIsStatusModalOpen(true)}
-                  className={`uppercase font-medium text-xs px-3 py-1 rounded-full flex items-center gap-1.5 transition-all hover:scale-105 shadow-sm border ${ranking.status === 'activo' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
+                  className={`uppercase font - medium text - xs px - 3 py - 1 rounded - full flex items - center gap - 1.5 transition - all hover: scale - 105 shadow - sm border ${ranking.status === 'activo' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
                     ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
                       'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-                    }`}
+                    } `}
                   title="Cambiar estado del torneo"
                 >
                   {ranking.status === 'activo' ? <Play size={10} fill="currentColor" /> :
@@ -892,10 +893,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   <Settings size={12} className="ml-1 opacity-50" />
                 </button>
               ) : (
-                <span className={`uppercase font-medium text-xs px-2 py-0.5 rounded-full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
+                <span className={`uppercase font - medium text - xs px - 2 py - 0.5 rounded - full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
                   ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
                     'bg-gray-100 text-gray-600'
-                  }`}>
+                  } `}>
                   {ranking.status}
                 </span>
               )}
@@ -904,130 +905,184 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             </div>
           </div>
         </div>
-        <div className="flex gap-2 w-full md:w-auto justify-end">
-          {/* Import Match Button - For Pairs and Hybrid format */}
-          {isAdmin && onUpdateRanking && (ranking.format === 'pairs' || ranking.format === 'hybrid') && (
-            <Button onClick={() => setIsManualMatchModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Importar partido pasado">
-              <Save size={16} /> <span className="hidden sm:inline">Importar Partido</span>
-            </Button>
-          )}
+        <ActionToolbar
+          actions={[
+            // Import Match - Pairs and Hybrid only
+            {
+              id: 'import-match',
+              icon: Save,
+              label: 'Importar Partido',
+              onClick: () => setIsManualMatchModalOpen(true),
+              visible: isAdmin && onUpdateRanking && (ranking.format === 'pairs' || ranking.format === 'hybrid'),
+              variant: 'primary',
+              className: 'bg-teal-600 hover:bg-teal-700',
+              title: 'Importar partido pasado'
+            },
+            // Regenerate Playoff - Hybrid only in playoff phase
+            {
+              id: 'regenerate-playoff',
+              icon: Trash2,
+              label: 'Regenerar Playoff',
+              onClick: () => {
+                if (confirm("⚠️ ¡PELIGRO! Esta acción BORRARÁ todo el cuadro de playoff actual y todos sus resultados. Se volverá a generar basado en la clasificación actual de los grupos.\\n\\n¿Estás seguro de que quieres continuar?")) {
+                  const qualified = getQualifiedPlayers(ranking);
+                  if (qualified.length < 2) return alert("Error: No hay suficientes clasificados (mínimo 2).");
 
-          {/* Hybrid Playoff Regeneration Button - SEPARATE BLOCK */}
-          {isAdmin && onUpdateRanking && ranking.format === 'hybrid' && ranking.phase === 'playoff' && (
-            <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  if (confirm("⚠️ ¡PELIGRO! Esta acción BORRARÁ todo el cuadro de playoff actual y todos sus resultados. Se volverá a generar basado en la clasificación actual de los grupos.\n\n¿Estás seguro de que quieres continuar?")) {
-                    const qualified = getQualifiedPlayers(ranking);
-                    if (qualified.length < 2) return alert("Error: No hay suficientes clasificados (mínimo 2).");
+                  const newDivisions = TournamentEngine.regeneratePlayoff(ranking, qualified, true);
+                  const updatedRanking = { ...ranking, divisions: newDivisions };
+                  onUpdateRanking?.(updatedRanking);
+                  alert("✅ Playoff regenerado correctamente.");
 
-                    const newDivisions = TournamentEngine.regeneratePlayoff(ranking, qualified, true);
-                    const updatedRanking = {
-                      ...ranking,
-                      divisions: newDivisions
-                    };
-                    onUpdateRanking(updatedRanking);
-                    alert("✅ Playoff regenerado correctamente.");
-                    // Force refresh active ID and switch to playoff view
-                    const mainDiv = newDivisions.find(d => d.type === 'main');
-                    if (mainDiv) {
-                      setActiveDivisionId(mainDiv.id);
-                      setViewMode('playoff');
-                    }
+                  const mainDiv = newDivisions.find(d => d.type === 'main');
+                  if (mainDiv) {
+                    setActiveDivisionId(mainDiv.id);
+                    setViewMode('playoff');
                   }
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 text-sm px-3 py-2 shadow-sm border border-red-700"
-                title="Borrar y regenerar cuadro desde grupos"
-              >
-                <Trash2 size={16} /> <span className="hidden sm:inline">Regenerar Playoff</span>
-              </Button>
-            </div>
-          )}
+                }
+              },
+              visible: isAdmin && onUpdateRanking && ranking.format === 'hybrid' && ranking.phase === 'playoff',
+              variant: 'danger',
+              title: 'Borrar y regenerar cuadro desde grupos'
+            },
+            // Manage Pairs - Pairs format only
+            {
+              id: 'manage-pairs',
+              icon: Users,
+              label: 'Gestionar Parejas',
+              onClick: handleAddPairAndRegenerate,
+              visible: ranking.format === 'pairs',
+              variant: 'primary',
+              className: 'bg-purple-600 hover:bg-purple-700',
+              title: 'Gestionar Parejas y Regenerar'
+            },
+            // New Round - All formats except pairs
+            {
+              id: 'new-round',
+              icon: Plus,
+              label: 'Nueva Ronda',
+              onClick: handleGenerateNextRound,
+              visible: ranking.format !== 'pairs',
+              variant: 'primary',
+              className: 'bg-orange-600 hover:bg-orange-700'
+            },
+            // Random Round - Mexicano only
+            {
+              id: 'random-round',
+              icon: Shuffle,
+              label: 'Ronda Aleatoria',
+              onClick: handleGenerateRandomRound,
+              visible: ranking.format === 'mexicano',
+              variant: 'primary',
+              className: 'bg-purple-600 hover:bg-purple-700',
+              title: 'Generar ronda con emparejamientos aleatorios'
+            },
+            // Schedules - Elimination format only
+            {
+              id: 'schedules',
+              icon: Calendar,
+              label: 'Horarios',
+              onClick: () => setIsSchedulerConfigModalOpen(true),
+              visible: isAdmin && onUpdateRanking && ranking.format === 'elimination',
+              variant: 'primary',
+              className: 'bg-blue-600 hover:bg-blue-700'
+            },
+            // Finalize Phase - Classic and Individual formats
+            {
+              id: 'finalize-phase',
+              icon: Flag,
+              label: 'Finalizar Fase',
+              onClick: handleOpenPromotionModal,
+              visible: isAdmin && onUpdateRanking && (ranking.format === 'classic' || ranking.format === 'individual'),
+              variant: 'primary',
+              className: 'bg-indigo-600 hover:bg-indigo-700'
+            },
+            // Start Playoffs - Hybrid format, not in playoff phase
+            {
+              id: 'start-playoffs',
+              icon: Trophy,
+              label: 'Iniciar Playoffs',
+              onClick: handleStartPlayoffs,
+              visible: isAdmin && onUpdateRanking && ranking.format === 'hybrid' && ranking.phase !== 'playoff',
+              variant: 'primary',
+              className: 'bg-pink-600 hover:bg-pink-700'
+            },
+            // Substitute Player - All formats when admin
+            {
+              id: 'substitute-player',
+              icon: Users,
+              label: 'Sustituir Jugador',
+              onClick: () => setIsSubstituteModalOpen(true),
+              visible: isAdmin && onUpdateRanking && !!activeDivision,
+              variant: 'secondary',
+              className: 'bg-gray-600 hover:bg-gray-700 text-white'
+            },
+            // TV Mode - Admin only
+            {
+              id: 'tv-mode',
+              icon: Monitor,
+              label: 'Modo TV',
+              onClick: () => window.open(`/?tv=${ranking.id}`, '_blank'),
+              visible: isAdmin,
+              variant: 'secondary',
+              className: '!p-2 text-purple-600 hover:bg-purple-50',
+              title: 'Abrir Modo TV'
+            },
+            // Settings
+            {
+              id: 'settings',
+              icon: isAdmin ? Settings : BookOpen,
+              label: isAdmin ? 'Configuración' : 'Información',
+              onClick: () => setIsSettingsModalOpen(true),
+              visible: true,
+              variant: 'secondary',
+              className: '!p-2 text-gray-600 hover:bg-gray-100',
+              title: isAdmin ? "Configuración del Torneo" : "Información del Torneo"
+            },
+            // Share / Copy URL
+            {
+              id: 'share',
+              icon: copied ? Check : Share2,
+              label: copied ? 'Copiado' : 'Compartir',
+              onClick: copyToClipboard,
+              visible: true,
+              variant: 'secondary',
+              className: `!p-2 ${copied ? 'bg-green-50 text-green-600' : 'text-primary'}`,
+              title: 'Copiar URL Pública'
+            },
+            // Export PDF
+            {
+              id: 'export-pdf',
+              icon: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <path d="M16 13H8" />
+                  <path d="M16 17H8" />
+                  <path d="M10 9H8" />
+                </svg>
+              ),
+              label: 'PDF',
+              onClick: () => {
+                import('../services/export').then(({ exportRankingToPDF }) => {
+                  const currentStandings = activeTab === 'global' ? globalStandings : standings;
+                  const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
 
-          {ranking.format === 'pairs' && (
-            <Button onClick={handleAddPairAndRegenerate} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Gestionar Parejas y Regenerar">
-              <Users size={16} /> <span className="hidden sm:inline">Gestionar Parejas</span>
-            </Button>
-          )}
-          {ranking.format !== 'pairs' && (
-            <div className="flex gap-2">
-              <Button onClick={handleGenerateNextRound} className="bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-                <Plus size={16} /> <span className="hidden sm:inline">Nueva Ronda</span>
-              </Button>
-              {ranking.format === 'mexicano' && (
-                <Button onClick={handleGenerateRandomRound} className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Generar ronda con emparejamientos aleatorios">
-                  <Shuffle size={16} /> <span className="hidden sm:inline">Ronda Aleatoria</span>
-                </Button>
-              )}
-            </div>
-          )}
-
-
-          {isAdmin && onUpdateRanking && ranking.format === 'elimination' && (
-            <div className="flex gap-2">
-              <Button onClick={() => setIsSchedulerConfigModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-                <Calendar size={16} /> <span className="hidden sm:inline">Horarios</span>
-              </Button>
-            </div>
-          )}
-          {isAdmin && onUpdateRanking && (ranking.format === 'classic' || ranking.format === 'individual') && (
-            <Button onClick={handleOpenPromotionModal} className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-              <Flag size={16} /> <span className="hidden sm:inline">Finalizar Fase</span>
-            </Button>
-          )}
-          {isAdmin && onUpdateRanking && ranking.format === 'hybrid' && ranking.phase !== 'playoff' && (
-            <Button onClick={handleStartPlayoffs} className="bg-pink-600 hover:bg-pink-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-              <Trophy size={16} /> <span className="hidden sm:inline">Iniciar Playoffs</span>
-            </Button>
-          )}
-          {isAdmin && onUpdateRanking && activeDivision && (
-            <Button onClick={() => setIsSubstituteModalOpen(true)} className="bg-gray-600 hover:bg-gray-700 text-white flex items-center gap-2 text-sm px-3 py-2">
-              <Users size={16} /> <span className="hidden sm:inline">Sustituir Jugador</span>
-            </Button>
-          )}
-          <Button
-            variant="secondary"
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="!p-2 text-gray-600 flex items-center gap-2 hover:bg-gray-100"
-            title={isAdmin ? "Configuración del Torneo" : "Información del Torneo"}
-          >
-            {isAdmin ? <Settings size={18} /> : <BookOpen size={18} />}
-          </Button>
-          <Button
-            variant="secondary"
-            className={`!p-2 text-primary flex items-center gap-2 transition-all ${copied ? 'bg-green-50 !text-green-600' : ''}`}
-            onClick={copyToClipboard}
-            title="Copiar URL Pública"
-          >
-            {copied ? (
-              <> <Check size={18} /> <span className="text-sm font-medium">Copiado</span> </>
-            ) : (
-              <div className="flex items-center gap-2"> <Share2 size={18} /> <span className="md:hidden text-sm">Compartir</span> </div>
-            )}
-          </Button>
-          <Button
-            variant="secondary"
-            className="!p-2 text-red-600 bg-red-50 border-red-100 hover:bg-red-100 flex items-center gap-2"
-            title="Exportar a PDF"
-            onClick={() => {
-              import('../services/export').then(({ exportRankingToPDF }) => {
-                const currentStandings = activeTab === 'global' ? globalStandings : standings;
-                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
-
-                exportRankingToPDF(ranking, () => currentStandings, players, {
-                  rankingName: ranking.nombre,
-                  categoryName: catName,
-                  clubName: 'Racket Grid' // We could fetch club name if available in context
+                  exportRankingToPDF(ranking, () => currentStandings, players, {
+                    rankingName: ranking.nombre,
+                    categoryName: catName,
+                    clubName: 'Racket Grid'
+                  });
                 });
-              });
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></svg>
-              <span className="hidden md:inline text-sm font-medium">PDF</span>
-            </div>
-          </Button>
-        </div>
+              },
+              visible: true,
+              variant: 'secondary',
+              className: '!p-2 text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
+              title: 'Exportar a PDF'
+            }
+          ]}
+          maxVisibleActions={8}
+          className="w-full md:w-auto justify-end"
+        />
       </div >
 
 
@@ -1043,8 +1098,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   const d = ranking.divisions.find(d => d.stage === 'group' || (!d.stage && d.type !== 'main' && d.type !== 'consolation'));
                   if (d) setActiveDivisionId(d.id);
                 }}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                className={`px - 4 py - 2 rounded - md text - sm font - medium transition - all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  } `}
               >
                 Fase de Grupos
               </button>
@@ -1054,8 +1109,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   const d = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
                   if (d) setActiveDivisionId(d.id);
                 }}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                className={`px - 4 py - 2 rounded - md text - sm font - medium transition - all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  } `}
               >
                 Playoff Final
               </button>
@@ -1083,20 +1138,20 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 {ranking.format !== 'elimination' && (
                   <button
                     onClick={() => setActiveTab('global')}
-                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'global'
+                    className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'global'
                       ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                      }`}
+                      } `}
                   >
                     <BarChart size={16} /> Estadísticas Globales
                   </button>
                 )}
                 <button
                   onClick={() => setActiveTab('rules')}
-                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
+                  className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'rules'
                     ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
+                    } `}
                 >
                   <BookOpen size={16} /> Normas
                 </button>
@@ -1107,20 +1162,20 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                     <button
                       key={div.id}
                       onClick={() => { setActiveDivisionId(div.id); setActiveTab('standings'); }}
-                      className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
+                      className={`px - 4 py - 2 rounded - t - lg font - bold text - sm transition - all whitespace - nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
                         ? 'bg-white text-primary border-b-2 border-primary shadow-sm z-10'
                         : 'bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                        }`}
+                        } `}
                     >
                       {(() => {
                         // Remove automatic suffixes like "Cuadro Principal", "Cuadro Consolación"
-                        const displayName = div.category || div.name || `División ${div.numero}`;
+                        const displayName = div.category || div.name || `División ${div.numero} `;
                         return displayName
                           .replace(/Cuadro Principal/gi, '')
                           .replace(/Cuadro Consolación/gi, '')
                           .replace(/\s*-\s*Principal/gi, '')
                           .replace(/\s*-\s*Consolación/gi, '')
-                          .trim() || `División ${div.numero}`;
+                          .trim() || `División ${div.numero} `;
                       })()}
                     </button>
                   ))}
@@ -1152,19 +1207,19 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 mb-4">
                 <button
                   onClick={() => setActiveTab('standings')}
-                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'standings' || activeTab === 'matches'
+                  className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'standings' || activeTab === 'matches'
                     ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
+                    } `}
                 >
                   <Trophy size={16} /> Competición
                 </button>
                 <button
                   onClick={() => setActiveTab('rules')}
-                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
+                  className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'rules'
                     ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
+                    } `}
                 >
                   <BookOpen size={16} /> Normas
                 </button>
@@ -1186,26 +1241,26 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       {ranking.format === 'classic' && (
                         <Button
                           onClick={() => {
-                            const defaultRules = `**3. PUNTUACIÓN Y CLASIFICACIÓN**\n` +
-                              `Se premia cada set conseguido para fomentar la competitividad:\n` +
-                              `- Victoria 2-0: 4 Puntos.\n` +
-                              `- Victoria 2-1: 3 Puntos.\n` +
+                            const defaultRules = `** 3. PUNTUACIÓN Y CLASIFICACIÓN **\n` +
+                              `Se premia cada set conseguido para fomentar la competitividad: \n` +
+                              `- Victoria 2 - 0: 4 Puntos.\n` +
+                              `- Victoria 2 - 1: 3 Puntos.\n` +
                               `- Empate: 2 Puntos.\n` +
-                              `- Derrota 1-2: 1 Punto.\n` +
-                              `- Derrota 0-2: 0 Puntos.\n` +
-                              `*(Nota: Si un partido no se juega, ningún jugador recibe puntos).*\n\n` +
-                              `**Criterios de desempate:**\n` +
-                              `En caso de igualdad a puntos, el orden se decide por:\n` +
+                              `- Derrota 1 - 2: 1 Punto.\n` +
+                              `- Derrota 0 - 2: 0 Puntos.\n` +
+                              `* (Nota: Si un partido no se juega, ningún jugador recibe puntos).*\n\n` +
+                              `** Criterios de desempate:**\n` +
+                              `En caso de igualdad a puntos, el orden se decide por: \n` +
                               `1. Puntos totales.\n` +
                               `2. Diferencia de sets.\n` +
                               `3. Diferencia de juegos.\n` +
                               `4. Sets ganados.\n` +
                               `5. Juegos ganados.\n` +
                               `6. Sorteo.\n\n` +
-                              `**4. FORMATO DE PARTIDO Y REGLAMENTO**\n` +
-                              `**Estructura:** Partidos al mejor de 3 sets con Punto de Oro. Los dos primeros sets se juega Tie Break si se llega al 5-5. El tercer set, si fuera necesario, sería un Súper Tie-Break a 11 puntos. Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.\n\n` +
-                              `**Regla de la "Alarma" (Partidos de 1 hora):**\n` +
-                              `- Los jugadores deben poner una alarma de 1 hora al inicio de la reserva (recomendamos llegar antes del inicio para calentar y jugar la hora completa).\n` +
+                              `** 4. FORMATO DE PARTIDO Y REGLAMENTO **\n` +
+                              `** Estructura:** Partidos al mejor de 3 sets con Punto de Oro.Los dos primeros sets se juega Tie Break si se llega al 5 - 5. El tercer set, si fuera necesario, sería un Súper Tie - Break a 11 puntos.Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.\n\n` +
+                              `** Regla de la "Alarma"(Partidos de 1 hora):**\n` +
+                              `- Los jugadores deben poner una alarma de 1 hora al inicio de la reserva(recomendamos llegar antes del inicio para calentar y jugar la hora completa).\n` +
                               `- Si suena la alarma y hay reserva posterior: gana quien vaya por delante en el marcador en ese instante. (Ej: si el Equipo A gana el primer set y luego va ganando el segundo set cuando acaba la hora, gana el equipo A, pero si el equipo A gana el primer set pero el segundo set va ganando el equipo B por 3 o más juegos al acabar la hora, se considera ganado el segundo set por el equipo B y el partido quedaría empate).\n` +
                               `- Si hay empate al sonar la alarma, se juega un último punto decisivo.`;
                             onUpdateRanking({ ...ranking, rules: defaultRules });
@@ -1251,19 +1306,19 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-4">
                 <h3 className="font-bold text-gray-700 px-2 lg:text-lg">
                   {activeTab === 'global' ? 'Estadísticas Globales' :
-                    `División ${activeDivision?.numero}`}
+                    `División ${activeDivision?.numero} `}
                 </h3>
                 {activeTab !== 'global' && (
                   <div className="bg-gray-100 p-1 rounded-lg flex">
                     <button
                       onClick={() => setActiveTab('standings')}
-                      className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'standings' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                      className={`px - 4 py - 1.5 rounded - md text - sm font - bold transition - all ${activeTab === 'standings' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
                     >
                       Clasificación
                     </button>
                     <button
                       onClick={() => setActiveTab('matches')}
-                      className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'matches' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                      className={`px - 4 py - 1.5 rounded - md text - sm font - bold transition - all ${activeTab === 'matches' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
                     >
                       Partidos
                     </button>
@@ -1285,7 +1340,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
                     const formatCompactName = (name: string, surname?: string) => {
                       if (!name) return '?';
-                      return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
+                      return `${name} ${surname ? surname.charAt(0) + '.' : ''} `;
                     };
 
                     if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
@@ -1353,7 +1408,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       </div>
                     );
                   })}
-                </div>
+                </div >
 
                 <div className="overflow-x-auto hidden md:block">
                   <table className="w-full text-sm text-left whitespace-nowrap">
@@ -1433,97 +1488,99 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                     </tbody>
                   </table>
                 </div>
-              </Card>
+              </Card >
             )
             }
 
             {/* Category Header for Elimination - shows category name */}
-            {ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
-              <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-                {isEditingCategory ? (
-                  <div className="flex items-center gap-2 w-full">
-                    <input
-                      type="text"
-                      defaultValue={activeDivision.category || (activeDivision.name ? activeDivision.name.replace(/Cuadro Principal/gi, '').replace(/Cuadro Consolación/gi, '').trim() : `División ${activeDivision.numero}`)}
-                      className="px-3 py-2 border rounded-lg flex-1 text-xl font-bold text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const val = e.currentTarget.value;
-                          if (val && onUpdateRanking) {
-                            // Update all divisions with same number (category group)
-                            const updatedDivs = ranking.divisions.map(d =>
-                              d.numero === activeDivision.numero ? { ...d, category: val } : d
-                            );
-                            onUpdateRanking({ ...ranking, divisions: updatedDivs });
-                            setIsEditingCategory(false);
+            {
+              ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
+                <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+                  {isEditingCategory ? (
+                    <div className="flex items-center gap-2 w-full">
+                      <input
+                        type="text"
+                        defaultValue={activeDivision.category || (activeDivision.name ? activeDivision.name.replace(/Cuadro Principal/gi, '').replace(/Cuadro Consolación/gi, '').trim() : `División ${activeDivision.numero}`)}
+                        className="px-3 py-2 border rounded-lg flex-1 text-xl font-bold text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = e.currentTarget.value;
+                            if (val && onUpdateRanking) {
+                              // Update all divisions with same number (category group)
+                              const updatedDivs = ranking.divisions.map(d =>
+                                d.numero === activeDivision.numero ? { ...d, category: val } : d
+                              );
+                              onUpdateRanking({ ...ranking, divisions: updatedDivs });
+                              setIsEditingCategory(false);
+                            }
                           }
-                        }
-                        if (e.key === 'Escape') setIsEditingCategory(false);
-                      }}
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsEditingCategory(false)}
-                        className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium text-sm"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          // Trigger save manually via finding input sibling? Or simpler: use Ref. 
-                          // For simplicity in this replace block without adding refs, assume Enter usage or add specific ID
-                          const input = e.currentTarget.parentElement?.parentElement?.querySelector('input') as HTMLInputElement;
-                          if (input && input.value && onUpdateRanking) {
-                            const updatedDivs = ranking.divisions.map(d =>
-                              d.numero === activeDivision.numero ? { ...d, category: input.value } : d
-                            );
-                            onUpdateRanking({ ...ranking, divisions: updatedDivs });
-                            setIsEditingCategory(false);
-                          }
+                          if (e.key === 'Escape') setIsEditingCategory(false);
                         }}
-                        className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
-                      >
-                        Guardar
-                      </button>
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setIsEditingCategory(false)}
+                          className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium text-sm"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            // Trigger save manually via finding input sibling? Or simpler: use Ref. 
+                            // For simplicity in this replace block without adding refs, assume Enter usage or add specific ID
+                            const input = e.currentTarget.parentElement?.parentElement?.querySelector('input') as HTMLInputElement;
+                            if (input && input.value && onUpdateRanking) {
+                              const updatedDivs = ranking.divisions.map(d =>
+                                d.numero === activeDivision.numero ? { ...d, category: input.value } : d
+                              );
+                              onUpdateRanking({ ...ranking, divisions: updatedDivs });
+                              setIsEditingCategory(false);
+                            }
+                          }}
+                          className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                        >
+                          Guardar
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {(() => {
-                        // Priority: category > cleaned name > fallback
-                        if (activeDivision.category) {
-                          return activeDivision.category;
-                        }
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {(() => {
+                          // Priority: category > cleaned name > fallback
+                          if (activeDivision.category) {
+                            return activeDivision.category;
+                          }
 
-                        if (activeDivision.name) {
-                          const cleaned = activeDivision.name
-                            .replace(/Cuadro Principal/gi, '')
-                            .replace(/Cuadro Consolación/gi, '')
-                            .replace(/\s*-\s*Principal/gi, '')
-                            .replace(/\s*-\s*Consolación/gi, '')
-                            .trim();
+                          if (activeDivision.name) {
+                            const cleaned = activeDivision.name
+                              .replace(/Cuadro Principal/gi, '')
+                              .replace(/Cuadro Consolación/gi, '')
+                              .replace(/\s*-\s*Principal/gi, '')
+                              .replace(/\s*-\s*Consolación/gi, '')
+                              .trim();
 
-                          if (cleaned) return cleaned;
-                        }
+                            if (cleaned) return cleaned;
+                          }
 
-                        return `División ${activeDivision.numero}`;
-                      })()}
-                    </h2>
-                    {isAdmin && (
-                      <button
-                        onClick={() => setIsEditingCategory(true)}
-                        className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Editar nombre de categoría"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                          return `División ${activeDivision.numero}`;
+                        })()}
+                      </h2>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setIsEditingCategory(true)}
+                          className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Editar nombre de categoría"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            }
 
             {
               activeTab === 'standings' && (

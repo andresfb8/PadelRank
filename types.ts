@@ -67,6 +67,17 @@ export interface RankingConfig {
   };
 }
 
+export interface TVConfig {
+  enabled: boolean;
+  slideDuration: number; // Seconds
+  showStandings: boolean;
+  showMatches: boolean;
+  showQR: boolean;
+  showSponsors: boolean;
+  sponsors?: { id: string; url: string; name: string }[];
+  theme?: 'dark' | 'light';
+}
+
 export interface Ranking {
   id: string;
   nombre: string;
@@ -79,6 +90,7 @@ export interface Ranking {
   ownerId?: string;
   format?: RankingFormat; // Optional for backward compatibility (default 'classic')
   config?: RankingConfig;
+  tvConfig?: TVConfig;
   rules?: string; // Markdown or text rules
   history?: Match[]; // Historical matches from previous phases (for global stats)
   overrides?: { playerId: string, forceDiv: number }[]; // Manual division overrides for next phase
