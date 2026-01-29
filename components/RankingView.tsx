@@ -256,12 +256,12 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           };
 
           if (isFirstRealMatch({ p1Id: loserId.p1Id, p2Id: loserId.p2Id })) {
-            console.log("🎯 Loser's first real match - moving to consolation");
+            console.log("🎯 Loser's first real match-moving to consolation");
             const updatedRankingWithWinner = { ...updatedRanking, divisions: newDivisions };
             newDivisions = TournamentEngine.moveLoserToConsolation(updatedMatch, updatedRankingWithWinner, { p1: loserId.p1Id, p2: loserId.p2Id });
             console.log("consolation result:", newDivisions);
           } else {
-            console.log("⏭️ Not first real match - loser eliminated");
+            console.log("⏭️ Not first real match-loser eliminated");
           }
         }
 
@@ -899,7 +899,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               {isAdmin && onUpdateRanking ? (
                 <button
                   onClick={() => setIsStatusModalOpen(true)}
-                  className={`uppercase font - medium text - xs px - 3 py - 1 rounded - full flex items - center gap - 1.5 transition - all hover: scale - 105 shadow - sm border ${ranking.status === 'activo' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
+                  className={`uppercase font-medium text-xs px-3 py-1 rounded-full flex items-center gap-1.5 transition-all hover:scale-105 shadow-sm border ${ranking.status === 'activo' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
                     ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
                       'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
                     } `}
@@ -911,7 +911,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   <Settings size={12} className="ml-1 opacity-50" />
                 </button>
               ) : (
-                <span className={`uppercase font - medium text - xs px - 2 py - 0.5 rounded - full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
+                <span className={`uppercase font-medium text-xs px-2 py-0.5 rounded-full ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
                   ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
                     'bg-gray-100 text-gray-600'
                   } `}>
@@ -925,7 +925,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         </div>
         <ActionToolbar
           actions={[
-            // Import Match - Pairs and Hybrid only
+            // Import Match-Pairs and Hybrid only
             {
               id: 'import-match',
               icon: Save,
@@ -936,7 +936,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               className: 'bg-teal-600 hover:bg-teal-700',
               title: 'Importar partido pasado'
             },
-            // Regenerate Playoff - Hybrid only in playoff phase
+            // Regenerate Playoff-Hybrid only in playoff phase
             {
               id: 'regenerate-playoff',
               icon: Trash2,
@@ -962,7 +962,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'danger',
               title: 'Borrar y regenerar cuadro desde grupos'
             },
-            // Manage Pairs - Pairs format only
+            // Manage Pairs-Pairs format only
             {
               id: 'manage-pairs',
               icon: Users,
@@ -973,7 +973,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               className: 'bg-purple-600 hover:bg-purple-700',
               title: 'Gestionar Parejas y Regenerar'
             },
-            // New Round - All formats except pairs
+            // New Round-All formats except pairs
             {
               id: 'new-round',
               icon: Plus,
@@ -983,7 +983,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'primary',
               className: 'bg-orange-600 hover:bg-orange-700'
             },
-            // Random Round - Mexicano only
+            // Random Round-Mexicano only
             {
               id: 'random-round',
               icon: Shuffle,
@@ -994,7 +994,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               className: 'bg-purple-600 hover:bg-purple-700',
               title: 'Generar ronda con emparejamientos aleatorios'
             },
-            // Schedules - Elimination format only
+            // Schedules-Elimination format only
             {
               id: 'schedules',
               icon: Calendar,
@@ -1004,7 +1004,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'primary',
               className: 'bg-blue-600 hover:bg-blue-700'
             },
-            // Finalize Phase - Classic and Individual formats
+            // Finalize Phase-Classic and Individual formats
             {
               id: 'finalize-phase',
               icon: Flag,
@@ -1014,7 +1014,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'primary',
               className: 'bg-indigo-600 hover:bg-indigo-700'
             },
-            // Start Playoffs - Hybrid format, not in playoff phase
+            // Start Playoffs-Hybrid format, not in playoff phase
             {
               id: 'start-playoffs',
               icon: Trophy,
@@ -1024,7 +1024,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'primary',
               className: 'bg-pink-600 hover:bg-pink-700'
             },
-            // Substitute Player - All formats when admin
+            // Substitute Player-All formats when admin
             {
               id: 'substitute-player',
               icon: Users,
@@ -1034,7 +1034,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'secondary',
               className: 'bg-gray-600 hover:bg-gray-700 text-white'
             },
-            // TV Mode - Admin only
+            // TV Mode-Admin only
             {
               id: 'tv-mode',
               icon: Monitor,
@@ -1042,7 +1042,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: () => window.open(`/?tv=${ranking.id}`, '_blank'),
               visible: isAdmin,
               variant: 'secondary',
-              className: '!p-2 text-purple-600 hover:bg-purple-50',
+              className: 'text-purple-600 hover:bg-purple-50',
               title: 'Abrir Modo TV'
             },
             // Settings
@@ -1053,7 +1053,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: () => setIsSettingsModalOpen(true),
               visible: true,
               variant: 'secondary',
-              className: '!p-2 text-gray-600 hover:bg-gray-100',
+              className: 'text-gray-600 hover:bg-gray-100',
               title: isAdmin ? "Configuración del Torneo" : "Información del Torneo"
             },
             // Share / Copy URL
@@ -1064,7 +1064,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: copyToClipboard,
               visible: true,
               variant: 'secondary',
-              className: `!p-2 ${copied ? 'bg-green-50 text-green-600' : 'text-primary'}`,
+              className: `${copied ? 'bg-green-50 text-green-600' : 'text-primary'}`,
               title: 'Copiar URL Pública'
             },
             // Export PDF
@@ -1094,7 +1094,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               },
               visible: true,
               variant: 'secondary',
-              className: '!p-2 text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
+              className: 'text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
               title: 'Exportar a PDF'
             }
           ]}
@@ -1116,7 +1116,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   const d = ranking.divisions.find(d => d.stage === 'group' || (!d.stage && d.type !== 'main' && d.type !== 'consolation'));
                   if (d) setActiveDivisionId(d.id);
                 }}
-                className={`px - 4 py - 2 rounded - md text - sm font - medium transition - all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
                   } `}
               >
                 Fase de Grupos
@@ -1127,7 +1127,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   const d = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
                   if (d) setActiveDivisionId(d.id);
                 }}
-                className={`px - 4 py - 2 rounded - md text - sm font - medium transition - all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'playoff' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
                   } `}
               >
                 Playoff Final
@@ -1156,7 +1156,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 {ranking.format !== 'elimination' && (
                   <button
                     onClick={() => setActiveTab('global')}
-                    className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'global'
+                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'global'
                       ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                       } `}
@@ -1166,7 +1166,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 )}
                 <button
                   onClick={() => setActiveTab('rules')}
-                  className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'rules'
+                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
                     ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                     } `}
@@ -1180,7 +1180,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                     <button
                       key={div.id}
                       onClick={() => { setActiveDivisionId(div.id); setActiveTab('standings'); }}
-                      className={`px - 4 py - 2 rounded - t - lg font - bold text - sm transition - all whitespace - nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
+                      className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
                         ? 'bg-white text-primary border-b-2 border-primary shadow-sm z-10'
                         : 'bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                         } `}
@@ -1225,7 +1225,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 mb-4">
                 <button
                   onClick={() => setActiveTab('standings')}
-                  className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'standings' || activeTab === 'matches'
+                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'standings' || activeTab === 'matches'
                     ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                     } `}
@@ -1234,7 +1234,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 </button>
                 <button
                   onClick={() => setActiveTab('rules')}
-                  className={`px - 4 py - 2 rounded - t - lg font - medium text - sm transition - colors whitespace - nowrap flex items - center gap - 2 ${activeTab === 'rules'
+                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
                     ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                     } `}
@@ -1261,11 +1261,11 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           onClick={() => {
                             const defaultRules = `** 3. PUNTUACIÓN Y CLASIFICACIÓN **\n` +
                               `Se premia cada set conseguido para fomentar la competitividad: \n` +
-                              `- Victoria 2 - 0: 4 Puntos.\n` +
-                              `- Victoria 2 - 1: 3 Puntos.\n` +
+                              `- Victoria 2-0: 4 Puntos.\n` +
+                              `- Victoria 2-1: 3 Puntos.\n` +
                               `- Empate: 2 Puntos.\n` +
-                              `- Derrota 1 - 2: 1 Punto.\n` +
-                              `- Derrota 0 - 2: 0 Puntos.\n` +
+                              `- Derrota 1-2: 1 Punto.\n` +
+                              `- Derrota 0-2: 0 Puntos.\n` +
                               `* (Nota: Si un partido no se juega, ningún jugador recibe puntos).*\n\n` +
                               `** Criterios de desempate:**\n` +
                               `En caso de igualdad a puntos, el orden se decide por: \n` +
@@ -1276,7 +1276,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               `5. Juegos ganados.\n` +
                               `6. Sorteo.\n\n` +
                               `** 4. FORMATO DE PARTIDO Y REGLAMENTO **\n` +
-                              `** Estructura:** Partidos al mejor de 3 sets con Punto de Oro.Los dos primeros sets se juega Tie Break si se llega al 5 - 5. El tercer set, si fuera necesario, sería un Súper Tie - Break a 11 puntos.Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.\n\n` +
+                              `** Estructura:** Partidos al mejor de 3 sets con Punto de Oro.Los dos primeros sets se juega Tie Break si se llega al 5-5. El tercer set, si fuera necesario, sería un Súper Tie-Break a 11 puntos.Se puede jugar partido completo si se tiene reserva de más de 1 hora y se llega a un acuerdo entre los 4 jugadores, si no, se mantiene el formato anterior.\n\n` +
                               `** Regla de la "Alarma"(Partidos de 1 hora):**\n` +
                               `- Los jugadores deben poner una alarma de 1 hora al inicio de la reserva(recomendamos llegar antes del inicio para calentar y jugar la hora completa).\n` +
                               `- Si suena la alarma y hay reserva posterior: gana quien vaya por delante en el marcador en ese instante. (Ej: si el Equipo A gana el primer set y luego va ganando el segundo set cuando acaba la hora, gana el equipo A, pero si el equipo A gana el primer set pero el segundo set va ganando el equipo B por 3 o más juegos al acabar la hora, se considera ganado el segundo set por el equipo B y el partido quedaría empate).\n` +
@@ -1319,7 +1319,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               </div>
             )}
 
-            {/* Division/Global Content - Hidden for elimination format */}
+            {/* Division/Global Content-Hidden for elimination format */}
             {activeTab !== 'rules' && ranking.format !== 'elimination' && (
               <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-4">
                 <h3 className="font-bold text-gray-700 px-2 lg:text-lg">
@@ -1330,13 +1330,13 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   <div className="bg-gray-100 p-1 rounded-lg flex">
                     <button
                       onClick={() => setActiveTab('standings')}
-                      className={`px - 4 py - 1.5 rounded - md text - sm font - bold transition - all ${activeTab === 'standings' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
+                      className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'standings' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
                     >
                       Clasificación
                     </button>
                     <button
                       onClick={() => setActiveTab('matches')}
-                      className={`px - 4 py - 1.5 rounded - md text - sm font - bold transition - all ${activeTab === 'matches' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
+                      className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'matches' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
                     >
                       Partidos
                     </button>
@@ -1510,7 +1510,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             )
             }
 
-            {/* Category Header for Elimination - shows category name */}
+            {/* Category Header for Elimination-shows category name */}
             {
               ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
                 <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
@@ -1965,7 +1965,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                 )}
                               </div>
 
-                              {/* Dedicated Schedule Area - Bottom of Card */}
+                              {/* Dedicated Schedule Area-Bottom of Card */}
                               {/* Only show for formats that use scheduling */}
                               {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
                                 <div
@@ -2028,7 +2028,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                         })}
                       </div>
 
-                      {/* Resting Players Section - Only for Americano/Mexicano */}
+                      {/* Resting Players Section-Only for Americano/Mexicano */}
                       {(ranking.format === 'americano' || ranking.format === 'mexicano') && (() => {
                         const restingPlayers = getRestingPlayers(activeDivision.players, activeDivision.matches, Number(round));
 
@@ -2174,7 +2174,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   value={div.name || ''}
                   onChange={(e) => handleRenameDivision(div.id, e.target.value)}
                 />
-                {/* Delete Button - Only allowed if it's the last division OR user confirms re-indexing */}
+                {/* Delete Button-Only allowed if it's the last division OR user confirms re-indexing */}
                 {/* Actually per requirements, user can delete any. Logic handles re-indexing. */}
                 <button
                   onClick={() => {

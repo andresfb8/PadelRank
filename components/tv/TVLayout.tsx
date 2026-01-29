@@ -18,24 +18,35 @@ export const TVLayout = ({ ranking, players }: Props) => {
     const [progress, setProgress] = useState(0);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
-    // Configuration (with defaults)
-    const config = ranking.tvConfig || {
-        enabled: true,
-        slideDuration: 15,
-        showStandings: true,
-        showMatches: true,
-        showQR: true,
-        showSponsors: true,
-        theme: 'dark'
-    };
+    // Configuration (with defensive defaults)
+    const config = React.useMemo(() => {
+        const defaults = {
+            enabled: true,
+            slideDuration: 15,
+            showStandings: true,
+            showMatches: true,
+            showQR: true,
+            showSponsors: true,
+            theme: 'dark' as const
+        };
+
+        if (!ranking || !ranking.tvConfig) return defaults;
+
+        return {
+            ...defaults,
+            ...ranking.tvConfig
+        };
+    }, [ranking]);
 
     // Determine active slides based on config
-    const slides: SlideType[] = [
-        ...(config.showStandings ? ['standings'] as const : []),
-        ...(config.showMatches ? ['matches'] as const : []),
-        ...(config.showQR ? ['qr'] as const : []),
-        ...(config.showSponsors ? ['sponsors'] as const : [])
-    ];
+    const slides: SlideType[] = React.useMemo(() => {
+        const list: SlideType[] = [];
+        if (config.showStandings) list.push('standings');
+        if (config.showMatches) list.push('matches');
+        if (config.showQR) list.push('qr');
+        if (config.showSponsors) list.push('sponsors');
+        return list;
+    }, [config]);
 
     // If no slides enabled, show fallback
     if (slides.length === 0) {
@@ -94,6 +105,9 @@ export const TVLayout = ({ ranking, players }: Props) => {
         <div className="h-screen w-screen overflow-hidden bg-black relative flex flex-col font-sans">
             {/* Main Content Area */}
             <div className="flex-1 relative z-0">
+                <div style={{ position: 'absolute', top: 50, left: 10, zIndex: 9999, background: 'blue', color: 'white', padding: '10px' }}>
+                    DEBUG: TVLayout Rendered. Active Slide: {slides[activeSlideIndex]}
+                </div>
                 {renderSlide()}
             </div>
 

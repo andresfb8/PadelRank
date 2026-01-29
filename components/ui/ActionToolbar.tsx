@@ -103,10 +103,10 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
             <Button
                 key={action.id}
                 onClick={action.onClick}
-                className={`flex items-center gap-2 text-sm px-3 py-2 ${getButtonVariant(action.variant)} ${action.className || ''}`}
+                className={`flex items-center gap-2 ${getButtonVariant(action.variant)} ${action.className || ''}`}
                 title={action.title || action.label}
             >
-                <Icon size={16} />
+                <Icon size={18} />
                 <span className="hidden sm:inline">{action.label}</span>
             </Button>
         );
@@ -139,7 +139,8 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
                 <div className="relative" ref={overflowRef}>
                     <Button
                         onClick={() => setShowOverflow(!showOverflow)}
-                        className="!p-2 text-gray-600 flex items-center gap-2 hover:bg-gray-100"
+                        variant="secondary"
+                        className="text-gray-600 flex items-center gap-2 hover:bg-gray-100"
                         title="Más acciones"
                     >
                         <MoreHorizontal size={18} />

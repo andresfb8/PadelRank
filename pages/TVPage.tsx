@@ -33,6 +33,34 @@ export const TVPage = ({ rankingId }: Props) => {
 
     const activeRanking = rankings.find(r => r.id === rankingId);
 
+    // Merge Guest Players for consistent lookup - Safe version respecting Hook Rules
+    const allPlayers = React.useMemo(() => {
+        // If no ranking yet, just return base players
+        if (!activeRanking) return players;
+
+        try {
+            const merged = { ...players };
+            if (activeRanking.guestPlayers && Array.isArray(activeRanking.guestPlayers)) {
+                for (const g of activeRanking.guestPlayers) {
+                    if (g && g.id && !merged[g.id]) {
+                        merged[g.id] = {
+                            id: g.id,
+                            nombre: g.nombre || 'Invitado',
+                            apellidos: g.apellidos || '',
+                            email: '',
+                            telefono: '',
+                            stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }
+                        } as Player;
+                    }
+                }
+            }
+            return merged;
+        } catch (e) {
+            console.error("Error merging players:", e);
+            return players;
+        }
+    }, [players, activeRanking]);
+
     if (loading) {
         return (
             <div className="h-screen w-screen flex flex-col items-center justify-center bg-black text-white">
@@ -51,5 +79,9 @@ export const TVPage = ({ rankingId }: Props) => {
         );
     }
 
-    return <TVLayout ranking={activeRanking} players={players} />;
+    return (
+        <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+            <TVLayout ranking={activeRanking} players={allPlayers} />
+        </div>
+    );
 };

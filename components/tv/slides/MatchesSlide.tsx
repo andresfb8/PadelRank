@@ -8,20 +8,31 @@ interface Props {
 }
 
 export const MatchesSlide = ({ ranking, players }: Props) => {
-    // Simplified: Take first division
-    const division = ranking.divisions[0];
+    // Intelligently select the most relevant division for TV mode
+    const division = useMemo(() => {
+        if (!ranking.divisions || ranking.divisions.length === 0) return null;
+
+        // If hybrid and in playoff phase, prefer playoff divisions
+        if (ranking.format === 'hybrid' && ranking.phase === 'playoff') {
+            const playoffDiv = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
+            if (playoffDiv) return playoffDiv;
+        }
+
+        // Default to first division
+        return ranking.divisions[0];
+    }, [ranking]);
 
     const { finishedMatches, pendingMatches } = useMemo(() => {
         if (!division || !division.matches) return { finishedMatches: [], pendingMatches: [] };
 
         const finished = division.matches
             .filter(m => m.status === 'finalizado')
-            .reverse() // Show most recent first (assuming order is chronological or by id)
-            .slice(0, 5); // Top 5 recent
+            .slice(-5) // Last 5 matches
+            .reverse(); // Newest first
 
         const pending = division.matches
             .filter(m => m.status === 'pendiente')
-            .slice(0, 5); // Next 5
+            .slice(0, 5); // Next 5 pending
 
         return { finishedMatches: finished, pendingMatches: pending };
     }, [division]);
@@ -30,7 +41,9 @@ export const MatchesSlide = ({ ranking, players }: Props) => {
         const p = players[id];
         if (!p) return '???';
         // Return only last name for compactness if needed, or full name
-        return `${p.nombre.charAt(0)}. ${p.apellidos}`;
+        const name = p.nombre || '?';
+        const lastName = p.apellidos || '';
+        return `${name.charAt(0)}. ${lastName}`;
     };
 
     const renderMatchCard = (m: Match, isFinished: boolean) => {
@@ -75,6 +88,9 @@ export const MatchesSlide = ({ ranking, players }: Props) => {
 
     return (
         <div className="h-full grid grid-cols-2 gap-8 p-8 bg-slate-900 text-white">
+            <div style={{ position: 'absolute', top: 100, left: 10, background: 'orange', color: 'black', padding: '5px', zIndex: 9999 }}>
+                DEBUG: Matches. DivID: {division?.id} | Finished: {finishedMatches.length} | Pending: {pendingMatches.length}
+            </div>
             {/* Column 1: Recent Results */}
             <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3 mb-2 border-b border-slate-700 pb-4">

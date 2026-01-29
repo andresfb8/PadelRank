@@ -9,9 +9,19 @@ interface Props {
 }
 
 export const StandingsSlide = ({ ranking, players }: Props) => {
-    // Always get the first active division for TV mode (simplified for MVP)
-    // TODO: Support cycling through divisions if multiple exist
-    const division = ranking.divisions[0];
+    // Always get the most relevant division for TV mode
+    const division = useMemo(() => {
+        if (!ranking.divisions || ranking.divisions.length === 0) return null;
+
+        // If hybrid and in playoff phase, prefer playoff divisions
+        if (ranking.format === 'hybrid' && ranking.phase === 'playoff') {
+            const playoffDiv = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
+            if (playoffDiv) return playoffDiv;
+        }
+
+        // Default to first division
+        return ranking.divisions[0];
+    }, [ranking]);
 
     const standings = useMemo(() => {
         if (!division) return [];
@@ -23,6 +33,7 @@ export const StandingsSlide = ({ ranking, players }: Props) => {
     return (
         <div className="h-full flex flex-col p-8 bg-slate-900 text-white">
             <div className="flex items-center gap-4 mb-6">
+                <div style={{ background: 'green', color: 'white', padding: '5px' }}>DEBUG: Standings. DivID: {division?.id} | Rows: {standings.length}</div>
                 <Trophy className="text-yellow-400 w-12 h-12" />
                 <h2 className="text-4xl font-bold tracking-tight">Clasificación - {division.name || `División ${division.numero}`}</h2>
             </div>
@@ -42,8 +53,24 @@ export const StandingsSlide = ({ ranking, players }: Props) => {
                 {/* Table Body - Auto Scroll Container would go here */}
                 <div className="bg-slate-800/50 rounded-b-xl overflow-y-auto max-h-[calc(100vh-250px)]">
                     {standings.map((row, idx) => {
-                        const player = players[row.playerId];
-                        if (!player) return null;
+                        const displayName = (() => {
+                            try {
+                                if (row.playerId.includes('::')) {
+                                    const parts = row.playerId.split('::');
+                                    // Handle cases with empty parts
+                                    const p1Id = parts[0];
+                                    const p2Id = parts[1];
+
+                                    const n1 = players[p1Id] ? `${players[p1Id].nombre} ${players[p1Id].apellidos || ''}` : '???';
+                                    const n2 = players[p2Id] ? `${players[p2Id].nombre} ${players[p2Id].apellidos || ''}` : '???';
+                                    return `${n1} / ${n2}`;
+                                }
+                                const p = players[row.playerId];
+                                return p ? `${p.nombre} ${p.apellidos || ''}` : (row.playerId.includes('bye') ? 'BYE' : 'ID: ' + row.playerId.substring(0, 5));
+                            } catch (e) {
+                                return 'Error';
+                            }
+                        })();
 
                         return (
                             <div
@@ -69,14 +96,14 @@ export const StandingsSlide = ({ ranking, players }: Props) => {
                                 </div>
 
                                 <div className="col-span-6 pl-4 flex items-center gap-3">
-                                    <span className="truncate">{player.nombre} {player.apellidos}</span>
+                                    <span className="truncate">{displayName}</span>
                                 </div>
 
                                 <div className="col-span-1 text-center text-blue-300 font-bold">{row.pj}</div>
-                                <div className="col-span-1 text-center text-green-400 font-bold">{row.stats.pg}</div>
+                                <div className="col-span-1 text-center text-green-400 font-bold">{row.pg}</div>
                                 <div className="col-span-1 text-center text-yellow-400 font-bold text-2xl">{row.pts}</div>
                                 <div className="col-span-1 text-center text-gray-400 font-mono text-lg">
-                                    {row.stats.setsWon - (row.pj * 2 - row.stats.setsWon)} {/* Simple Diff Est. */}
+                                    {row.setsDiff !== undefined ? row.setsDiff : (row.stats?.setsWon !== undefined ? row.stats.setsWon - (row.pj * 2 - row.stats.setsWon) : 0)}
                                 </div>
                             </div>
                         );
