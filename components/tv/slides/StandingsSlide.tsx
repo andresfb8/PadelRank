@@ -33,7 +33,7 @@ export const StandingsSlide = ({ ranking, players }: Props) => {
     return (
         <div className="h-full flex flex-col p-8 bg-slate-900 text-white">
             <div className="flex items-center gap-4 mb-6">
-                <div style={{ background: 'green', color: 'white', padding: '5px' }}>DEBUG: Standings. DivID: {division?.id} | Rows: {standings.length}</div>
+
                 <Trophy className="text-yellow-400 w-12 h-12" />
                 <h2 className="text-4xl font-bold tracking-tight">Clasificación - {division.name || `División ${division.numero}`}</h2>
             </div>

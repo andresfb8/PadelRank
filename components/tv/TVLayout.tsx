@@ -105,9 +105,7 @@ export const TVLayout = ({ ranking, players }: Props) => {
         <div className="h-screen w-screen overflow-hidden bg-black relative flex flex-col font-sans">
             {/* Main Content Area */}
             <div className="flex-1 relative z-0">
-                <div style={{ position: 'absolute', top: 50, left: 10, zIndex: 9999, background: 'blue', color: 'white', padding: '10px' }}>
-                    DEBUG: TVLayout Rendered. Active Slide: {slides[activeSlideIndex]}
-                </div>
+
                 {renderSlide()}
             </div>
 
