@@ -29,9 +29,10 @@ interface Props {
   isAdmin?: boolean;
   onUpdatePlayerStats?: (playerId: string, result: 'win' | 'loss' | 'draw') => void;
   onPlayerClick?: (playerId: string) => void;
+  clubSlug?: string;
 }
 
-export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick }: Props) => {
+export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick, clubSlug }: Props) => {
   const players = React.useMemo(() => {
     const merged = { ...initialPlayers };
     if (ranking.guestPlayers) {
@@ -374,8 +375,30 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   });
 
   const copyToClipboard = () => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const url = `${baseUrl}?id=${ranking.id}`;
+    const baseUrl = window.location.origin;
+
+    // Format slug for URL safely
+    const formatSlug = (text: string) => {
+      return text
+        .toString()
+        .toLowerCase()
+        .normalize('NFD') // Remove accents
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-');
+    };
+
+    let url = `${baseUrl}?id=${ranking.id}`;
+
+    if (clubSlug) {
+      const distinctSlug = formatSlug(clubSlug);
+      if (distinctSlug) {
+        url = `${baseUrl}/${distinctSlug}/?id=${ranking.id}`;
+      }
+    }
+
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -709,22 +732,54 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       status: 'finalizado'
     };
 
-    // Simple point calculation for imported match (assuming standard rules or just recording history)
-    // For pairs league we usually want points. Let's start with basic win/loss logic for points.
+    // Dynamic Point Calculation based on ranking.config
+    // Fallback to 3/1/0 if config is missing (standard logic)
+    const pointsWin2_0 = ranking.config?.pointsPerWin2_0 ?? 3;
+    const pointsWin2_1 = ranking.config?.pointsPerWin2_1 ?? 3;
+    const pointsLoss2_1 = ranking.config?.pointsPerLoss2_1 ?? 1;
+    const pointsLoss2_0 = ranking.config?.pointsPerLoss2_0 ?? 0; // Check if this exists in type, otherwise 0
+    const pointsDraw = ranking.config?.pointsDraw ?? 1;
+
+    // Determine winner based on sets (calculate sets first)
+    let p1Sets = 0;
+    let p2Sets = 0;
+    if (matchData.score.set1.p1 > matchData.score.set1.p2) p1Sets++; else if (matchData.score.set1.p2 > matchData.score.set1.p1) p2Sets++;
+    if (matchData.score.set2.p1 > matchData.score.set2.p2) p1Sets++; else if (matchData.score.set2.p2 > matchData.score.set2.p1) p2Sets++;
+    if (matchData.score.set3) { if (matchData.score.set3.p1 > matchData.score.set3.p2) p1Sets++; else if (matchData.score.set3.p2 > matchData.score.set3.p1) p2Sets++; }
+
+    // Logic for points
     let p1Points = 0;
     let p2Points = 0;
 
-    // Determine winner based on sets
-    let p1Sets = 0;
-    let p2Sets = 0;
-    if (matchData.score.set1.p1 > matchData.score.set1.p2) p1Sets++; else p2Sets++;
-    if (matchData.score.set2.p1 > matchData.score.set2.p2) p1Sets++; else p2Sets++;
-    if (matchData.score.set3) { if (matchData.score.set3.p1 > matchData.score.set3.p2) p1Sets++; else p2Sets++; }
+    // Check for explicit Draw (Empate)
+    if (p1Sets === p2Sets) {
+      p1Points = pointsDraw;
+      p2Points = pointsDraw;
+    } else if (p1Sets > p2Sets) {
+      // P1 Wins
+      // Check if it was 2-0 or 2-1 (or just win if set count difference)
+      // Assumption: standard 3 set match max
+      const p2WonASet = matchData.score.set1.p2 > matchData.score.set1.p1 || matchData.score.set2.p2 > matchData.score.set2.p1 || (matchData.score.set3 && matchData.score.set3.p2 > matchData.score.set3.p1);
 
-    // Classic Pairs Points (usually 3 for win, 1 for loss etc.. let's default to standard logic)
-    // To match calculateMatchPoints default config:
-    if (p1Sets > p2Sets) { p1Points = 3; p2Points = 1; }
-    else { p1Points = 1; p2Points = 3; }
+      if (p2WonASet) {
+        p1Points = pointsWin2_1;
+        p2Points = pointsLoss2_1;
+      } else {
+        p1Points = pointsWin2_0;
+        p2Points = pointsLoss2_0;
+      }
+    } else {
+      // P2 Wins
+      const p1WonASet = matchData.score.set1.p1 > matchData.score.set1.p2 || matchData.score.set2.p1 > matchData.score.set2.p2 || (matchData.score.set3 && matchData.score.set3.p1 > matchData.score.set3.p2);
+
+      if (p1WonASet) {
+        p2Points = pointsWin2_1;
+        p1Points = pointsLoss2_1;
+      } else {
+        p2Points = pointsWin2_0;
+        p1Points = pointsLoss2_0;
+      }
+    }
 
     newMatch.points = { p1: p1Points, p2: p2Points };
 
@@ -850,8 +905,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto justify-end">
-          {/* Import Match Button - Only for Pairs format */}
-          {isAdmin && onUpdateRanking && ranking.format === 'pairs' && (
+          {/* Import Match Button - For Pairs and Hybrid format */}
+          {isAdmin && onUpdateRanking && (ranking.format === 'pairs' || ranking.format === 'hybrid') && (
             <Button onClick={() => setIsManualMatchModalOpen(true)} className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 text-sm px-3 py-2" title="Importar partido pasado">
               <Save size={16} /> <span className="hidden sm:inline">Importar Partido</span>
             </Button>
@@ -1541,9 +1596,13 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
                           const isHybrid = ranking.format === 'hybrid';
 
-                          const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
-                          const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
-                          const isQualified = isHybrid && row.pos <= (ranking.config?.hybridConfig?.qualifiersPerGroup || 2);
+                          const promotionCount = ranking.config?.promotionCount !== undefined ? ranking.config.promotionCount : 0;
+                          const relegationCount = ranking.config?.relegationCount !== undefined ? ranking.config.relegationCount : 0;
+                          const qualifiersCount = ranking.config?.hybridConfig?.qualifiersPerGroup !== undefined ? ranking.config.hybridConfig.qualifiersPerGroup : 2;
+
+                          const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
+                          const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
+                          const isQualified = isHybrid && row.pos <= qualifiersCount;
 
                           const formatCompactName = (name: string, surname?: string) => {
                             if (!name) return '?';
@@ -1667,9 +1726,14 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
                               const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
                               const isHybrid = ranking.format === 'hybrid';
-                              const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= (ranking.config?.promotionCount || 2);
-                              const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - (ranking.config?.relegationCount || 2);
-                              const isQualified = isHybrid && row.pos <= (ranking.config?.hybridConfig?.qualifiersPerGroup || 2);
+
+                              const promotionCount = ranking.config?.promotionCount !== undefined ? ranking.config.promotionCount : 0;
+                              const relegationCount = ranking.config?.relegationCount !== undefined ? ranking.config.relegationCount : 0;
+                              const qualifiersCount = ranking.config?.hybridConfig?.qualifiersPerGroup !== undefined ? ranking.config.hybridConfig.qualifiersPerGroup : 2;
+
+                              const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
+                              const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
+                              const isQualified = isHybrid && row.pos <= qualifiersCount;
 
                               return (
                                 <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>

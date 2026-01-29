@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Player, Ranking, Division } from '../types';
 import { X, Save } from 'lucide-react';
 
@@ -29,9 +29,25 @@ export const AddManualMatchModal = ({ isOpen, onClose, players, divisions, onImp
     const [s3p1, setS3p1] = useState('');
     const [s3p2, setS3p2] = useState('');
 
+    // Limpiar selecciones cuando cambie la división
+    useEffect(() => {
+        setPair1P1('');
+        setPair1P2('');
+        setPair2P1('');
+        setPair2P2('');
+    }, [selectedDivision]);
+
     if (!isOpen) return null;
 
-    const playerList = Object.values(players).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    // Obtener la división seleccionada
+    const selectedDivisionObj = divisions.find(d => d.id === selectedDivision);
+
+    // Filtrar jugadores que pertenecen a la división seleccionada
+    const playerList = selectedDivisionObj
+        ? Object.values(players)
+            .filter(p => selectedDivisionObj.players.includes(p.id))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+        : [];
 
     const handleImport = () => {
         if (!pair1P1 || !pair1P2 || !pair2P1 || !pair2P2 || !selectedDivision) {

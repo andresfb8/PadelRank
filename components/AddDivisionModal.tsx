@@ -28,8 +28,8 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
         return { mode: 'fixed-players', count: maxPlayers, label: 'jugadores' };
 
       case 'pairs':
-        // Use configured pairsPerGroup (if available, otherwise default to 4)
-        const pairsPerGroup = rankingConfig?.hybridConfig?.pairsPerGroup || 4;
+        // Use configured maxPlayersPerDivision from wizard
+        const pairsPerGroup = rankingConfig?.maxPlayersPerDivision || 4;
         return { mode: 'pairs', count: pairsPerGroup, label: 'parejas' };
 
       case 'americano':

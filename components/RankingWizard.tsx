@@ -360,7 +360,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
                     <div className="grid md:grid-cols-4 gap-4">
                         <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
-                        <Input type="number" label={format === 'pairs' ? "Parejas/Div" : "Jugadores/Div"} value={individualMaxPlayers} onChange={(e: any) => setIndividualMaxPlayers(Math.max(0, parseInt(e.target.value) || 0))} />
+                        <Input type="number" label={format === 'pairs' ? "Parejas/Div" : "Jugadores/Div"} value={individualMaxPlayers} onChange={(e: any) => { const newValue = Math.max(0, parseInt(e.target.value) || 0); setIndividualMaxPlayers(newValue); setConfig({ ...config, maxPlayersPerDivision: newValue }); }} />
                         <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
                         <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
                     </div>

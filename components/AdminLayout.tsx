@@ -709,6 +709,7 @@ export const AdminLayout = () => {
                             if (result === 'draw') return;
                             await updatePlayerStatsFull(pid, result === 'win');
                         }}
+                        clubSlug={effectiveUser?.clubName}
                     />}
 
                     {view === 'admin_management' && currentUser?.role === 'superadmin' && (
