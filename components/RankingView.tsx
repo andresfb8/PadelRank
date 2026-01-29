@@ -865,6 +865,24 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     setViewMode('playoff');
   };
 
+  // Calculate primary action IDs based on format
+  const primaryIds = ['settings', 'share'];
+
+  // Hybrid format: show "Iniciar Playoffs" if not in playoff phase
+  if (ranking.format === 'hybrid' && ranking.phase !== 'playoff') {
+    primaryIds.unshift('start-playoffs');
+  }
+
+  // Classic/Individual/Pairs formats: show "Finalizar Fase"
+  if (ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs') {
+    primaryIds.unshift('finalize-phase');
+  }
+
+  // Mexicano format: show "Nueva Ronda"
+  if (ranking.format === 'mexicano') {
+    primaryIds.unshift('new-round');
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -961,7 +979,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               icon: Plus,
               label: 'Nueva Ronda',
               onClick: handleGenerateNextRound,
-              visible: ranking.format !== 'pairs',
+              visible: ranking.format !== 'pairs' && ranking.format !== 'elimination',
               variant: 'primary',
               className: 'bg-orange-600 hover:bg-orange-700'
             },
@@ -992,7 +1010,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               icon: Flag,
               label: 'Finalizar Fase',
               onClick: handleOpenPromotionModal,
-              visible: isAdmin && onUpdateRanking && (ranking.format === 'classic' || ranking.format === 'individual'),
+              visible: isAdmin && onUpdateRanking && (ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs'),
               variant: 'primary',
               className: 'bg-indigo-600 hover:bg-indigo-700'
             },
@@ -1080,7 +1098,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               title: 'Exportar a PDF'
             }
           ]}
-          maxVisibleActions={8}
+          primaryActionIds={primaryIds}
           className="w-full md:w-auto justify-end"
         />
       </div >

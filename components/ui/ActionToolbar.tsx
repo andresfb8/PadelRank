@@ -22,6 +22,7 @@ interface ActionToolbarProps {
     actions: ToolbarAction[];
     groups?: ActionGroup[];
     maxVisibleActions?: number;
+    primaryActionIds?: string[]; // IDs of actions that should always be visible
     className?: string;
 }
 
@@ -29,6 +30,7 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
     actions,
     groups,
     maxVisibleActions = 6,
+    primaryActionIds = [],
     className = ''
 }) => {
     const [showOverflow, setShowOverflow] = useState(false);
@@ -37,9 +39,19 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
     // Filter visible actions
     const visibleActions = actions.filter(action => action.visible !== false);
 
-    // Determine primary and overflow actions
-    const primaryActions = visibleActions.slice(0, maxVisibleActions);
-    const overflowActions = visibleActions.slice(maxVisibleActions);
+    // Separate primary and secondary actions
+    let primaryActions: ToolbarAction[];
+    let overflowActions: ToolbarAction[];
+
+    if (primaryActionIds.length > 0) {
+        // Use specified primary actions
+        primaryActions = visibleActions.filter(action => primaryActionIds.includes(action.id));
+        overflowActions = visibleActions.filter(action => !primaryActionIds.includes(action.id));
+    } else {
+        // Use maxVisibleActions to determine split
+        primaryActions = visibleActions.slice(0, maxVisibleActions);
+        overflowActions = visibleActions.slice(maxVisibleActions);
+    }
 
     // Close overflow menu when clicking outside
     useEffect(() => {
