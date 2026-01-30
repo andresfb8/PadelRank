@@ -101,6 +101,21 @@ export interface Ranking {
   // Scheduler Configuration
   schedulerConfig?: import('./services/SchedulerEngine').SchedulerConfig;
   playerConstraints?: Record<string, import('./services/SchedulerEngine').PlayerAvailability>;
+
+  // God Mode 2.0: Manual Adjustments (Extra points / Penalties)
+  // Key: playerId or pairKey ("p1::p2")
+  manualPointsAdjustments?: Record<string, number>; // DEPRECATED: Use manualStatsAdjustments
+  manualStatsAdjustments?: Record<string, ManualStatsAdjustment>; // Key: playerId
+}
+
+export interface ManualStatsAdjustment {
+  pts?: number;
+  pj?: number;
+  pg?: number;
+  setsWon?: number;
+  setsDiff?: number;
+  gamesWon?: number;
+  gamesDiff?: number;
 }
 
 export interface Division {
@@ -164,4 +179,5 @@ export interface StandingRow {
   setsWon: number;
   gamesWon: number;
   trend?: 'up' | 'down' | 'same';
+  manualAdjustment?: number;
 }

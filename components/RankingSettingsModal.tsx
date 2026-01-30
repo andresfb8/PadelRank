@@ -13,7 +13,7 @@ interface Props {
 
 export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking, isAdmin }: Props) => {
     const [config, setConfig] = useState<RankingConfig>(ranking.config || {});
-    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv' | 'divisions'>('general');
 
     useEffect(() => {
         if (isOpen) {
@@ -112,6 +112,12 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                             <ArrowUpCircle size={16} /> Ascensos/Descensos
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('divisions')}
+                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'divisions' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Hash size={16} /> Divisiones
+                    </button>
                     <button
                         onClick={() => setActiveTab('tv')}
                         className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'tv' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -463,6 +469,69 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                         </div>
                     )}
 
+                    {activeTab === 'divisions' && (
+                        <div className="space-y-6">
+                            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                    <Hash size={18} className="text-gray-400" /> Gestión de Divisiones
+                                </h3>
+                                <div className="space-y-3">
+                                    {ranking.divisions.map((div, index) => (
+                                        <div key={div.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                            <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full font-bold text-gray-500 border border-gray-200 shadow-sm">
+                                                {div.numero}
+                                            </div>
+                                            <div className="flex-1">
+                                                {isReadOnly ? (
+                                                    <div className="font-medium text-gray-900">{div.name || `División ${div.numero}`}</div>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        defaultValue={div.name || `División ${div.numero}`}
+                                                        placeholder="Nombre de la división"
+                                                        className="w-full bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                                        onBlur={(e) => {
+                                                            if (onUpdateRanking) {
+                                                                const newName = e.target.value;
+                                                                if (newName !== div.name) {
+                                                                    const updatedDivs = [...ranking.divisions];
+                                                                    updatedDivs[index] = { ...updatedDivs[index], name: newName };
+                                                                    onUpdateRanking({ ...ranking, divisions: updatedDivs });
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                )}
+                                                <div className="text-xs text-gray-500 mt-0.5">{div.players.length} jugadores • {div.matches.length} partidos</div>
+                                            </div>
+                                            {!isReadOnly && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm(`¿Estás seguro de eliminar la División ${div.numero}? Esta acción no se puede deshacer.`)) {
+                                                            if (onUpdateRanking) {
+                                                                const updatedDivs = ranking.divisions.filter(d => d.id !== div.id);
+                                                                // Re-number divisions? Maybe better not to auto-renumber to avoid confusion match history
+                                                                onUpdateRanking({ ...ranking, divisions: updatedDivs });
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Eliminar división"
+                                                >
+                                                    <X size={18} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {ranking.divisions.length === 0 && (
+                                        <div className="text-center py-8 text-gray-400 italic">
+                                            No hay divisiones creadas.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}

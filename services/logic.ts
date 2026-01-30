@@ -118,7 +118,9 @@ export function generateStandings(
   divisionId: string,
   matches: Match[],
   playerIds: string[],
-  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'hybrid' | 'hybrid'
+  format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'hybrid' | 'hybrid',
+  manualAdjustments?: Record<string, number>, // DEPRECATED
+  manualStatsAdjustments?: Record<string, import('../types').ManualStatsAdjustment>
 ): StandingRow[] {
   const map: Record<string, StandingRow> = {};
 
@@ -179,6 +181,33 @@ export function generateStandings(
       }
     });
 
+    // GOD MODE 2.0: Apply manual adjustments for pairs/hybrid
+    if (format === 'pairs' || format === 'hybrid') {
+      const adjustmentSource = manualStatsAdjustments || {};
+      // Also support legacy manualAdjustments if present
+      if (manualAdjustments) {
+        Object.entries(manualAdjustments).forEach(([id, val]) => {
+          if (!adjustmentSource[id]) adjustmentSource[id] = { pts: val };
+          else adjustmentSource[id].pts = (adjustmentSource[id].pts || 0) + val;
+        });
+      }
+
+      Object.entries(adjustmentSource).forEach(([id, adj]) => {
+        if (map[id]) {
+          if (adj.pts) map[id].pts += adj.pts;
+          if (adj.pj) map[id].pj += adj.pj;
+          if (adj.pg) map[id].pg += adj.pg;
+          if (adj.setsWon) map[id].setsWon += adj.setsWon;
+          if (adj.setsDiff) map[id].setsDiff += adj.setsDiff;
+          if (adj.gamesWon) map[id].gamesWon += adj.gamesWon;
+          if (adj.gamesDiff) map[id].gamesDiff += adj.gamesDiff;
+
+          // Track total points adjustment for badge
+          if (adj.pts) map[id].manualAdjustment = (map[id].manualAdjustment || 0) + adj.pts;
+        }
+      });
+    }
+
     // Sort and Return
     return Object.values(map)
       .filter(row => !row.playerId.toLowerCase().includes('bye'))
@@ -237,6 +266,45 @@ export function generateStandings(
     }
   });
 
+  // GOD MODE 2.0: Apply manual adjustments (Individual)
+  const adjustmentSource = manualStatsAdjustments || {};
+  if (manualAdjustments) {
+    Object.entries(manualAdjustments).forEach(([id, val]) => {
+      if (!adjustmentSource[id]) adjustmentSource[id] = { pts: val };
+      else adjustmentSource[id].pts = (adjustmentSource[id].pts || 0) + val;
+    });
+  }
+
+  if (Object.keys(adjustmentSource).length > 0) {
+    Object.entries(adjustmentSource).forEach(([id, adj]) => {
+      if (map[id]) {
+        if (adj.pts) map[id].pts += adj.pts;
+        if (adj.pj) map[id].pj += adj.pj;
+        if (adj.pg) map[id].pg += adj.pg;
+        if (adj.setsWon) map[id].setsWon += adj.setsWon;
+        if (adj.setsDiff) map[id].setsDiff += adj.setsDiff;
+        if (adj.gamesWon) map[id].gamesWon += adj.gamesWon;
+        if (adj.gamesDiff) map[id].gamesDiff += adj.gamesDiff;
+
+        if (adj.pts) map[id].manualAdjustment = (map[id].manualAdjustment || 0) + adj.pts;
+      } else if (format !== ('pairs' as any) && format !== ('hybrid' as any)) {
+        // For individual, if player not in matches yet but has adjustment, add them
+        map[id] = {
+          playerId: id,
+          pos: 0,
+          pj: adj.pj || 0,
+          pg: adj.pg || 0,
+          pts: adj.pts || 0,
+          setsDiff: adj.setsDiff || 0,
+          gamesDiff: adj.gamesDiff || 0,
+          setsWon: adj.setsWon || 0,
+          gamesWon: adj.gamesWon || 0,
+          manualAdjustment: adj.pts
+        };
+      }
+    });
+  }
+
   return Object.values(map).sort((a, b) => {
     if (b.pts !== a.pts) return b.pts - a.pts;
     if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
@@ -262,10 +330,7 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
   const validMatches = allMatches.filter(m => !!m);
   const validPlayers = Array.from(allPlayers).filter(p => !!p);
 
-  return generateStandings('global', validMatches, validPlayers, ranking.format as any);
-
-  // Re-use logic but with a flat list
-  return generateStandings('global', allMatches, Array.from(allPlayers).filter(Boolean) as string[], ranking.format as any);
+  return generateStandings('global', validMatches, validPlayers, ranking.format as any, ranking.manualPointsAdjustments);
 }
 
 export function calculatePromotions(
@@ -572,4 +637,23 @@ export function updateMatchParticipant(
   }
 
   return newDivisions;
+}
+
+/**
+ * God Mode 2.0: Updates manual points adjustment for a player/pair.
+ */
+export function updateManualAdjustment(
+  ranking: Ranking,
+  id: string,
+  adjustment: number
+): Record<string, number> {
+  const currentAdjustments = { ...(ranking.manualPointsAdjustments || {}) };
+
+  if (adjustment === 0) {
+    delete currentAdjustments[id];
+  } else {
+    currentAdjustments[id] = adjustment;
+  }
+
+  return currentAdjustments;
 }

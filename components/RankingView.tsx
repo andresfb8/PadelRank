@@ -19,6 +19,7 @@ import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { ScheduleModal } from './ScheduleModal';
 import { ScheduleGridModal } from './ScheduleGridModal';
 import { RankingSettingsModal } from './RankingSettingsModal';
+import { StatsAdjustmentModal } from './StatsAdjustmentModal';
 
 interface Props {
   ranking: Ranking;
@@ -72,9 +73,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [viewMode, setViewMode] = useState<'groups' | 'playoff'>(
     ranking.format === 'hybrid' && ranking.phase === 'playoff' ? 'playoff' : 'groups'
   );
+  const [isGodMode, setIsGodMode] = useState(false);
 
   // Sorting State
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  // Stats Editing State
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editingPlayerName, setEditingPlayerName] = useState<string>('');
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc'; // Default to descending for stats (higher is better)
@@ -158,7 +165,6 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '', nextPhaseDiv: '' });
   const [isManualMatchModalOpen, setIsManualMatchModalOpen] = useState(false);
   const [isAddPairModalOpen, setIsAddPairModalOpen] = useState(false);
-  const [isDivisionSettingsModalOpen, setIsDivisionSettingsModalOpen] = useState(false);
   const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
   const [isSchedulerConfigModalOpen, setIsSchedulerConfigModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -350,7 +356,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
   // Data for current view
   // Data for current view with Sorting Logic applying to both standard and global standings
-  const rawStandings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any) : [];
+  const rawStandings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any, ranking.manualPointsAdjustments, ranking.manualStatsAdjustments) : [];
   const rawGlobalStandings = activeTab === 'global' ? generateGlobalStandings(ranking) : [];
 
   const sortData = (data: any[]) => {
@@ -1096,6 +1102,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'secondary',
               className: 'text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
               title: 'Exportar a PDF'
+            },
+            // GOD MODE
+            {
+              id: 'god-mode',
+              label: isGodMode ? 'Desactivar Modo Dios' : 'Activar Modo Dios',
+              icon: Trophy,
+              onClick: () => setIsGodMode(!isGodMode),
+              visible: isAdmin, // Only visible if admin
+              variant: isGodMode ? 'primary' : 'secondary',
+              className: isGodMode ? 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-200' : ''
             }
           ]}
           primaryActionIds={primaryIds}
@@ -1198,7 +1214,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                     </button>
                   ))}
                 {isAdmin && (
-                  <>
+                  <div className="ml-2 flex items-center gap-1">
                     {onAddDivision && (
                       <button
                         onClick={() => setIsAddDivModalOpen(true)}
@@ -1208,14 +1224,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                         <Plus size={16} />
                       </button>
                     )}
-                    <button
-                      onClick={() => setIsDivisionSettingsModalOpen(true)}
-                      className="px-3 py-2 rounded-t-lg bg-gray-50 text-gray-600 hover:bg-gray-200 transition-colors flex items-center ml-1 border-b border-gray-200"
-                      title="Gestionar Divisiones"
-                    >
-                      <Settings size={16} />
-                    </button>
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -1400,7 +1409,41 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             </div>
                           </div>
                           <div className="flex flex-col items-end">
-                            <div className="text-2xl font-bold text-primary leading-none">{row.pts}</div>
+                            <div className="flex items-center gap-1">
+                              {isGodMode && isAdmin && onUpdateRanking && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPlayerId(row.playerId);
+                                    let name = '?';
+                                    if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+                                      const [p1Id, p2Id] = row.playerId.split('::');
+                                      const p1 = players[p1Id];
+                                      const p2 = players[p2Id];
+                                      name = `${p1?.nombre || '?'} / ${p2?.nombre || '?'}`;
+                                    } else {
+                                      const p = players[row.playerId];
+                                      name = `${p?.nombre || '?'} ${p?.apellidos || ''}`;
+                                    }
+                                    setEditingPlayerName(name);
+                                    setIsStatsModalOpen(true);
+                                  }}
+                                  className="p-1.5 bg-amber-100 text-amber-700 rounded-lg mb-1 hover:bg-amber-200 transition-colors"
+                                  title="Editar estadísticas manualmente"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              )}
+                              <div className="text-2xl font-bold text-primary leading-none flex items-center gap-1">
+                                {row.pts}
+                                {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
+                                  <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
+                                    <AlertCircle size={8} />
+                                    {row.manualAdjustment > 0 ? '+' : ''}{row.manualAdjustment}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                             <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
                           </div>
                         </div>
@@ -1490,7 +1533,33 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               )}
                             </td>
                             <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
-                            <td className="px-4 py-3 text-center font-bold text-primary">{row.pts}</td>
+                            <td className="px-4 py-3 text-center font-bold text-primary">
+                              <div className="flex items-center justify-center gap-1 group/pts">
+                                {row.pts}
+                                {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
+                                  <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
+                                    <AlertCircle size={8} />
+                                  </span>
+                                )}
+                                {isGodMode && isAdmin && onUpdateRanking && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingPlayerId(row.playerId);
+                                      // Find name
+                                      let name = '?';
+                                      const [p1, p2] = row.playerId.split('::').map(id => players[id]?.nombre || '?');
+                                      name = `${p1} / ${p2}`;
+                                      setEditingPlayerName(name);
+                                      setIsStatsModalOpen(true);
+                                    }}
+                                    className="p-1 hover:bg-amber-100 rounded opacity-0 group-hover/pts:opacity-100 transition-opacity text-amber-700"
+                                  >
+                                    <Edit2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-center text-green-600">{row.pg}</td>
                             <td className="px-4 py-3 text-center text-red-600">{row.pj - row.pg}</td>
                             <td className="px-4 py-3 text-center text-gray-600 hidden sm:table-cell">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
@@ -1545,7 +1614,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                         </button>
                         <button
                           onClick={(e) => {
-                            // Trigger save manually via finding input sibling? Or simpler: use Ref. 
+                            // Trigger save manually via finding input sibling? Or simpler: use Ref.
                             // For simplicity in this replace block without adding refs, assume Enter usage or add specific ID
                             const input = e.currentTarget.parentElement?.parentElement?.querySelector('input') as HTMLInputElement;
                             if (input && input.value && onUpdateRanking) {
@@ -1727,7 +1796,45 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-end">
-                                  <div className="text-2xl font-bold text-primary leading-none">{row.pts}</div>
+                                  <div className="flex items-center gap-1">
+                                    {isGodMode && isAdmin && onUpdateRanking && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const currentAdj = ranking.manualPointsAdjustments?.[row.playerId] || 0;
+                                          const newPointsStr = prompt(`Puntos Totales Actuales: ${row.pts}\n\nIntroduce el AJUSTE de puntos (ej: +5 o -3):`, currentAdj > 0 ? `+${currentAdj}` : currentAdj.toString());
+
+                                          if (newPointsStr !== null) {
+                                            const newAdj = parseInt(newPointsStr.replace('+', ''));
+                                            if (!isNaN(newAdj)) {
+                                              const newAdjustments = {
+                                                ...(ranking.manualPointsAdjustments || {}),
+                                                [row.playerId]: newAdj
+                                              };
+                                              if (newAdj === 0) delete newAdjustments[row.playerId];
+
+                                              onUpdateRanking({
+                                                ...ranking,
+                                                manualPointsAdjustments: newAdjustments
+                                              });
+                                            }
+                                          }
+                                        }}
+                                        className="p-1.5 bg-amber-100 text-amber-700 rounded-lg mb-1"
+                                      >
+                                        <Edit2 size={14} />
+                                      </button>
+                                    )}
+                                    <div className="text-2xl font-bold text-primary leading-none flex items-center gap-1">
+                                      {row.pts}
+                                      {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
+                                        <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
+                                          <AlertCircle size={8} />
+                                          {row.manualAdjustment > 0 ? '+' : ''}{row.manualAdjustment}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                   <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
                                 </div>
                               </div>
@@ -1841,7 +1948,30 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
                                   </td>
                                   <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
-                                  <td className="px-4 py-3 text-center font-bold text-primary bg-primary/5 rounded-lg my-1">{row.pts}</td>
+                                  <td className="px-4 py-3 text-center font-bold text-primary bg-primary/5 rounded-lg my-1">
+                                    <div className="flex items-center justify-center gap-1 group/pts">
+                                      {row.pts}
+                                      {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
+                                        <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
+                                          <AlertCircle size={8} />
+                                        </span>
+                                      )}
+                                      {isGodMode && isAdmin && onUpdateRanking && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingPlayerId(row.playerId);
+                                            setEditingPlayerName(displayName);
+                                            setIsStatsModalOpen(true);
+                                          }}
+                                          className="p-1 hover:bg-amber-100 rounded opacity-0 group-hover/pts:opacity-100 transition-opacity text-amber-700"
+                                          title="Editar estadísticas manualmente"
+                                        >
+                                          <Edit2 size={12} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td className="px-4 py-3 text-center text-green-600 font-medium">{row.pg}</td>
                                   <td className="px-4 py-3 text-center text-red-600 font-medium">{row.pj - row.pg}</td>
                                   <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
@@ -2150,51 +2280,6 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         )
       }
 
-      {/* Division Settings Modal */}
-      <Modal
-        isOpen={isDivisionSettingsModalOpen}
-        onClose={() => setIsDivisionSettingsModalOpen(false)}
-        title={ranking.format === 'elimination' ? "Gestionar Categorías" : "Gestionar Divisiones"}
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
-            {ranking.format === 'elimination'
-              ? "Aquí puedes renombrar o eliminar categorías. ¡Cuidado! Borrar una categoría elimina a sus jugadores y partidos."
-              : "Aquí puedes renombrar o eliminar divisiones. ¡Cuidado! Borrar una división elimina a sus jugadores y partidos del torneo."}
-          </p>
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {ranking.divisions.sort((a, b) => a.numero - b.numero).map(div => (
-              <div key={div.id} className="flex items-center gap-2 p-3 border rounded-lg bg-gray-50">
-                <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full border text-sm font-bold text-gray-500">
-                  {div.numero}
-                </div>
-                <input
-                  className="flex-1 p-2 border rounded-md text-sm"
-                  placeholder={`División ${div.numero}`}
-                  value={div.name || ''}
-                  onChange={(e) => handleRenameDivision(div.id, e.target.value)}
-                />
-                {/* Delete Button-Only allowed if it's the last division OR user confirms re-indexing */}
-                {/* Actually per requirements, user can delete any. Logic handles re-indexing. */}
-                <button
-                  onClick={() => {
-                    if (confirm(`¿ELIMINAR ${div.name || `División ${div.numero}`}?\n\nSe ELIMINARÁN permanentemente los jugadores y partidos de esta división.\nLas divisiones inferiores subirán de nivel.`)) {
-                      handleDeleteDivision(div.id);
-                    }
-                  }}
-                  className="p-2 text-red-500 hover:bg-red-100 rounded-md transition-colors"
-                  title="Eliminar División"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-end pt-4">
-            <Button onClick={() => setIsDivisionSettingsModalOpen(false)}>Hecho</Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Status Management Modal */}
       <Modal
@@ -2315,6 +2400,35 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         ranking={ranking}
         onUpdateRanking={onUpdateRanking}
         isAdmin={isAdmin}
+      />
+
+      <StatsAdjustmentModal
+        isOpen={isStatsModalOpen}
+        onClose={() => {
+          setIsStatsModalOpen(false);
+          setEditingPlayerId(null);
+        }}
+        initialStats={editingPlayerId ? ranking.manualStatsAdjustments?.[editingPlayerId] || {} : {}}
+        playerName={editingPlayerName}
+        onSave={(stats) => {
+          if (!editingPlayerId || !onUpdateRanking) return;
+          const newHelper = { ...(ranking.manualStatsAdjustments || {}) };
+
+          // Remove empty keys to verify if object is empty
+          // Check if all values are 0 or undefined
+          const isEmpty = Object.values(stats).every(val => !val || val === 0);
+
+          if (isEmpty) {
+            delete newHelper[editingPlayerId];
+          } else {
+            newHelper[editingPlayerId] = stats;
+          }
+
+          onUpdateRanking({
+            ...ranking,
+            manualStatsAdjustments: newHelper
+          });
+        }}
       />
     </div >
   );
