@@ -1884,8 +1884,14 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('setsDiff')}>
                                 <div className="flex items-center justify-center gap-1">Dif S {getSortIcon('setsDiff')}</div>
                               </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-red-400 uppercase hidden sm:table-cell w-16" title="Sets Perdidos">
+                                <div className="flex items-center justify-center gap-1">Set P</div>
+                              </th>
                               <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gamesDiff')}>
                                 <div className="flex items-center justify-center gap-1">Dif J {getSortIcon('gamesDiff')}</div>
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-red-400 uppercase hidden sm:table-cell w-16" title="Juegos Perdidos">
+                                <div className="flex items-center justify-center gap-1">Jue P</div>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase w-20 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('winrate')}>
                                 <div className="flex items-center justify-center gap-1">% Vic {getSortIcon('winrate')}</div>
@@ -1975,7 +1981,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                   <td className="px-4 py-3 text-center text-green-600 font-medium">{row.pg}</td>
                                   <td className="px-4 py-3 text-center text-red-600 font-medium">{row.pj - row.pg}</td>
                                   <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
+                                  <td className="px-4 py-3 text-center text-red-400 hidden sm:table-cell text-xs">{row.setsWon - row.setsDiff}</td>
                                   <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff}</td>
+                                  <td className="px-4 py-3 text-center text-red-400 hidden sm:table-cell text-xs">{row.gamesWon - row.gamesDiff}</td>
                                   <td className="px-4 py-3 text-center">
                                     <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1 overflow-hidden">
                                       <div className={`h-1.5 rounded-full ${winrate >= 50 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${winrate}%` }}></div>

@@ -31,8 +31,6 @@ export const StatsAdjustmentModal = ({ isOpen, onClose, initialStats, playerName
     };
 
     const handleSave = () => {
-        // Filter out 0s to keep it clean, unless we want to force 0?
-        // Actually, 0 adjustment means no change usually.
         const cleanedStats: ManualStatsAdjustment = {};
         if (stats.pts) cleanedStats.pts = stats.pts;
         if (stats.pj) cleanedStats.pj = stats.pj;
@@ -44,6 +42,37 @@ export const StatsAdjustmentModal = ({ isOpen, onClose, initialStats, playerName
 
         onSave(cleanedStats);
         onClose();
+    };
+
+    // Calculate derived "Lost" stats for the UI
+    const pp_val = (stats.pj || 0) - (stats.pg || 0);
+    const setsLost_val = (stats.setsWon || 0) - (stats.setsDiff || 0);
+    const gamesLost_val = (stats.gamesWon || 0) - (stats.gamesDiff || 0);
+
+    const handleLostChange = (type: 'pp' | 'setsLost' | 'gamesLost', value: string) => {
+        const numValue = parseInt(value);
+        const safeVal = isNaN(numValue) ? 0 : numValue;
+
+        setStats(prev => {
+            const current = { ...prev };
+
+            if (type === 'pp') {
+                // PP changed. We update PJ. PJ = PG + PP.
+                // We keep PG constant.
+                const pg = current.pg || 0;
+                current.pj = pg + safeVal;
+            } else if (type === 'setsLost') {
+                // Sets Lost changed. We update Sets Diff. Diff = Won - Lost.
+                // We keep Won constant.
+                const won = current.setsWon || 0;
+                current.setsDiff = won - safeVal;
+            } else if (type === 'gamesLost') {
+                // Games Lost changed. We update Games Diff. Diff = Won - Lost.
+                const won = current.gamesWon || 0;
+                current.gamesDiff = won - safeVal;
+            }
+            return current;
+        });
     };
 
     const renderInput = (label: string, key: keyof ManualStatsAdjustment, colorClass: string = 'text-gray-700') => (
@@ -62,6 +91,28 @@ export const StatsAdjustmentModal = ({ isOpen, onClose, initialStats, playerName
                 />
                 <button
                     onClick={() => handleChange(key, ((stats[key] || 0) + 1).toString())}
+                    className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-600"
+                >+</button>
+            </div>
+        </div>
+    );
+
+    const renderDerivedInput = (label: string, value: number, onChange: (val: string) => void, colorClass: string = 'text-red-600') => (
+        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <label className={`block text-xs font-bold uppercase mb-1 ${colorClass}`}>{label}</label>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => onChange((value - 1).toString())}
+                    className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-600"
+                >-</button>
+                <input
+                    type="number"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className={`w-full text-center font-bold text-lg bg-transparent outline-none ${value !== 0 ? 'text-gray-900' : 'text-gray-400'}`}
+                />
+                <button
+                    onClick={() => onChange((value + 1).toString())}
                     className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center font-bold text-gray-600"
                 >+</button>
             </div>
@@ -99,10 +150,21 @@ export const StatsAdjustmentModal = ({ isOpen, onClose, initialStats, playerName
                         </div>
                         {renderInput("Partidos Jugados (PJ)", "pj")}
                         {renderInput("Partidos Ganados (PG)", "pg", "text-green-600")}
-                        {renderInput("Sets Ganados", "setsWon")}
-                        {renderInput("Dif. Sets", "setsDiff")}
-                        {renderInput("Juegos Ganados", "gamesWon")}
-                        {renderInput("Dif. Juegos", "gamesDiff")}
+
+                        {/* Derived Match Stats */}
+                        {renderDerivedInput("Partidos Perdidos (PP)", pp_val, (v) => handleLostChange('pp', v))}
+
+                        <div className="col-span-2 border-t my-2"></div>
+
+                        {renderInput("Sets Ganados", "setsWon", "text-green-600")}
+                        {renderDerivedInput("Sets Perdidos", setsLost_val, (v) => handleLostChange('setsLost', v))}
+                        {renderInput("Dif. Sets", "setsDiff", "text-gray-500")}
+
+                        <div className="col-span-2 border-t my-2"></div>
+
+                        {renderInput("Juegos Ganados", "gamesWon", "text-green-600")}
+                        {renderDerivedInput("Juegos Perdidos", gamesLost_val, (v) => handleLostChange('gamesLost', v))}
+                        {renderInput("Dif. Juegos", "gamesDiff", "text-gray-500")}
                     </div>
                 </div>
 
