@@ -14,6 +14,9 @@ export interface User {
   createdAt?: string; // ISO timestamp for when the user was created
   internalNotes?: string; // Private notes for SuperAdmin use
   lastLogin?: string; // ISO timestamp of the last time the user logged in
+  branding?: {
+    logoUrl?: string;
+  };
 }
 
 export interface Player {
@@ -64,6 +67,11 @@ export interface RankingConfig {
   hybridConfig?: {
     qualifiersPerGroup: number; // Top N players from each group advance
     pairsPerGroup?: number; // Number of pairs per group
+  };
+
+  branding?: {
+    logoUrl?: string; // Base64 or URL
+    hideDefaultLogo?: boolean;
   };
 }
 

@@ -87,29 +87,37 @@ export const MatchesSlide = ({ ranking, players }: Props) => {
     if (!division) return null;
 
     return (
-        <div className="h-full grid grid-cols-2 gap-8 p-8 bg-slate-900 text-white">
-            <div style={{ position: 'absolute', top: 100, left: 10, background: 'orange', color: 'black', padding: '5px', zIndex: 9999 }}>
-                DEBUG: Matches. DivID: {division?.id} | Finished: {finishedMatches.length} | Pending: {pendingMatches.length}
-            </div>
-            {/* Column 1: Recent Results */}
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-3 mb-2 border-b border-slate-700 pb-4">
-                    <CheckCircle className="text-green-500 w-8 h-8" />
-                    <h2 className="text-3xl font-bold">Últimos Resultados</h2>
-                </div>
-                <div className="flex flex-col gap-4 overflow-y-auto">
-                    {finishedMatches.length > 0 ? finishedMatches.map(m => renderMatchCard(m, true)) : <p className="text-slate-500 italic text-xl">No hay partidos finalizados aún.</p>}
-                </div>
+        <div className="h-full flex flex-col p-8 bg-slate-900 text-white">
+            <div className="flex items-center gap-4 mb-6 shrink-0">
+                {ranking.config?.branding?.logoUrl ? (
+                    <img src={ranking.config.branding.logoUrl} className="w-16 h-16 object-contain bg-white/10 rounded-lg p-1" alt="Logo" />
+                ) : (
+                    <Calendar className="text-blue-400 w-12 h-12" />
+                )}
+                <h2 className="text-4xl font-bold tracking-tight">Resultados y Horarios</h2>
             </div>
 
-            {/* Column 2: Upcoming */}
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-3 mb-2 border-b border-slate-700 pb-4">
-                    <Calendar className="text-blue-500 w-8 h-8" />
-                    <h2 className="text-3xl font-bold">Próximos Encuentros</h2>
+            <div className="grid grid-cols-2 gap-8 flex-1 overflow-hidden">
+                {/* Column 1: Recent Results */}
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3 mb-2 border-b border-slate-700 pb-4">
+                        <CheckCircle className="text-green-500 w-8 h-8" />
+                        <h2 className="text-3xl font-bold">Últimos Resultados</h2>
+                    </div>
+                    <div className="flex flex-col gap-4 overflow-y-auto">
+                        {finishedMatches.length > 0 ? finishedMatches.map(m => renderMatchCard(m, true)) : <p className="text-slate-500 italic text-xl">No hay partidos finalizados aún.</p>}
+                    </div>
                 </div>
-                <div className="flex flex-col gap-4 overflow-y-auto">
-                    {pendingMatches.length > 0 ? pendingMatches.map(m => renderMatchCard(m, false)) : <p className="text-slate-500 italic text-xl">No hay partidos pendientes.</p>}
+
+                {/* Column 2: Upcoming */}
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3 mb-2 border-b border-slate-700 pb-4">
+                        <Calendar className="text-blue-500 w-8 h-8" />
+                        <h2 className="text-3xl font-bold">Próximos Encuentros</h2>
+                    </div>
+                    <div className="flex flex-col gap-4 overflow-y-auto">
+                        {pendingMatches.length > 0 ? pendingMatches.map(m => renderMatchCard(m, false)) : <p className="text-slate-500 italic text-xl">No hay partidos pendientes.</p>}
+                    </div>
                 </div>
             </div>
         </div>

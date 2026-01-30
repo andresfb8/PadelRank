@@ -47,7 +47,10 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         scoringMode: '24',  // Default for Mexicano/Americano
         scorignMode: '24', // Default for Mexicano/Americano
         eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' },
-        hybridConfig: { qualifiersPerGroup: 2, pairsPerGroup: 4 }
+        hybridConfig: { qualifiersPerGroup: 2, pairsPerGroup: 4 },
+        branding: {
+            logoUrl: currentUser?.branding?.logoUrl // Prefill with Club Logo
+        }
     });
 
     // Players

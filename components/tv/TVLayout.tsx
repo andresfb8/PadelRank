@@ -114,6 +114,12 @@ export const TVLayout = ({ ranking, players }: Props) => {
                 <div className="flex items-center gap-4">
                     <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded uppercase tracking-wider animate-pulse">EN VIVO</span>
                     <h1 className="text-xl font-bold text-white truncate max-w-xl">{ranking.nombre}</h1>
+                    {/* Powered By (Shown if branded) */}
+                    {ranking.config?.branding?.logoUrl && (
+                        <span className="text-slate-500 text-xs ml-4 border-l border-slate-700 pl-4 flex items-center gap-1 opacity-70">
+                            Powered by <strong>Racket Grid</strong>
+                        </span>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-6">

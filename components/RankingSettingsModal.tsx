@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target } from 'lucide-react';
+import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target, Image as ImageIcon, Upload, Trash2 } from 'lucide-react';
 import { Ranking, RankingConfig, ScoringMode } from '../types';
 import { Button } from './ui/Components';
+import { processLogoUpload } from '../utils/imageProcessor';
 
 interface Props {
     isOpen: boolean;
@@ -9,11 +10,13 @@ interface Props {
     ranking: Ranking;
     onUpdateRanking?: (ranking: Ranking) => void;
     isAdmin?: boolean;
+    userPlan?: string; // 'pro', 'star', 'weekend', etc.
 }
 
-export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking, isAdmin }: Props) => {
+export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking, isAdmin, userPlan }: Props) => {
     const [config, setConfig] = useState<RankingConfig>(ranking.config || {});
-    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv' | 'divisions'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv' | 'divisions' | 'branding'>('general');
+    const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -32,6 +35,38 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
             onUpdateRanking(updatedRanking);
             onClose();
         }
+    };
+
+    // Logo Upload Handler
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const base64 = await processLogoUpload(file);
+            setConfig(prev => ({
+                ...prev,
+                branding: {
+                    ...prev.branding,
+                    logoUrl: base64
+                }
+            }));
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleRemoveLogo = () => {
+        setConfig(prev => ({
+            ...prev,
+            branding: {
+                ...prev.branding,
+                logoUrl: undefined
+            }
+        }));
     };
 
     const handleChange = (key: keyof RankingConfig, value: any) => {
@@ -56,15 +91,15 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
 
     const isReadOnly = !isAdmin || !onUpdateRanking;
 
-    // Determine which tabs to show based on format
+    // Defines which tabs to show based on format
     const isElimination = ranking.format === 'elimination';
-    const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
     const isClassic = ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs';
-
-    // Show Points if not Elimination (Elimination uses direct knockout)
-    // Show Promotions only for Classic/Individual/Pairs (Americano is single-event usually)
+    const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
     const showPointsTab = !isElimination;
     const showPromotionsTab = isClassic;
+
+    // Branding Access: Pro, Star, Weekend
+    const hasBrandingAccess = ['pro', 'star', 'weekend', 'trial'].includes(userPlan || '');
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -124,6 +159,14 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     >
                         <Settings size={16} /> Modo TV
                     </button>
+                    {hasBrandingAccess && (
+                        <button
+                            onClick={() => setActiveTab('branding')}
+                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'branding' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <ImageIcon size={16} /> Marca
+                        </button>
+                    )}
                 </div>
 
                 {/* Content */}
@@ -528,6 +571,112 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                             No hay divisiones creadas.
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'branding' && hasBrandingAccess && (
+                        <div className="space-y-6">
+                            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-xl border border-purple-100 mb-6">
+                                <div className="flex items-start gap-3">
+                                    <div className="bg-white p-2 rounded-lg shadow-sm text-purple-600">
+                                        <Trophy size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Personalización de Marca</h3>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            Sube el logo de tu club o torneo para que aparezca en la vista pública y en el modo TV.
+                                            Reemplazará el logo de Racket Grid en la cabecera.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                                <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <ImageIcon size={18} className="text-gray-500" /> Logo del Torneo
+                                </h4>
+
+                                <div className="flex flex-col md:flex-row items-center gap-6">
+                                    {/* Preview Area */}
+                                    <div className="shrink-0">
+                                        <div className="w-40 h-40 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group">
+                                            {(config.branding?.logoUrl || ranking.config?.branding?.logoUrl) ? (
+                                                <>
+                                                    <img
+                                                        src={config.branding?.logoUrl || ranking.config?.branding?.logoUrl}
+                                                        alt="Logo Preview"
+                                                        className="w-full h-full object-contain p-2"
+                                                    />
+                                                    {!isReadOnly && (
+                                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={handleRemoveLogo}
+                                                                className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                                title="Eliminar logo"
+                                                            >
+                                                                <Trash2 size={20} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div className="text-center text-gray-400 p-4">
+                                                    <ImageIcon size={32} className="mx-auto mb-2 opacity-50" />
+                                                    <span className="text-xs">Sin logo</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Controls */}
+                                    <div className="flex-1 space-y-4">
+                                        {!isReadOnly ? (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Subir nueva imagen</label>
+                                                    <div className="flex items-center gap-3">
+                                                        <label className={`flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                            {isUploading ? <Upload size={16} className="animate-bounce" /> : <Upload size={16} />}
+                                                            {isUploading ? 'Procesando...' : 'Seleccionar Archivo'}
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                onChange={handleLogoUpload}
+                                                                disabled={isUploading}
+                                                            />
+                                                        </label>
+                                                        <span className="text-xs text-gray-500">Máx 10MB. Se optimizará automáticamente.</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 pt-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="hideDefaultLogo"
+                                                        checked={config.branding?.hideDefaultLogo ?? false}
+                                                        onChange={(e) => setConfig(prev => ({
+                                                            ...prev,
+                                                            branding: {
+                                                                ...prev.branding,
+                                                                hideDefaultLogo: e.target.checked
+                                                            }
+                                                        }))}
+                                                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                                                    />
+                                                    <label htmlFor="hideDefaultLogo" className="text-sm text-gray-700">
+                                                        Ocultar logo Racket Grid (si no hay logo personalizado)
+                                                    </label>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-sm text-gray-500 italic">
+                                                Solo el administrador puede cambiar el logo.
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

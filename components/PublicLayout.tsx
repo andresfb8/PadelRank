@@ -55,18 +55,28 @@ export const PublicLayout = ({ rankingId }: Props) => {
         return <div className="min-h-screen flex items-center justify-center text-red-500">Torneo no encontrado o eliminado.</div>;
     }
 
+    const branding = activeRanking.config?.branding;
+    const hasCustomLogo = !!branding?.logoUrl;
+
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-900">
+        <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
             <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm">
                 <div className="flex items-center gap-2 font-bold text-primary text-xl">
-                    <Trophy size={24} /> Racket Grid <span className="text-xs text-gray-400 font-normal uppercase tracking-wider border-l pl-2 ml-2">Vista Pública</span>
+                    {hasCustomLogo ? (
+                        <img src={branding.logoUrl} alt="Logo" className="h-10 object-contain" />
+                    ) : (
+                        <>
+                            <Trophy size={24} /> Racket Grid
+                        </>
+                    )}
+                    <span className="text-xs text-gray-400 font-normal uppercase tracking-wider border-l pl-2 ml-2">Vista Pública</span>
                 </div>
                 <div>
                     {/* Optional: Add a 'Login' button here if we want to allow admins to jump to login */}
                 </div>
             </header>
 
-            <main className="p-4 md:p-8 max-w-7xl mx-auto">
+            <main className="p-4 md:p-8 max-w-7xl mx-auto flex-1 w-full">
                 {selectedPlayer ? (
                     <PlayerDetailView
                         player={selectedPlayer}
@@ -84,6 +94,14 @@ export const PublicLayout = ({ rankingId }: Props) => {
                     />
                 )}
             </main>
+
+            {hasCustomLogo && (
+                <footer className="py-6 text-center text-gray-400 text-sm border-t bg-gray-50">
+                    <p className="flex items-center justify-center gap-2">
+                        Powered by <strong className="text-gray-600 flex items-center gap-1"><Trophy size={14} /> Racket Grid</strong>
+                    </p>
+                </footer>
+            )}
         </div>
     );
 };

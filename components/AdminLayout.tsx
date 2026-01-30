@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, Trophy, LogOut, Menu, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Trash2, User as UserIcon, LogOut, ChevronRight, LayoutDashboard, Crown, Trophy, Users, Shield, Settings, Key, UserPlus, FileText, Upload, Download, Copy, ExternalLink, Calendar, Building2, ShieldCheck, Menu } from 'lucide-react';
 import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
@@ -32,6 +32,7 @@ import { HelpCenter } from './HelpCenter';
 import { PlanBadge } from './PlanBadge';
 import { PlayerModal } from './PlayerModal';
 import { Button } from './ui/Components';
+import { ClubSettingsModal } from './ClubSettingsModal';
 import {
     subscribeToPlayers,
     subscribeToRankings,
@@ -80,6 +81,17 @@ export const AdminLayout = () => {
         : currentUser;
 
     const activeRanking = rankings.find(r => r.id === activeRankingId);
+
+    // UI State
+    const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+    const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+    const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+    const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+    const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState<Player | null>(null); // New state
+    const [selectedPairIdForDetail, setSelectedPairIdForDetail] = useState<string | null>(null);
+    const [credentialsModal, setCredentialsModal] = useState<{ isOpen: boolean, email: string, pass: string } | null>(null);
+    const [isClubSettingsOpen, setIsClubSettingsOpen] = useState(false);
 
     // Migration
     useEffect(() => {
@@ -201,16 +213,6 @@ export const AdminLayout = () => {
         };
     }, [effectiveUser, impersonatedUserId, currentUser]); // Re-run if effectiveUser changes
 
-
-    // UI State
-    const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-    const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
-    const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
-    const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
-    const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState<Player | null>(null); // New state
-    const [selectedPairIdForDetail, setSelectedPairIdForDetail] = useState<string | null>(null);
-    const [credentialsModal, setCredentialsModal] = useState<{ isOpen: boolean, email: string, pass: string } | null>(null);
 
     // Resize Listener
     useEffect(() => {
@@ -539,7 +541,7 @@ export const AdminLayout = () => {
 
                         {/* Mi Cuenta - Only for non-public users */}
                         {!isPublicUser && (
-                            <button onClick={() => handleNavClick('profile')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'profile' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
+                            <button onClick={() => handleNavClick('profile')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'profile' ? 'bg-primary-50 text-primary font-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
                                 <UserIcon size={20} /> Mi Cuenta
                             </button>
                         )}
@@ -570,26 +572,41 @@ export const AdminLayout = () => {
                     <div className="lg:hidden text-primary font-bold flex items-center gap-2">
                         <Trophy size={24} /> Racket Grid
                     </div>
-                    <button
-                        onClick={() => !isPublicUser && setView('profile')}
-                        className={`flex items-center gap-4 ml-auto ${!isPublicUser ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
-                        disabled={isPublicUser}
-                    >
-                        <div className="text-right hidden md:block">
-                            <div className="text-sm font-bold text-gray-900">{effectiveUser?.name || effectiveUser?.email}</div>
-                            <div className="mt-0.5 flex justify-end">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${effectiveUser?.role === 'superadmin' ? 'bg-purple-100/50 text-purple-700 border-purple-200' :
-                                    effectiveUser?.role === 'admin' ? 'bg-blue-100/50 text-blue-700 border-blue-200' :
-                                        'bg-gray-100/50 text-gray-600 border-gray-200'
-                                    }`}>
-                                    {isPublicUser ? 'Jugador' : effectiveUser?.role}
-                                </span>
+                    <div className="flex items-center gap-3 ml-auto">
+                        {(effectiveUser?.plan === 'pro' || effectiveUser?.plan === 'star' || effectiveUser?.plan === 'weekend') && (
+                            <button
+                                onClick={() => {
+                                    console.log("Opening Club Settings...");
+                                    setIsClubSettingsOpen(true);
+                                }}
+                                className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors flex items-center gap-2 px-3"
+                                title="Configuración de Club y Marca"
+                            >
+                                <Building2 size={18} />
+                                <span className="hidden md:inline text-xs font-semibold uppercase tracking-wide">Mi Club</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={() => !isPublicUser && setView('profile')}
+                            className={`flex items-center gap-4 ${!isPublicUser ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
+                            disabled={isPublicUser}
+                        >
+                            <div className="text-right hidden md:block">
+                                <div className="text-sm font-bold text-gray-900">{effectiveUser?.name || effectiveUser?.email}</div>
+                                <div className="mt-0.5 flex justify-end">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${effectiveUser?.role === 'superadmin' ? 'bg-purple-100/50 text-purple-700 border-purple-200' :
+                                        effectiveUser?.role === 'admin' ? 'bg-blue-100/50 text-blue-700 border-blue-200' :
+                                            'bg-gray-100/50 text-gray-600 border-gray-200'
+                                        }`}>
+                                        {isPublicUser ? 'Jugador' : effectiveUser?.role}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
-                            {effectiveUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
-                        </div>
-                    </button>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
+                                {effectiveUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
+                            </div>
+                        </button>
+                    </div>
                 </header>
 
                 <main className="flex-1 p-6 overflow-y-auto">
@@ -710,6 +727,7 @@ export const AdminLayout = () => {
                             await updatePlayerStatsFull(pid, result === 'win');
                         }}
                         clubSlug={effectiveUser?.clubName}
+                        currentUserPlan={effectiveUser?.plan}
                     />}
 
                     {view === 'admin_management' && currentUser?.role === 'superadmin' && (
@@ -778,6 +796,18 @@ export const AdminLayout = () => {
             )}
 
             <HelpCenter />
+
+            {isClubSettingsOpen && effectiveUser && (
+                <ClubSettingsModal
+                    isOpen={isClubSettingsOpen}
+                    onClose={() => setIsClubSettingsOpen(false)}
+                    user={effectiveUser}
+                    rankings={rankings}
+                    onUpdateUser={(u) => {
+                        console.log("Local user updated from modal", u);
+                    }}
+                />
+            )}
         </div>
     );
 };

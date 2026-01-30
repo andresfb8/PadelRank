@@ -32,9 +32,10 @@ interface Props {
   onUpdatePlayerStats?: (playerId: string, result: 'win' | 'loss' | 'draw') => void;
   onPlayerClick?: (playerId: string) => void;
   clubSlug?: string;
+  currentUserPlan?: string;
 }
 
-export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick, clubSlug }: Props) => {
+export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, onBack, onAddDivision, onUpdateRanking, isAdmin, onUpdatePlayerStats, onPlayerClick, clubSlug, currentUserPlan }: Props) => {
   const players = React.useMemo(() => {
     const merged = { ...initialPlayers };
     if (ranking.guestPlayers) {
@@ -2408,6 +2409,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         ranking={ranking}
         onUpdateRanking={onUpdateRanking}
         isAdmin={isAdmin}
+        userPlan={currentUserPlan}
       />
 
       <StatsAdjustmentModal
