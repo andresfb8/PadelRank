@@ -33,7 +33,11 @@ import {
     UserCheck,
     Sparkles,
     Gift,
-    Mail
+    Mail,
+    Tv,
+    MonitorPlay,
+    Palette,
+    Image as ImageIcon
 } from 'lucide-react';
 
 const App = () => {
@@ -75,6 +79,7 @@ const App = () => {
                 "Torneos ilimitados",
                 "Categorías ilimitadas",
                 "Liga + Playoff",
+                "Modo TV",
                 "Portal auto-servicio",
                 "Validación de resultados",
             ],
@@ -313,11 +318,120 @@ const App = () => {
         </div>
     );
 
+    const CustomBrandingMockup = () => (
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full aspect-video flex flex-col relative">
+            {/* Etiqueta flotante */}
+            <div className="absolute top-4 right-4 z-10 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg">
+                Tu Marca Aquí
+            </div>
+
+            {/* Cabecera personalizada */}
+            <div className="bg-[#1e293b] h-32 flex flex-col items-center justify-center relative">
+                {/* Logo Placeholder */}
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg border-4 border-[#1e293b] absolute -bottom-8">
+                    <Trophy className="w-8 h-8 text-emerald-500" />
+                </div>
+                <h3 className="text-white font-bold text-lg mt-2">Club Padel Center</h3>
+                <p className="text-slate-400 text-xs">Torneo de Primavera 2026</p>
+            </div>
+
+            {/* Contenido simulado */}
+            <div className="flex-grow bg-slate-50 pt-10 px-6 pb-6">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm h-20">
+                        <div className="h-2 w-16 bg-slate-100 rounded mb-2"></div>
+                        <div className="h-4 w-full bg-slate-50 rounded"></div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm h-20">
+                        <div className="h-2 w-16 bg-slate-100 rounded mb-2"></div>
+                        <div className="h-4 w-full bg-slate-50 rounded"></div>
+                    </div>
+                </div>
+                <div className="mt-4 h-8 w-32 mx-auto bg-emerald-500 rounded-full opacity-20"></div>
+            </div>
+        </div>
+    );
+
+    const ModoTVMockup = () => (
+        <div className="bg-[#0f172a] rounded-2xl shadow-2xl border-4 border-slate-800 overflow-hidden text-white w-full aspect-video flex flex-col font-sans">
+            {/* Barra de Título TV */}
+            <div className="bg-indigo-600 p-3 flex justify-between items-center border-b border-indigo-500">
+                <div className="flex items-center gap-2">
+                    <div className="bg-red-600 px-1.5 py-0.5 rounded text-[9px] font-bold animate-pulse">LIVE</div>
+                    <h3 className="text-sm font-black italic tracking-tighter">RACKET GRID TV</h3>
+                </div>
+                <div className="text-right">
+                    <p className="text-[9px] font-bold uppercase opacity-80 tracking-wider">Torneo Verano 2026</p>
+                </div>
+            </div>
+
+            <div className="flex-grow grid grid-cols-12 p-4 gap-4">
+                {/* Marcador Principal */}
+                <div className="col-span-8 space-y-3">
+                    <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 backdrop-blur-sm">
+                        <p className="text-[8px] text-indigo-400 font-bold uppercase mb-2 tracking-widest text-center">PISTA CENTRAL - FINAL</p>
+                        <div className="flex justify-between items-center">
+                            <div className="text-center w-1/3 space-y-1">
+                                <p className="text-base font-bold leading-tight">Carlos M.</p>
+                                <p className="text-base font-bold leading-tight text-slate-400">Roberto S.</p>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <div className="bg-white text-slate-900 w-10 h-12 rounded flex items-center justify-center text-3xl font-black shadow-lg shadow-indigo-500/20">6</div>
+                                <div className="text-slate-600 font-bold">:</div>
+                                <div className="bg-white text-slate-900 w-10 h-12 rounded flex items-center justify-center text-3xl font-black shadow-lg shadow-indigo-500/20">4</div>
+                            </div>
+                            <div className="text-center w-1/3 space-y-1">
+                                <p className="text-base font-bold leading-tight">Elena B.</p>
+                                <p className="text-base font-bold leading-tight text-slate-400">Javier R.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/50 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-indigo-500/20 flex items-center justify-center text-[8px] font-bold text-indigo-300">P2</div>
+                            <div className="text-[9px] leading-tight">
+                                <p className="font-bold text-white">M. Gil / D. Soler</p>
+                                <p className="text-slate-400">vs Vega / Cano</p>
+                            </div>
+                        </div>
+                        <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/50 flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-indigo-500/20 flex items-center justify-center text-[8px] font-bold text-indigo-300">P3</div>
+                            <div className="text-[9px] leading-tight">
+                                <p className="font-bold text-white">Ortiz / Ramos</p>
+                                <p className="text-slate-400">vs Martín / J.L.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Clasificación Lateral */}
+                <div className="col-span-4 bg-slate-900/90 rounded-xl border border-slate-700 p-3 flex flex-col">
+                    <h4 className="text-[8px] font-bold text-center mb-3 text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-2">Ranking Live</h4>
+                    <div className="space-y-1.5 flex-grow overflow-hidden">
+                        {[
+                            { n: "C. Méndez", p: "1250" },
+                            { n: "R. Sanz", p: "1180" },
+                            { n: "E. Blanco", p: "1150" },
+                            { n: "J. Ruiz", p: "1090" }
+                        ].map((r, i) => (
+                            <div key={i} className="flex justify-between items-center bg-slate-800/50 p-1.5 rounded text-[10px]">
+                                <span className="font-bold text-slate-500 w-3">{i + 1}</span>
+                                <span className="font-bold flex-grow text-slate-200 truncate px-1">{r.n}</span>
+                                <span className="text-white font-bold">{r.p}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 scroll-smooth">
             {/* Navbar */}
             <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-slate-100">
-                <div className="w-full px-6 md:px-12 lg:px-24 h-20 flex items-center justify-between">
+                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                         <div className="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-100">
                             <Trophy className="text-white w-6 h-6" />
@@ -353,8 +467,8 @@ const App = () => {
             </nav>
 
             {/* Hero */}
-            <section className="pt-40 pb-20 px-6 md:px-12 lg:px-24 bg-gradient-to-b from-slate-50 to-white">
-                <div className="w-full text-center">
+            <section className="pt-40 pb-20 px-6 bg-gradient-to-b from-slate-50 to-white">
+                <div className="max-w-7xl mx-auto text-center">
                     <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-[1.1]">
                         La plataforma definitiva para <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-400 font-black">Clubes de Padel</span>
@@ -381,9 +495,9 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Feature Sections with Improved Differentiation */}
-            <section id="features" className="py-16 md:py-24 bg-white space-y-32">
-                <div className="w-full px-6 md:px-12 lg:px-24">
+            {/* Feature Sections with Numbered Cards */}
+            <section id="features" className="py-24 bg-white space-y-32">
+                <div className="max-w-7xl mx-auto px-6">
 
                     {/* Card 01: Rankings */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-50/50 border border-slate-100">
@@ -491,7 +605,7 @@ const App = () => {
                                     { title: "Historial Visual", desc: "Resultados siempre a mano." },
                                     { title: "Mejores Aliados", desc: "Compañeros más efectivos." }
                                 ].map((f, i) => (
-                                    <div key={i} className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                    <div key={i} className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
                                         <Activity className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                                         <div><h4 className="font-bold text-slate-900 text-sm">{f.title}</h4><p className="text-[10px] text-slate-500">{f.desc}</p></div>
                                     </div>
@@ -499,12 +613,73 @@ const App = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* NUEVA Card 05: Modo TV */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-900 border border-slate-800 shadow-2xl">
+                        <div>
+                            <div className="flex items-center gap-4 mb-6">
+                                <span className="text-5xl font-black text-indigo-500/30">05</span>
+                                <h2 className="text-4xl font-extrabold text-white italic tracking-tight">Modo TV: Live Experience</h2>
+                            </div>
+                            <p className="text-lg text-slate-400 mb-8 leading-relaxed">
+                                Transforma las pantallas de tu club en un canal de televisión profesional. Muestra resultados en directo y clasificaciones dinámicas con un diseño de alta competición.
+                            </p>
+                            <div className="space-y-4">
+                                {[
+                                    "Marcadores en tiempo real para todas las pistas",
+                                    "Rotación automática de cuadros y clasificaciones",
+                                    "Ideal para eventos finales y torneos de fin de semana",
+                                    "Interfaz optimizada para Smart TVs y proyectores"
+                                ].map((item, i) => (
+                                    <div key={i} className="flex items-center gap-3 font-medium text-slate-300 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                                        <div className="bg-indigo-600 text-white p-1 rounded-full"><MonitorPlay className="w-4 h-4" /></div>
+                                        {item}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="relative group">
+                            <div className="absolute -inset-4 bg-indigo-600/20 rounded-[2.5rem] blur-2xl group-hover:bg-indigo-600/30 transition-all"></div>
+                            <ModoTVMockup />
+                        </div>
+                    </div>
+
+                    {/* NUEVA Card 06: Tu Marca, Tu Torneo */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-white border border-slate-100 shadow-sm">
+                        <div className="order-2 lg:order-1 relative group">
+                            <div className="absolute -inset-4 bg-emerald-100/30 rounded-[2.5rem] blur-xl"></div>
+                            <CustomBrandingMockup />
+                        </div>
+                        <div className="order-1 lg:order-2">
+                            <div className="flex items-center gap-4 mb-6">
+                                <span className="text-5xl font-black text-emerald-100">06</span>
+                                <h2 className="text-4xl font-extrabold text-slate-900">Tu Marca, Tu Torneo</h2>
+                            </div>
+                            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
+                                Personaliza la vista pública de tus competiciones con el logo y los colores de tu club. Ofrece una experiencia corporativa profesional a tus jugadores y patrocinadores.
+                            </p>
+                            <ul className="space-y-4">
+                                {[
+                                    "Sube tu propio logotipo para cabeceras y rankings",
+                                    "Colores corporativos en la interfaz pública",
+                                    "Eliminación de la marca Racket Grid en vistas clave",
+                                    "URL personalizada para compartir resultados"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 font-medium text-slate-700">
+                                        <div className="bg-emerald-100 text-emerald-600 p-1 rounded-full"><Palette className="w-4 h-4" /></div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
                 </div>
             </section>
 
-            {/* Admin Dashboard - Buttons visual only */}
-            <section className="py-16 md:py-24 bg-slate-900 text-white overflow-hidden">
-                <div className="w-full px-6 md:px-12 lg:px-24">
+            {/* Admin Dashboard - Botones deshabilitados */}
+            <section className="py-24 bg-slate-900 text-white overflow-hidden">
+                <div className="max-w-7xl mx-auto px-6">
                     <div className="text-center mb-16">
                         <h2 className="text-4xl font-extrabold mb-4">Control Administrativo Pro</h2>
                         <p className="text-slate-400">Herramientas diseñadas por y para organizadores.</p>
@@ -539,8 +714,8 @@ const App = () => {
             </section>
 
             {/* Roadmap */}
-            <section className="py-16 md:py-24 bg-white relative">
-                <div className="w-full px-6 md:px-12 lg:px-24">
+            <section className="py-24 bg-white relative">
+                <div className="max-w-7xl mx-auto px-6">
                     <div className="mb-16">
                         <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase mb-4">
                             <Plus className="w-3 h-3" /> Roadmap 2026
@@ -563,9 +738,26 @@ const App = () => {
                 </div>
             </section>
 
+            {/* Trusted By Section */}
+            <section className="py-16 bg-slate-50 border-b border-slate-100">
+                <div className="max-w-7xl mx-auto px-6 text-center">
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-8">Clubes que confían en Racket Grid</p>
+                    <div className="flex flex-wrap justify-center items-center gap-12 grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+                        {/* Roda Padel Reserve */}
+                        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTW3dnLzemcsWMSvywP8WfSzWWswd01o4QLZg&s" alt="Roda Padel Reserve" className="h-16 object-contain" />
+
+                        {/* Padel Indoor Aragon */}
+                        <img src="https://padelindooraragon.com/wp-content/uploads/2023/11/padel-indoor-aragon.png" alt="Padel Indoor Aragon" className="h-16 object-contain" />
+
+                        {/* Club de Padel San Javier */}
+                        <img src="https://www.clubdepadelsanjavier.es/img/logo.png" alt="Club de Padel San Javier" className="h-16 object-contain" />
+                    </div>
+                </div>
+            </section>
+
             {/* Pricing */}
-            <section id="pricing" className="py-16 md:py-24 bg-slate-50">
-                <div className="w-full px-6 md:px-12 lg:px-24">
+            <section id="pricing" className="py-24 bg-slate-50">
+                <div className="max-w-7xl mx-auto px-6">
                     <div className="text-center mb-16">
                         <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Planes Adaptados a tu Club</h2>
                         <p className="text-slate-600">IVA Incluido en todos nuestros modelos.</p>
@@ -628,6 +820,7 @@ const App = () => {
                         ))}
                     </div>
 
+                    {/* Weekend Warrior */}
                     <div className="relative group max-w-5xl mx-auto">
                         <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-indigo-700 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
                         <div className="relative bg-white border border-indigo-100 p-8 md:p-10 rounded-[2.5rem] shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8">
@@ -656,9 +849,9 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="bg-white border-t border-slate-100 py-12 px-6 md:px-12 lg:px-24">
-                <div className="w-full flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
+            {/* Footer con email */}
+            <footer className="bg-white border-t border-slate-100 py-12 px-6">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
                     <div className="flex flex-col md:flex-row items-center gap-8">
                         <div className="flex items-center gap-2">
                             <div className="bg-indigo-600 p-1.5 rounded-lg"><Trophy className="text-white w-4 h-4" /></div>

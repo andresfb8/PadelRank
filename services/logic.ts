@@ -43,19 +43,33 @@ export function calculateMatchPoints(
     // Case 1: Only 1 Set Played -> Winner of set wins match (treated as 2-0 win points wise usually, or simple win)
     if (!s2) {
       if (p1WonS1) return { points: { p1: cfg.pointsPerWin2_0, p2: cfg.pointsPerLoss2_0 }, finalizationType: 'completo', description: 'Victoria (1 Set)' };
-      else return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota (1 Set)' };
+      else if (s1.p1 < s1.p2) return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota (1 Set)' };
+      else return { points: { p1: cfg.pointsDraw, p2: cfg.pointsDraw }, finalizationType: 'completo', description: 'Empate (1 Set)' };
     }
 
     // Case 2: 2 Sets Played
     if (s2 && !s3) {
       const p1WonS2 = s2.p1 > s2.p2;
-      // If 1-1 in sets -> DRAW
-      if (p1WonS1 !== p1WonS2) {
+      const p2WonS2 = s2.p2 > s2.p1;
+
+      // Calculate Set Winners explicitly
+      let p1Sets = 0;
+      let p2Sets = 0;
+
+      if (p1WonS1) p1Sets++;
+      else if (s1.p2 > s1.p1) p2Sets++;
+
+      if (p1WonS2) p1Sets++;
+      else if (p2WonS2) p2Sets++;
+
+      // If sets are equal (1-1 or 0-0 with ties) -> DRAW
+      if (p1Sets === p2Sets) {
         return { points: { p1: cfg.pointsDraw, p2: cfg.pointsDraw }, finalizationType: 'completo', description: 'Empate (1-1)' };
       }
+
       // If 2-0 -> Win
-      if (p1WonS1 && p1WonS2) return { points: { p1: cfg.pointsPerWin2_0, p2: cfg.pointsPerLoss2_0 }, finalizationType: 'completo', description: 'Victoria 2-0' };
-      if (!p1WonS1 && !p1WonS2) return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota 0-2' };
+      if (p1Sets > p2Sets) return { points: { p1: cfg.pointsPerWin2_0, p2: cfg.pointsPerLoss2_0 }, finalizationType: 'completo', description: 'Victoria' };
+      if (p2Sets > p1Sets) return { points: { p1: cfg.pointsPerLoss2_0, p2: cfg.pointsPerWin2_0 }, finalizationType: 'completo', description: 'Derrota' };
     }
   }
 
@@ -63,9 +77,22 @@ export function calculateMatchPoints(
   if (!isIncomplete) {
     let p1Sets = 0;
     let p2Sets = 0;
-    if (s1.p1 > s1.p2) p1Sets++; else p2Sets++;
-    if (s2) { if (s2.p1 > s2.p2) p1Sets++; else p2Sets++; }
-    if (s3) { if (s3.p1 > s3.p2) p1Sets++; else p2Sets++; }
+
+    // Set 1
+    if (s1.p1 > s1.p2) p1Sets++;
+    else if (s1.p2 > s1.p1) p2Sets++;
+
+    // Set 2
+    if (s2) {
+      if (s2.p1 > s2.p2) p1Sets++;
+      else if (s2.p2 > s2.p1) p2Sets++;
+    }
+
+    // Set 3
+    if (s3) {
+      if (s3.p1 > s3.p2) p1Sets++;
+      else if (s3.p2 > s3.p1) p2Sets++;
+    }
 
     if (p1Sets > p2Sets) {
       // Win
