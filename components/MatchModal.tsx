@@ -123,8 +123,8 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
       court: court ? parseInt(court) : undefined
     };
 
-    // Point-based scoring (Mexicano/Americano)
-    if ((format === 'mexicano' || format === 'americano') && (totalPoints || isCustomMode)) {
+    // Point-based scoring (Mexicano/Americano/Pozo)
+    if ((format === 'mexicano' || format === 'americano' || format === 'pozo') && (totalPoints || isCustomMode)) {
       let p1 = 0;
       let p2 = 0;
 
@@ -215,8 +215,8 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
           </div>
         )}
 
-        {/* Point-Based Input (Mexicano/Americano) */}
-        {(format === 'mexicano' || format === 'americano') && (totalPoints || isCustomMode) ? (
+        {/* Point-Based Input (Mexicano/Americano/Pozo) */}
+        {(format === 'mexicano' || format === 'americano' || format === 'pozo') && (totalPoints || isCustomMode) ? (
           <div className="space-y-4">
             {!isCustomMode && (
               <div className="text-center mb-4">
@@ -374,7 +374,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
               // B) Schedule changed (Time or Court)
               // C) Unless Mexicano invalid score
 
-              (format === 'mexicano' || format === 'americano') && (totalPoints || isCustomMode)
+              (format === 'mexicano' || format === 'americano' || format === 'pozo') && (totalPoints || isCustomMode)
                 ? (isCustomMode
                   ? (!pointsP1 || !pointsP2Manual)
                   : (!pointsP1 || parseInt(pointsP1) > totalPoints! || parseInt(pointsP1) < 0)

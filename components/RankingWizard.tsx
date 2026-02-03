@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X, UserPlus, Shield, Wand2, Trash2, Plus } from 'lucide-react';
 import { Button, Card, Input } from './ui/Components';
-import { Player, Ranking, RankingFormat, RankingConfig, Division, ScoringMode } from '../types';
+import * as PozoEngine from '../services/PozoEngine';
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
 import { TournamentEngine } from '../services/TournamentEngine';
@@ -116,6 +116,12 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     label: 'Híbrido (Liga + Playoff) (BETA)',
                     desc: 'Fase de Grupos (Liga) seguida de Fase Final (Eliminatoria). Ideal para "Mundialitos" o "Champions".',
                     color: 'pink'
+                },
+                {
+                    id: 'pozo',
+                    label: 'Pozo / King of the Court',
+                    desc: 'Sube y baja de pista. Ganadores suben, Perdedores bajan. Individual o Parejas.',
+                    color: 'yellow'
                 }
             ].filter(f => f.id !== 'classic' || currentUser?.email?.toLowerCase().includes('info@clubdepadelsanjavier') || currentUser?.role === 'superadmin')
                 .map((f) => {
@@ -192,6 +198,17 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                         pointsPerLoss2_1: 1,
                                         pointsPerLoss2_0: 0,
                                         hybridConfig: { qualifiersPerGroup: 2 }
+                                    }));
+                                } else if (f.id === 'pozo') {
+                                    setNumDivisions(1);
+                                    setConfig(prev => ({
+                                        ...prev,
+                                        pozoConfig: {
+                                            variant: 'individual',
+                                            numCourts: 2,
+                                            scoringType: 'sets',
+                                            goldenPoint: true
+                                        }
                                     }));
                                 }
 
@@ -349,67 +366,162 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 </div>
             )}
 
-            {/* Individual/Pairs Configuration */}
-            {(format === 'individual' || format === 'pairs') && (
+            {/* Pozo Configuration */}
+            {format === 'pozo' && (
                 <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Sistema de Puntuación</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                        <Input type="number" label="Victoria 2-0" value={config.pointsPerWin2_0} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) || 0 })} />
-                        <Input type="number" label="Victoria 2-1" value={config.pointsPerWin2_1} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_1: parseInt(e.target.value) || 0 })} />
-                        <Input type="number" label="Empate" value={config.pointsDraw} onChange={(e: any) => setConfig({ ...config, pointsDraw: parseInt(e.target.value) || 0 })} />
-                        <Input type="number" label="Derrota 1-2" value={config.pointsPerLoss2_1} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_1: parseInt(e.target.value) || 0 })} />
-                        <Input type="number" label="Derrota 0-2" value={config.pointsPerLoss2_0} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_0: parseInt(e.target.value) || 0 })} />
-                    </div>
-
-                    <div className="grid md:grid-cols-4 gap-4">
-                        <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
-                        <Input type="number" label={format === 'pairs' ? "Parejas/Div" : "Jugadores/Div"} value={individualMaxPlayers} onChange={(e: any) => { const newValue = Math.max(0, parseInt(e.target.value) || 0); setIndividualMaxPlayers(newValue); setConfig({ ...config, maxPlayersPerDivision: newValue }); }} />
-                        <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
-                        <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
-                    </div>
-                </div>
-            )}
-            {/* Elimination Configuration */}
-            {format === 'elimination' && (
-                <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Trophy size={18} /> Configuración del Torneo</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Settings size={18} /> Configuración de Pozo</h3>
 
                     <div className="grid md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Modalidad</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Variante</label>
                             <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                                 <button
-                                    onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'individual' } })}
-                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.eliminationConfig?.type === 'individual' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setConfig({ ...config, pozoConfig: { ...config.pozoConfig!, variant: 'individual' } })}
+                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.pozoConfig?.variant === 'individual' ? 'bg-white shadow-sm text-yellow-600' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
                                     Individual
                                 </button>
                                 <button
-                                    onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'pairs' } })}
-                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.eliminationConfig?.type === 'pairs' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setConfig({ ...config, pozoConfig: { ...config.pozoConfig!, variant: 'pairs' } })}
+                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.pozoConfig?.variant === 'pairs' ? 'bg-white shadow-sm text-yellow-600' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
-                                    Parejas
+                                    Parejas Fijas
                                 </button>
                             </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                {config.pozoConfig?.variant === 'individual'
+                                    ? 'Se cambian parejas en cada partido.'
+                                    : 'Las parejas se mantienen fijas todo el torneo.'}
+                            </p>
                         </div>
 
-                        <div className="space-y-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={config.eliminationConfig?.consolation}
-                                    onChange={(e) => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, consolation: e.target.checked } })}
-                                    className="w-5 h-5 text-primary rounded"
-                                />
-                                <span className="text-sm font-medium text-gray-700 font-bold">Cuadro de Consolación</span>
-                            </label>
-                            <p className="text-xs text-gray-500 ml-7">
-                                Los perdedores de la primera ronda juegan un torneo paralelo.
-                            </p>
+                        <Input
+                            type="number"
+                            label="Número de Pistas"
+                            value={config.pozoConfig?.numCourts || 2}
+                            onChange={(e: any) => setConfig({ ...config, pozoConfig: { ...config.pozoConfig!, numCourts: Math.max(1, parseInt(e.target.value) || 1) } })}
+                        />
+                    </div>
+
+                    <div className="mt-4 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <h4 className="font-bold text-sm text-yellow-800 mb-2">Puntuación</h4>
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">Sistema de Puntuación</label>
+                                <select
+                                    className="w-full border rounded p-2 text-sm bg-white"
+                                    value={config.scoringMode || 'per-game'}
+                                    onChange={(e: any) => {
+                                        const mode = e.target.value;
+                                        setConfig({
+                                            ...config,
+                                            scoringMode: mode,
+                                            pozoConfig: {
+                                                ...config.pozoConfig!,
+                                                scoringType: mode === 'per-game' ? 'sets' : 'points'
+                                            }
+                                        })
+                                    }}
+                                >
+                                    <option value="per-game">Por Juego (Tradicional)</option>
+                                    <option value="16">16 Puntos</option>
+                                    <option value="21">21 Puntos</option>
+                                    <option value="24">24 Puntos</option>
+                                    <option value="31">31 Puntos</option>
+                                    <option value="32">32 Puntos</option>
+                                    <option value="custom">Puntos Personalizados</option>
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {config.scoringMode === 'per-game'
+                                        ? 'Sistema tradicional: 6 juegos por set, con o sin punto de oro.'
+                                        : 'Los equipos acumulan puntos hasta alcanzar el total (o por tiempo).'}
+                                </p>
+                            </div>
+                            {config.scoringMode === 'per-game' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">Opciones</label>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={config.pozoConfig?.goldenPoint}
+                                            onChange={(e) => setConfig({
+                                                ...config,
+                                                pozoConfig: { ...config.pozoConfig!, goldenPoint: e.target.checked }
+                                            })}
+                                            className="w-4 h-4 text-primary rounded ring-1 ring-gray-300"
+                                        />
+                                        <span className="text-sm">Activar Punto de Oro</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
+            {
+                (format === 'individual' || format === 'pairs') && (
+                    <div className="border-t pt-4">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Sistema de Puntuación</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                            <Input type="number" label="Victoria 2-0" value={config.pointsPerWin2_0} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) || 0 })} />
+                            <Input type="number" label="Victoria 2-1" value={config.pointsPerWin2_1} onChange={(e: any) => setConfig({ ...config, pointsPerWin2_1: parseInt(e.target.value) || 0 })} />
+                            <Input type="number" label="Empate" value={config.pointsDraw} onChange={(e: any) => setConfig({ ...config, pointsDraw: parseInt(e.target.value) || 0 })} />
+                            <Input type="number" label="Derrota 1-2" value={config.pointsPerLoss2_1} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_1: parseInt(e.target.value) || 0 })} />
+                            <Input type="number" label="Derrota 0-2" value={config.pointsPerLoss2_0} onChange={(e: any) => setConfig({ ...config, pointsPerLoss2_0: parseInt(e.target.value) || 0 })} />
+                        </div>
+
+                        <div className="grid md:grid-cols-4 gap-4">
+                            <Input type="number" label="Nº Divisiones" value={numDivisions} onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
+                            <Input type="number" label={format === 'pairs' ? "Parejas/Div" : "Jugadores/Div"} value={individualMaxPlayers} onChange={(e: any) => { const newValue = Math.max(0, parseInt(e.target.value) || 0); setIndividualMaxPlayers(newValue); setConfig({ ...config, maxPlayersPerDivision: newValue }); }} />
+                            <Input type="number" label="Ascienden" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
+                            <Input type="number" label="Descienden" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
+                        </div>
+                    </div>
+                )
+            }
+            {/* Elimination Configuration */}
+            {
+                format === 'elimination' && (
+                    <div className="border-t pt-4">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Trophy size={18} /> Configuración del Torneo</h3>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Modalidad</label>
+                                <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                                    <button
+                                        onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'individual' } })}
+                                        className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.eliminationConfig?.type === 'individual' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Individual
+                                    </button>
+                                    <button
+                                        onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'pairs' } })}
+                                        className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.eliminationConfig?.type === 'pairs' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Parejas
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={config.eliminationConfig?.consolation}
+                                        onChange={(e) => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, consolation: e.target.checked } })}
+                                        className="w-5 h-5 text-primary rounded"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700 font-bold">Cuadro de Consolación</span>
+                                </label>
+                                <p className="text-xs text-gray-500 ml-7">
+                                    Los perdedores de la primera ronda juegan un torneo paralelo.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
 
 
@@ -446,7 +558,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     </div>
                 )
             }
-        </div>
+        </div >
     );
 
 
@@ -495,6 +607,37 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     while (slice.length < playersPerDiv) slice.push('');
                     newAssignments[i] = slice;
                 }
+                setAssignments(newAssignments);
+            }
+            else if (format === 'pozo') {
+                // All players to Division 0
+                // Validate Counts
+                const numCourts = config.pozoConfig?.numCourts || 2;
+                const requiredPlayers = numCourts * 4;
+
+                if (shuffled.length < requiredPlayers) {
+                    alert(`Faltan jugadores. Para ${numCourts} pistas necesitas exactos ${requiredPlayers} jugadores.`);
+                } else if (shuffled.length > requiredPlayers) {
+                    alert(`Sobran jugadores. Selecciona exactamente ${requiredPlayers}.`);
+                }
+
+                setNumDivisions(1);
+                // Assign all to div 0
+                const newAssignments: Record<number, string[]> = {};
+
+                if (config.pozoConfig?.variant === 'pairs') {
+                    // Pair string logic
+                    const pairStrings: string[] = [];
+                    for (let k = 0; k < shuffled.length; k += 2) {
+                        const p1 = shuffled[k];
+                        const p2 = shuffled[k + 1];
+                        if (p1 && p2) pairStrings.push(`${p1}::${p2}`);
+                    }
+                    newAssignments[0] = pairStrings;
+                } else {
+                    newAssignments[0] = shuffled;
+                }
+
                 setAssignments(newAssignments);
             }
             else if (format === 'pairs' || format === 'hybrid') {
@@ -567,7 +710,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                             <p className="text-sm text-gray-500">Selecciona todos los participantes para distribuirlos o añádelos manualmente abajo.</p>
                         </div>
                         {/* Auto Distribute Actions */}
-                        {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid') && (
+                        {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && (
                             <div className="flex gap-2">
                                 <Button onClick={handleAutoDistribute} className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
                                     <Wand2 size={16} className="mr-2" />
@@ -674,7 +817,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 <div className="border-t pt-6"></div>
 
                 {/* 2. Manual Assignments / View (Conditional per format) */}
-                {(format === 'classic' || format === 'individual') && (
+                {(format === 'classic' || format === 'individual' || (format === 'pozo' && config.pozoConfig?.variant === 'individual')) && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. Grupos / Divisiones (Manual)</h3>
@@ -689,7 +832,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                             <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
                                 <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
                                 <div className="grid md:grid-cols-2 gap-3">
-                                    {Array.from({ length: format === 'classic' ? 4 : individualMaxPlayers }).map((_, pIdx) => {
+                                    {Array.from({ length: format === 'classic' || format === 'pozo' ? 4 : individualMaxPlayers }).map((_, pIdx) => {
                                         const currentList = assignments[divIdx] || [];
                                         const val = currentList[pIdx] || '';
                                         const used = new Set<string>();
@@ -699,7 +842,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                         return (
                                             <div key={pIdx}>
                                                 <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
-                                                <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, format === 'classic' ? 4 : individualMaxPlayers)} placeholder="Seleccionar..." />
+                                                <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, format === 'classic' || format === 'pozo' ? 4 : individualMaxPlayers)} placeholder="Seleccionar..." />
                                             </div>
                                         )
                                     })}
@@ -710,7 +853,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 )}
 
 
-                {(format === 'pairs' || format === 'hybrid') && (
+                {(format === 'pairs' || format === 'hybrid' || (format === 'pozo' && config.pozoConfig?.variant === 'pairs')) && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. {format === 'hybrid' ? 'Grupos (Parejas Fijas)' : 'Divisiones (Parejas)'}</h3>
@@ -723,7 +866,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                             <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
                                 <h4 className="font-bold mb-2">{format === 'hybrid' ? `Grupo ${String.fromCharCode(65 + divIdx)}` : `División ${divIdx + 1}`}</h4>
                                 <div className="grid gap-4">
-                                    {Array.from({ length: format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers) }).map((_, pairIdx) => {
+                                    {Array.from({ length: format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers)) }).map((_, pairIdx) => {
                                         const currentList = assignments[divIdx] || [];
                                         const val = currentList[pairIdx] || '';
                                         const [p1Id, p2Id] = val ? val.split('::') : ['', ''];
@@ -743,11 +886,11 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                                 <div className="flex-1 grid grid-cols-2 gap-2">
                                                     <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
                                                         const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers));
+                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers)));
                                                     }} placeholder="A" />
                                                     <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
                                                         const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers));
+                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers)));
                                                     }} placeholder="B" />
                                                 </div>
                                             </div>
@@ -854,7 +997,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
         const divisions: Division[] = [];
 
-        if (format === 'classic' || format === 'individual' || format === 'pairs' || format === 'elimination' || format === 'hybrid') {
+        if (format === 'classic' || format === 'individual' || format === 'pairs' || format === 'elimination' || format === 'hybrid' || format === 'pozo') {
 
             if (format === 'elimination') {
                 // Loop through configured categories
@@ -918,7 +1061,10 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     const activePlayers = p.filter(x => x);
 
                     // Check limits
-                    if (format === 'pairs' || format === 'hybrid') {
+                    if (format === 'pozo' && config.pozoConfig?.variant === 'pairs') {
+                        const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
+                        if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1} para Pozo`);
+                    } else if (format === 'pairs' || format === 'hybrid') {
                         const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
                         if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1}`);
                     } else {
@@ -954,6 +1100,38 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                             players: flatPlayers, // Store flat list of IDs
                             stage: format === 'hybrid' ? 'group' : undefined, // Mark as group stage for hybrid
                             name: format === 'hybrid' ? `Grupo ${String.fromCharCode(65 + i)}` : undefined, // Group A, B, etc.
+                            matches: matches
+                        });
+                        continue;
+                    } else if (format === 'pozo') {
+                        // Pozo Generation
+                        // NOTE: Pozo expects a flat list of players, even for pairs?
+                        // generateInitialRound logic:
+                        // if variant=pairs, it splits inputs assuming they are pairs.
+
+                        let pozoPlayers: string[] = [];
+                        if (config.pozoConfig?.variant === 'pairs') {
+                            const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
+                            // We pass them AS IS? PozoEngine expects strings.
+                            // But PozoEngine tests use clean logic.
+                            // Let's check PozoEngine again. It seemed to handle "::" split inside.
+                            // YES, I updated it to split '::'. So we pass the pair strings.
+                            pozoPlayers = pairStrings;
+                        } else {
+                            pozoPlayers = activePlayers;
+                        }
+
+                        matches = PozoEngine.generateInitialRound(pozoPlayers, config);
+
+                        const flatPozoPlayers = config.pozoConfig?.variant === 'pairs'
+                            ? pozoPlayers.map(s => s.split('::')).flat()
+                            : pozoPlayers;
+
+                        divisions.push({
+                            id: `div-${crypto.randomUUID()}`,
+                            numero: i + 1,
+                            status: 'activa',
+                            players: flatPozoPlayers,
                             matches: matches
                         });
                         continue;
@@ -994,7 +1172,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
         // Filter valid Guest Players (only those selected)
         const activeGuestPlayers = guestPlayers.filter(g =>
-            format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid'
+            format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo'
                 ? Object.values(assignments).flat().map((pair: unknown) => (pair as string).includes('::') ? (pair as string).split('::') : (pair as string)).flat().includes(g.id)
                 : selectedPlayerIds.includes(g.id)
         );

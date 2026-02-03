@@ -309,7 +309,8 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                                   ranking.format === 'individual' ? 'Individual' :
                                     ranking.format === 'pairs' ? 'Ranking por Parejas' :
                                       ranking.format === 'elimination' ? 'Eliminación' :
-                                        ranking.format === 'hybrid' ? 'Híbrido' : 'Ranking clásica'}
+                                        ranking.format === 'hybrid' ? 'Híbrido' :
+                                          ranking.format === 'pozo' ? 'Pozo' : 'Ranking clásica'}
                             </span>
                           </div>
                           <div className="flex gap-1">
@@ -381,7 +382,8 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                                   ranking.format === 'individual' ? 'Individual' :
                                     ranking.format === 'pairs' ? 'Parejas' :
                                       ranking.format === 'elimination' ? 'Eliminación' :
-                                        ranking.format === 'hybrid' ? 'Híbrido' : 'Liga'}
+                                        ranking.format === 'hybrid' ? 'Híbrido' :
+                                          ranking.format === 'pozo' ? 'Pozo' : 'Liga'}
                             </span>
                           </div>
                           <div className="flex items-center gap-4 text-sm text-gray-500">

@@ -7,7 +7,7 @@ export interface PlanFeatures {
     maxPlayers: number;
     maxActiveTournaments: number;
     maxDivisionsPerTournament: number;
-    allowedFormats: Array<'americano' | 'mexicano' | 'individual' | 'pairs' | 'hybrid' | 'elimination' | 'classic'>;
+    allowedFormats: Array<'americano' | 'mexicano' | 'individual' | 'pairs' | 'hybrid' | 'elimination' | 'classic' | 'pozo'>;
     allowsBranding: boolean;
     durationDays?: number; // For Weekend Warrior
 }
@@ -28,7 +28,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlan, PlanFeatures> = {
         maxPlayers: 150,
         maxActiveTournaments: Infinity,
         maxDivisionsPerTournament: Infinity,
-        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid'],
+        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'pozo'],
         allowsBranding: true
     },
     star: {
@@ -37,7 +37,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlan, PlanFeatures> = {
         maxPlayers: Infinity,
         maxActiveTournaments: Infinity,
         maxDivisionsPerTournament: Infinity,
-        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'elimination'],
+        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'elimination', 'pozo'],
         allowsBranding: true
     },
     weekend: {
@@ -46,7 +46,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlan, PlanFeatures> = {
         maxPlayers: Infinity,
         maxActiveTournaments: Infinity,
         maxDivisionsPerTournament: Infinity,
-        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'elimination'],
+        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'elimination', 'pozo'],
         allowsBranding: true,
         durationDays: 7
     },
@@ -56,7 +56,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlan, PlanFeatures> = {
         maxPlayers: Infinity,
         maxActiveTournaments: Infinity,
         maxDivisionsPerTournament: Infinity,
-        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'elimination'],
+        allowedFormats: ['americano', 'mexicano', 'individual', 'pairs', 'hybrid', 'elimination', 'pozo'],
         allowsBranding: true
     }
 };

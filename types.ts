@@ -36,7 +36,7 @@ export interface Player {
 }
 
 
-export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination' | 'hybrid';
+export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination' | 'hybrid' | 'pozo';
 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
 
@@ -67,6 +67,15 @@ export interface RankingConfig {
   hybridConfig?: {
     qualifiersPerGroup: number; // Top N players from each group advance
     pairsPerGroup?: number; // Number of pairs per group
+  };
+
+  // For Pozo (King of the Court)
+  pozoConfig?: {
+    variant: 'individual' | 'pairs';
+    numCourts: number;
+    totalRounds?: number;
+    scoringType: 'sets' | 'points'; // 'sets' (1 set) or 'points' (e.g. 21)
+    goldenPoint: boolean; // Usually true
   };
 
   branding?: {
