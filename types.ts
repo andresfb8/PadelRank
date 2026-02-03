@@ -65,7 +65,8 @@ export interface RankingConfig {
 
   // For Hybrid
   hybridConfig?: {
-    qualifiersPerGroup: number; // Top N players from each group advance
+    qualifiersPerGroup: number; // Top N players from each group advance to Main Playoff
+    consolationQualifiersPerGroup?: number; // Next N players from each group advance to Consolation Playoff
     pairsPerGroup?: number; // Number of pairs per group
   };
 

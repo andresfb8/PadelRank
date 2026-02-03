@@ -3,7 +3,7 @@ import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCi
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
 
-import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers } from '../services/logic';
+import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers, getQualifiedPlayersBuckets } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
 import { AddDivisionModal } from './AddDivisionModal';
@@ -77,6 +77,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [viewMode, setViewMode] = useState<'groups' | 'playoff'>(
     ranking.format === 'hybrid' && ranking.phase === 'playoff' ? 'playoff' : 'groups'
   );
+  const [playoffBracketView, setPlayoffBracketView] = useState<'main' | 'consolation'>('main'); // Which playoff bracket to show
   const [isGodMode, setIsGodMode] = useState(false);
 
   // Sorting State
@@ -237,8 +238,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       divisions: ranking.divisions.map(d => d.id === divisionToUpdate!.id ? updatedDivision : d)
     };
 
-    // ELIMINATION LOGIC
-    if (ranking.format === 'elimination' && updatedMatch.status === 'finalizado') {
+    // ELIMINATION LOGIC (for Elimination format AND Hybrid Playoffs)
+    const isEliminationContext = ranking.format === 'elimination' || (ranking.format === 'hybrid' && ranking.phase === 'playoff');
+
+    if (isEliminationContext && updatedMatch.status === 'finalizado') {
       try {
         console.log("Processing Elimination Logic...");
         const p1WonVal = updatedMatch.points.p1 > updatedMatch.points.p2;
@@ -250,8 +253,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         let newDivisions = TournamentEngine.advanceWinner(updatedMatch, updatedRanking, { p1: winnerId.p1Id, p2: winnerId.p2Id });
         console.log("advanceWinner result:", newDivisions);
 
-        // Handle Consolation for First-Match Losers (including those who had BYE in R1)
-        if (ranking.config?.eliminationConfig?.consolation) {
+        // Handle Consolation for First-Match Losers (only for elimination format with consolation enabled)
+        // For hybrid format, we don't use internal consolation brackets
+        if (ranking.format === 'elimination' && ranking.config?.eliminationConfig?.consolation) {
           // Check if this is the loser's first REAL match (not BYE)
           const isFirstRealMatch = (pairId: { p1Id: string, p2Id: string }) => {
             // Find all matches in main bracket where this pair played
@@ -284,7 +288,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         }
 
         // Reactive Scheduler Hook
-        if (ranking.schedulerConfig && ranking.format === 'elimination') {
+        if (ranking.schedulerConfig && isEliminationContext) {
           const tempRanking = { ...updatedRanking, divisions: newDivisions };
           newDivisions = SchedulerEngine.scheduleNextMatches(updatedMatch, tempRanking, activeDivision.id);
         }
@@ -894,31 +898,58 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const handleStartPlayoffs = () => {
     if (!onUpdateRanking || ranking.format !== 'hybrid') return;
 
-    // 1. Get Qualified Players (Group Seeds)
-    const qualified = getQualifiedPlayers(ranking);
-    if (qualified.length < 2) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 2).");
+    // 1. Get Qualified Players (Main + Consolation buckets)
+    const buckets = getQualifiedPlayersBuckets(ranking);
+    const mainQualified = buckets.main;
+    const consolationQualified = buckets.consolation;
 
-    if (!confirm(`Se generará un cuadro de Eliminatoria con ${qualified.length} parejas clasificadas.La fase de grupos se mantendrá visible en la pestaña 'Fase de Grupos'. ¿Continuar ? `)) return;
+    if (mainQualified.length < 2) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 2).");
 
-    // 2. Generate Bracket
-    // Default to including Consolation for Hybrid as it's usually desired.
-    const newDivs = TournamentEngine.generateBracket(qualified, true);
+    let confirmMessage = `Se generará un cuadro principal con ${mainQualified.length} parejas clasificadas.`;
+    if (consolationQualified.length > 0) {
+      confirmMessage += `\n\nTambién se generará un cuadro de consolación con ${consolationQualified.length} parejas.`;
+    }
+    confirmMessage += `\n\nLa fase de grupos se mantendrá visible. ¿Continuar?`;
+    if (!confirm(confirmMessage)) return;
+
+    // 2. Generate Brackets (both with internal consolation)
+    const allBracketDivisions: Division[] = [];
+
+    // Main Bracket
+    if (mainQualified.length >= 2) {
+      const mainDivs = TournamentEngine.generateBracket(mainQualified, false);
+      mainDivs.forEach(d => {
+        d.stage = 'playoff' as const;
+        d.name = "Playoff Principal";
+      });
+      allBracketDivisions.push(...mainDivs);
+    }
+
+    // Consolation Bracket (simple elimination for non-qualifiers)
+    if (consolationQualified.length >= 2) {
+      const consolationDivs = TournamentEngine.generateBracket(consolationQualified, false);
+      consolationDivs.forEach(d => {
+        d.stage = 'playoff' as const;
+        d.type = 'league-consolation-main' as any;
+        d.name = "Playoff Consolación";
+      });
+      allBracketDivisions.push(...consolationDivs);
+    }
 
     // 3. Mark Stages
     const currentDivisions = ranking.divisions.map(d => ({ ...d, stage: 'group' as const }));
-    const bracketDivisions = newDivs.map(d => ({ ...d, stage: 'playoff' as const }));
 
     // 4. Update Ranking with BOTH sets of divisions
     const updatedRanking: Ranking = {
       ...ranking,
       phase: 'playoff',
-      // We don't archive matches to history anymore because we keep the divisions alive!
-      // history: [...(ranking.history || []), ...ranking.divisions.flatMap(d => d.matches.filter(m => m.status === 'finalizado'))], 
-      divisions: [...currentDivisions, ...bracketDivisions]
+      divisions: [...currentDivisions, ...allBracketDivisions]
     };
 
     onUpdateRanking(updatedRanking);
-    setActiveDivisionId(bracketDivisions[0].id);
+    if (allBracketDivisions.length > 0) {
+      setActiveDivisionId(allBracketDivisions[0].id);
+    }
     setViewMode('playoff');
   };
 
@@ -999,16 +1030,43 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               icon: Trash2,
               label: 'Regenerar Playoff',
               onClick: () => {
-                if (confirm("⚠️ ¡PELIGRO! Esta acción BORRARÁ todo el cuadro de playoff actual y todos sus resultados. Se volverá a generar basado en la clasificación actual de los grupos.\\n\\n¿Estás seguro de que quieres continuar?")) {
-                  const qualified = getQualifiedPlayers(ranking);
-                  if (qualified.length < 2) return alert("Error: No hay suficientes clasificados (mínimo 2).");
+                if (confirm("⚠️ ¡PELIGRO! Esta acción BORRARÁ todos los cuadros de playoff actuales y todos sus resultados. Se volverán a generar basados en la clasificación actual de los grupos.\\n\\n¿Estás seguro de que quieres continuar?")) {
+                  const buckets = getQualifiedPlayersBuckets(ranking);
+                  const mainQualified = buckets.main;
+                  const consolationQualified = buckets.consolation;
 
-                  const newDivisions = TournamentEngine.regeneratePlayoff(ranking, qualified, true);
-                  const updatedRanking = { ...ranking, divisions: newDivisions };
+                  if (mainQualified.length < 2) return alert("Error: No hay suficientes clasificados para el cuadro principal (mínimo 2).");
+
+                  // Keep only group divisions
+                  const groupDivisions = ranking.divisions.filter(d => d.type !== 'main' && d.type !== 'consolation' && d.type !== 'league-consolation-main' && d.type !== 'league-consolation-sub');
+                  const allNewBracketDivisions: Division[] = [];
+
+                  // Main Bracket
+                  if (mainQualified.length >= 2) {
+                    const mainDivs = TournamentEngine.generateBracket(mainQualified, false);
+                    mainDivs.forEach(d => {
+                      d.stage = 'playoff' as const;
+                      d.name = "Playoff Principal";
+                    });
+                    allNewBracketDivisions.push(...mainDivs);
+                  }
+
+                  // Consolation Bracket
+                  if (consolationQualified.length >= 2) {
+                    const consolationDivs = TournamentEngine.generateBracket(consolationQualified, false);
+                    consolationDivs.forEach(d => {
+                      d.stage = 'playoff' as const;
+                      d.type = 'league-consolation-main' as any;
+                      d.name = "Playoff Consolación";
+                    });
+                    allNewBracketDivisions.push(...consolationDivs);
+                  }
+
+                  const updatedRanking = { ...ranking, divisions: [...groupDivisions, ...allNewBracketDivisions] };
                   onUpdateRanking?.(updatedRanking);
-                  alert("✅ Playoff regenerado correctamente.");
+                  alert("✅ Cuadros de playoff regenerados correctamente.");
 
-                  const mainDiv = newDivisions.find(d => d.type === 'main');
+                  const mainDiv = allNewBracketDivisions.find(d => d.type === 'main');
                   if (mainDiv) {
                     setActiveDivisionId(mainDiv.id);
                     setViewMode('playoff');
@@ -1246,14 +1304,53 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           </div>
         ) :
           ranking.format === 'hybrid' && ranking.phase === 'playoff' && viewMode === 'playoff' ? (
-            <BracketView
-              divisions={ranking.divisions.filter(d => d.stage === 'playoff' || d.type === 'main' || d.type === 'consolation')}
-              players={players}
-              onMatchClick={handleMatchClick}
-              onScheduleClick={isAdmin ? (m) => setSchedulingMatch(m) : undefined}
-              ranking={ranking}
-              bracketType={bracketType}
-            />
+            <div className="space-y-4">
+              {/* Playoff Bracket Tabs */}
+              <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 bg-white sticky top-[60px] z-30">
+                {/* Main Bracket Tab */}
+                {ranking.divisions.some(d => d.type === 'main' || (d.stage === 'playoff' && !d.type.toString().includes('consolation'))) && (
+                  <button
+                    onClick={() => setPlayoffBracketView('main')}
+                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${playoffBracketView === 'main'
+                      ? 'bg-white border-b-2 border-blue-500 text-blue-600 shadow-sm'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                  >
+                    <Trophy size={16} /> Cuadro Principal
+                  </button>
+                )}
+                {/* Consolation Bracket Tab */}
+                {ranking.divisions.some(d => d.type === 'league-consolation-main') && (
+                  <button
+                    onClick={() => setPlayoffBracketView('consolation')}
+                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${playoffBracketView === 'consolation'
+                      ? 'bg-white border-b-2 border-orange-500 text-orange-600 shadow-sm'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                  >
+                    <Medal size={16} /> Cuadro Consolación
+                  </button>
+                )}
+              </div>
+
+              {/* Bracket View - Filtered by Active Tab */}
+              <BracketView
+                divisions={ranking.divisions.filter(d => {
+                  if (playoffBracketView === 'main') {
+                    // Show main bracket and its internal consolation
+                    return (d.type === 'main' || d.type === 'consolation') && d.stage === 'playoff';
+                  } else {
+                    // Show league consolation bracket (no internal consolation)
+                    return d.type === 'league-consolation-main';
+                  }
+                })}
+                players={players}
+                onMatchClick={handleMatchClick}
+                onScheduleClick={isAdmin ? (m) => setSchedulingMatch(m) : undefined}
+                ranking={ranking}
+                bracketType={bracketType}
+              />
+            </div>
           ) : (
             <>
               {/* Division Tabs */}

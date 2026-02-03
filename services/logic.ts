@@ -590,10 +590,20 @@ function generateNewPhaseMatches(players: string[], divIndex: number): Match[] {
 }
 
 export function getQualifiedPlayers(ranking: Ranking): string[] {
-  if (ranking.format !== 'hybrid') return [];
-  if (!ranking.config?.hybridConfig) return [];
+  const result = getQualifiedPlayersBuckets(ranking);
+  return result.main;
+}
+
+/**
+ * Get qualified players for Hybrid playoffs, split into Main and Consolation buckets
+ */
+export function getQualifiedPlayersBuckets(ranking: Ranking): { main: string[], consolation: string[] } {
+  if (ranking.format !== 'hybrid') return { main: [], consolation: [] };
+  if (!ranking.config?.hybridConfig) return { main: [], consolation: [] };
 
   const qualifiersPerGroup = ranking.config.hybridConfig.qualifiersPerGroup;
+  const consolationPerGroup = ranking.config.hybridConfig.consolationQualifiersPerGroup || 0;
+
   // Sort divisions by number to ensure Group A, B, C order
   // FILTER: Only consider GROUP divisions, ignore existing Playoff brackets
   const divisions = ranking.divisions
@@ -604,20 +614,33 @@ export function getQualifiedPlayers(ranking: Ranking): string[] {
   // Use 'hybrid' format logic for the groups as they are pairs-based in hybrid mode
   const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'hybrid'));
 
-  const qualifiedIds: string[] = [];
+  const mainQualifiedIds: string[] = [];
+  const consolationQualifiedIds: string[] = [];
 
   // Interleave logic: Div1#1, Div2#1... then Div1#2, Div2#2...
   // This maximizes the chance that 1st places don't meet purely by seed index logic in existing generateBracket
+
+  // Main Playoff Qualifiers
   for (let pos = 0; pos < qualifiersPerGroup; pos++) {
     divisions.forEach((_, divIdx) => {
       const standing = allStandings[divIdx];
       if (standing && standing[pos]) {
-        qualifiedIds.push(standing[pos].playerId);
+        mainQualifiedIds.push(standing[pos].playerId);
       }
     });
   }
 
-  return qualifiedIds;
+  // Consolation Playoff Qualifiers (next positions after main qualifiers)
+  for (let pos = qualifiersPerGroup; pos < qualifiersPerGroup + consolationPerGroup; pos++) {
+    divisions.forEach((_, divIdx) => {
+      const standing = allStandings[divIdx];
+      if (standing && standing[pos]) {
+        consolationQualifiedIds.push(standing[pos].playerId);
+      }
+    });
+  }
+
+  return { main: mainQualifiedIds, consolation: consolationQualifiedIds };
 }
 
 /**

@@ -337,22 +337,69 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                         En este formato, los jugadores competirán primero en grupos (ligas pequeñas) y los mejores de cada grupo pasarán a una fase final eliminatoria.
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-6">
+                    <div className="grid md:grid-cols-3 gap-6">
                         <Input
                             type="number"
-                            label="Clasifican por Grupo"
+                            label="Clasifican a Principal (por grupo)"
                             value={config.hybridConfig?.qualifiersPerGroup || 2}
-                            onChange={(e: any) => setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, qualifiersPerGroup: parseInt(e.target.value) || 1 } })}
+                            onChange={(e: any) => {
+                                const mainQualifiers = parseInt(e.target.value) || 1;
+                                const consolationQualifiers = config.hybridConfig?.consolationQualifiersPerGroup || 0;
+                                const pairsPerGroup = config.hybridConfig?.pairsPerGroup || 4;
+
+                                // Validation: main + consolation <= total pairs
+                                if (mainQualifiers + consolationQualifiers > pairsPerGroup) {
+                                    alert(`Error: La suma de clasificados (Principal + Consolación) no puede superar el número de parejas por grupo (${pairsPerGroup}).`);
+                                    return;
+                                }
+
+                                setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, qualifiersPerGroup: mainQualifiers } });
+                            }}
+                        />
+                        <Input
+                            type="number"
+                            label="Clasifican a Consolación (por grupo)"
+                            value={config.hybridConfig?.consolationQualifiersPerGroup || 0}
+                            onChange={(e: any) => {
+                                const consolationQualifiers = parseInt(e.target.value) || 0;
+                                const mainQualifiers = config.hybridConfig?.qualifiersPerGroup || 2;
+                                const pairsPerGroup = config.hybridConfig?.pairsPerGroup || 4;
+
+                                // Validation: main + consolation <= total pairs
+                                if (mainQualifiers + consolationQualifiers > pairsPerGroup) {
+                                    alert(`Error: La suma de clasificados (Principal: ${mainQualifiers} + Consolación: ${consolationQualifiers}) no puede superar el número de parejas por grupo (${pairsPerGroup}).`);
+                                    return;
+                                }
+
+                                setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, consolationQualifiersPerGroup: consolationQualifiers } });
+                            }}
                         />
                         <Input
                             type="number"
                             label="Parejas por Grupo"
                             value={config.hybridConfig?.pairsPerGroup || 4}
-                            onChange={(e: any) => setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, pairsPerGroup: parseInt(e.target.value) || 2 } })}
+                            onChange={(e: any) => {
+                                const pairsPerGroup = parseInt(e.target.value) || 2;
+                                const mainQualifiers = config.hybridConfig?.qualifiersPerGroup || 2;
+                                const consolationQualifiers = config.hybridConfig?.consolationQualifiersPerGroup || 0;
+
+                                // Validation: total >= main + consolation
+                                if (pairsPerGroup < mainQualifiers + consolationQualifiers) {
+                                    alert(`Error: El número de parejas por grupo debe ser mayor o igual que la suma de clasificados (${mainQualifiers + consolationQualifiers}).`);
+                                    return;
+                                }
+
+                                setConfig({ ...config, hybridConfig: { ...config.hybridConfig!, pairsPerGroup } });
+                            }}
                         />
-                        <div className="text-xs text-gray-500 mt-2 md:col-span-2">
-                            Número de jugadores/parejas de cada grupo que pasarán al Playoff (Cuadro Final).
-                            <br />Por ejemplo, si hay 4 grupos y clasifican 2, se creará un cuadro de Cuartos de Final (8 participantes).
+                        <div className="text-xs text-gray-500 mt-2 md:col-span-3">
+                            <strong>Cuadro Principal:</strong> Los <strong>{config.hybridConfig?.qualifiersPerGroup || 2} primeros</strong> de cada grupo.
+                            {(config.hybridConfig?.consolationQualifiersPerGroup || 0) > 0 && (
+                                <>
+                                    <br /><strong>Cuadro Consolación:</strong> Los <strong>siguientes {config.hybridConfig?.consolationQualifiersPerGroup}</strong> de cada grupo.
+                                </>
+                            )}
+                            <br />Ambos cuadros serán de eliminación simple. Todos los jugadores juegan al menos un partido.
                         </div>
                     </div>
 
