@@ -158,8 +158,11 @@ export function generateStandings(
 
     // 1. Initialize map for all pairs found in ANY match (active or pending)
     matches.forEach(m => {
-      const pair1Key = `${m.pair1.p1Id}::${m.pair1.p2Id}`;
-      const pair2Key = `${m.pair2.p1Id}::${m.pair2.p2Id}`;
+      // Standardize Pair Keys: sort IDs alphabetically
+      const p1Ids = [m.pair1.p1Id, m.pair1.p2Id || ''].sort();
+      const p2Ids = [m.pair2.p1Id, m.pair2.p2Id || ''].sort();
+      const pair1Key = `${p1Ids[0]}::${p1Ids[1]}`;
+      const pair2Key = `${p2Ids[0]}::${p2Ids[1]}`;
 
       if (!map[pair1Key]) map[pair1Key] = { playerId: pair1Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
       if (!map[pair2Key]) map[pair2Key] = { playerId: pair2Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
@@ -169,8 +172,11 @@ export function generateStandings(
     matches.forEach(m => {
       if (m.status !== 'finalizado' && m.status !== 'no_disputado') return;
 
-      const pair1Key = `${m.pair1.p1Id}::${m.pair1.p2Id}`;
-      const pair2Key = `${m.pair2.p1Id}::${m.pair2.p2Id}`;
+      // Standardize Pair Keys
+      const p1Ids = [m.pair1.p1Id, m.pair1.p2Id || ''].sort();
+      const p2Ids = [m.pair2.p1Id, m.pair2.p2Id || ''].sort();
+      const pair1Key = `${p1Ids[0]}::${p1Ids[1]}`;
+      const pair2Key = `${p2Ids[0]}::${p2Ids[1]}`;
 
       // P1 Stats
       map[pair1Key].pts += m.points.p1;
@@ -349,6 +355,30 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
     div.matches.forEach(m => allMatches.push(m));
     div.players.forEach(p => allPlayers.add(p));
   });
+
+  // Include HISTORY matches especially for Hybrid format where Group Phase matches are moved to history
+  if (ranking.history && ranking.history.length > 0) {
+    ranking.history.forEach(matchedRound => {
+      // History structure might be matches directly or array of matches?
+      // Type is Match[] logic.ts doesn't know fully but assuming Match[] based on usage elsewhere
+      // Actually type Ranking.history is Match[] usually.
+      // Let's check 'ranking.history' usage.
+      // If history is just Match[], we push them.
+      // In some implementations history was Group[], but let's assume flat list or check type.
+      // safely push
+      allMatches.push(matchedRound);
+      // History matches also contain player IDs we might need if they are not in current divisions
+      if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+        if (matchedRound.pair1.p1Id) allPlayers.add(matchedRound.pair1.p1Id);
+        if (matchedRound.pair1.p2Id) allPlayers.add(matchedRound.pair1.p2Id);
+        if (matchedRound.pair2.p1Id) allPlayers.add(matchedRound.pair2.p1Id);
+        if (matchedRound.pair2.p2Id) allPlayers.add(matchedRound.pair2.p2Id);
+      } else {
+        if (matchedRound.pair1.p1Id) allPlayers.add(matchedRound.pair1.p1Id);
+        if (matchedRound.pair2.p1Id) allPlayers.add(matchedRound.pair2.p1Id);
+      }
+    });
+  }
 
   // We can reuse generateStandings by creating a "Virtual" division containing all matches and all players
   // This ensures we respect the format (Classic vs Pairs vs Hybrid) logic

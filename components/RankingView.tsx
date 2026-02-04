@@ -1354,7 +1354,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           ) : (
             <>
               {/* Division Tabs */}
-              {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs' || (ranking.format === 'hybrid' && ranking.phase !== 'playoff')) && (
+              {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs' || (ranking.format === 'hybrid')) && (
                 <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
                   {ranking.format !== 'elimination' && (
                     <button

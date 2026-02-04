@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, ArrowLeft } from 'lucide-react';
 import { RankingView } from './RankingView';
 import { PlayerDetailView } from './PlayerDetailView';
+import { PairDetailView } from './PairDetailView';
 import { Player, Ranking } from '../types';
 import { subscribeToPlayers, subscribeToRankings } from '../services/db';
 
@@ -37,7 +38,8 @@ export const PublicLayout = ({ rankingId }: Props) => {
     }, []);
 
     const activeRanking = rankings.find(r => r.id === rankingId);
-    const selectedPlayer = selectedPlayerId ? players[selectedPlayerId] : null;
+    const isPairSelection = selectedPlayerId?.includes('::');
+    const selectedPlayer = selectedPlayerId && !isPairSelection ? players[selectedPlayerId] : null;
 
     const handlePlayerClick = (playerId: string) => {
         setSelectedPlayerId(playerId);
@@ -77,7 +79,14 @@ export const PublicLayout = ({ rankingId }: Props) => {
             </header>
 
             <main className="p-4 md:p-8 max-w-7xl mx-auto flex-1 w-full">
-                {selectedPlayer ? (
+                {selectedPlayerId && isPairSelection ? (
+                    <PairDetailView
+                        pairId={selectedPlayerId}
+                        players={players}
+                        rankings={rankings}
+                        onBack={handleBackToRanking}
+                    />
+                ) : selectedPlayer ? (
                     <PlayerDetailView
                         player={selectedPlayer}
                         players={players}
