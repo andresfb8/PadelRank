@@ -135,7 +135,9 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                 )}
                                             </div>
 
-                                            <div className="h-px bg-gray-100" />
+                                            <div className="relative h-px bg-gray-100 my-0.5">
+                                                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[8px] font-bold text-gray-300 italic z-10">VS</span>
+                                            </div>
 
                                             {/* Pair 2 */}
                                             <div className={`text-sm flex justify-between items-center transition-colors ${match.points?.p2 > match.points?.p1 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>

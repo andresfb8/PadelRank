@@ -5,7 +5,7 @@ import * as PozoEngine from '../services/PozoEngine';
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
 import { TournamentEngine } from '../services/TournamentEngine';
-import { User } from '../types';
+import { User, Player, Ranking, RankingFormat, RankingConfig, ScoringMode, Division } from '../types';
 import { SUBSCRIPTION_PLANS, canUseFormat, canCreateTournament } from '../config/subscriptionPlans';
 
 interface Props {
@@ -44,10 +44,18 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         promotionCount: 2,
         relegationCount: 2,
         courts: 2,
-        scoringMode: '24',  // Default for Mexicano/Americano
-        scorignMode: '24', // Default for Mexicano/Americano
+        scoringMode: '24', // Default for Mexicano/Americano
         eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' },
-        hybridConfig: { qualifiersPerGroup: 2, pairsPerGroup: 4 },
+        hybridConfig: {
+            qualifiersPerGroup: 2,
+            pairsPerGroup: 4,
+            consolationQualifiersPerGroup: 0,
+            pointsPerWin2_0: 3,
+            pointsPerWin2_1: 2,
+            pointsDraw: 1,
+            pointsPerLoss2_1: 1,
+            pointsPerLoss2_0: 0
+        },
         branding: {
             logoUrl: currentUser?.branding?.logoUrl // Prefill with Club Logo
         }
@@ -197,7 +205,16 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                         pointsDraw: 1,
                                         pointsPerLoss2_1: 1,
                                         pointsPerLoss2_0: 0,
-                                        hybridConfig: { qualifiersPerGroup: 2 }
+                                        hybridConfig: {
+                                            qualifiersPerGroup: 2,
+                                            pairsPerGroup: 4,
+                                            consolationQualifiersPerGroup: 0,
+                                            pointsPerWin2_0: 3,
+                                            pointsPerWin2_1: 2,
+                                            pointsDraw: 1,
+                                            pointsPerLoss2_1: 1,
+                                            pointsPerLoss2_0: 0
+                                        }
                                     }));
                                 } else if (f.id === 'pozo') {
                                     setNumDivisions(1);
@@ -206,7 +223,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                         pozoConfig: {
                                             variant: 'individual',
                                             numCourts: 2,
-                                            scoringType: 'sets',
+                                            scoringMode: 'per-game',
                                             goldenPoint: true
                                         }
                                     }));
@@ -429,8 +446,8 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                     Individual
                                 </button>
                                 <button
-                                    onClick={() => setConfig({ ...config, pozoConfig: { ...config.pozoConfig!, variant: 'pairs' } })}
-                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.pozoConfig?.variant === 'pairs' ? 'bg-white shadow-sm text-yellow-600' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => setConfig({ ...config, pozoConfig: { ...config.pozoConfig!, variant: 'fixed-pairs' } })}
+                                    className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${config.pozoConfig?.variant === 'fixed-pairs' ? 'bg-white shadow-sm text-yellow-600' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
                                     Parejas Fijas
                                 </button>
@@ -465,7 +482,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                             scoringMode: mode,
                                             pozoConfig: {
                                                 ...config.pozoConfig!,
-                                                scoringType: mode === 'per-game' ? 'sets' : 'points'
+                                                scoringMode: mode as ScoringMode,
                                             }
                                         })
                                     }}
@@ -672,7 +689,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 // Assign all to div 0
                 const newAssignments: Record<number, string[]> = {};
 
-                if (config.pozoConfig?.variant === 'pairs') {
+                if (config.pozoConfig?.variant === 'fixed-pairs') {
                     // Pair string logic
                     const pairStrings: string[] = [];
                     for (let k = 0; k < shuffled.length; k += 2) {
@@ -781,7 +798,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                         .map(p => ({
                                             id: p.id,
                                             label: `${p.nombre} ${p.apellidos || ''}`,
-                                            subLabel: p.id.startsWith('guest-') ? 'Invitado' : `Nivel: ${p.stats.winrate}%`
+                                            subLabel: p.id.startsWith('guest-') ? 'Invitado' : `Nivel: ${(p as Player).stats?.winrate || 0}%`
                                         }))}
                                     value=""
                                     onChange={(id) => {
@@ -900,7 +917,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 )}
 
 
-                {(format === 'pairs' || format === 'hybrid' || (format === 'pozo' && config.pozoConfig?.variant === 'pairs')) && (
+                {(format === 'pairs' || format === 'hybrid' || (format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs')) && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. {format === 'hybrid' ? 'Grupos (Parejas Fijas)' : 'Divisiones (Parejas)'}</h3>
@@ -1108,7 +1125,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     const activePlayers = p.filter(x => x);
 
                     // Check limits
-                    if (format === 'pozo' && config.pozoConfig?.variant === 'pairs') {
+                    if (format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs') {
                         const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
                         if (pairStrings.length < 2) return alert(`Mínimo 2 Parejas completas en Div ${i + 1} para Pozo`);
                     } else if (format === 'pairs' || format === 'hybrid') {
@@ -1157,7 +1174,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                         // if variant=pairs, it splits inputs assuming they are pairs.
 
                         let pozoPlayers: string[] = [];
-                        if (config.pozoConfig?.variant === 'pairs') {
+                        if (config.pozoConfig?.variant === 'fixed-pairs') {
                             const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
                             // We pass them AS IS? PozoEngine expects strings.
                             // But PozoEngine tests use clean logic.
@@ -1170,7 +1187,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
                         matches = PozoEngine.generateInitialRound(pozoPlayers, config);
 
-                        const flatPozoPlayers = config.pozoConfig?.variant === 'pairs'
+                        const flatPozoPlayers = config.pozoConfig?.variant === 'fixed-pairs'
                             ? pozoPlayers.map(s => s.split('::')).flat()
                             : pozoPlayers;
 

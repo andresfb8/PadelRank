@@ -31,7 +31,7 @@ export function generateInitialRound(
         let pair1: MatchPair;
         let pair2: MatchPair;
 
-        if (variant === 'pairs') {
+        if (variant === 'fixed-pairs') {
             const pairString1 = shuffledPlayers[i * 2];
             const pairString2 = shuffledPlayers[i * 2 + 1];
 
@@ -140,7 +140,7 @@ export function calculateNextRound(
         let pair1: MatchPair;
         let pair2: MatchPair;
 
-        if (variant === 'pairs') {
+        if (variant === 'fixed-pairs') {
             // Assuming fixed pairs logic: [P1a, P1b, P2a, P2b]
             // We keep them as is. 
             // Ideally we should track who is partner with whom. Since we just pushed IDs, 

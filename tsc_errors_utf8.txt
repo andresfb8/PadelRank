@@ -1,0 +1,62 @@
+﻿AdminMigrationPage.tsx(3,25): error TS2307: Cannot find module './hooks/useAuth' or its corresponding type declarations.
+components/AddDivisionModal.tsx(46,58): error TS2339: Property 'pairsPerGroup' does not exist on type 'HybridConfig'.
+components/PozoView.tsx(42,45): error TS2339: Property 'scoringType' does not exist on type 'PozoConfig'.
+components/RankingWizard.tsx(12,29): error TS2304: Cannot find name 'Player'.
+components/RankingWizard.tsx(16,23): error TS2304: Cannot find name 'Ranking'.
+components/RankingWizard.tsx(31,42): error TS2304: Cannot find name 'RankingFormat'.
+components/RankingWizard.tsx(38,42): error TS2304: Cannot find name 'RankingConfig'.
+components/RankingWizard.tsx(143,51): error TS2304: Cannot find name 'RankingFormat'.
+components/RankingWizard.tsx(307,105): error TS2304: Cannot find name 'ScoringMode'.
+components/RankingWizard.tsx(1045,26): error TS2304: Cannot find name 'Division'.
+components/RankingWizard.tsx(1227,27): error TS2304: Cannot find name 'Ranking'.
+components/shared/StandingsTable.tsx(3,124): error TS2307: Cannot find module '@tanstack/react-table' or its corresponding type declarations.
+components/tv/slides/StandingsSlide.tsx(109,87): error TS2339: Property 'stats' does not exist on type 'StandingRow'.
+components/tv/slides/StandingsSlide.tsx(109,122): error TS2339: Property 'stats' does not exist on type 'StandingRow'.
+components/tv/slides/StandingsSlide.tsx(109,156): error TS2339: Property 'stats' does not exist on type 'StandingRow'.
+examples/EliminationLogicUsage.tsx(22,34): error TS2339: Property 'players' does not exist on type 'Ranking'.
+examples/EliminationLogicUsage.tsx(126,53): error TS2339: Property 'players' does not exist on type 'Ranking'.
+examples/EliminationLogicUsage.tsx(133,36): error TS2551: Property 'roundNumber' does not exist on type 'Match'. Did you mean 'roundName'?
+examples/EliminationLogicUsage.tsx(170,34): error TS2339: Property 'players' does not exist on type 'Ranking'.
+examples/FormatLogicUsage.tsx(38,13): error TS2339: Property 'calculateSetsDiff' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(55,44): error TS2339: Property 'pointsPerWin2_0' does not exist on type 'ClassicConfig | AmericanoConfig | HybridConfig | EliminationConfig'.
+  Property 'pointsPerWin2_0' does not exist on type 'AmericanoConfig'.
+examples/FormatLogicUsage.tsx(66,13): error TS2339: Property 'getTotalPoints' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(66,29): error TS2339: Property 'autoCalculatePoints' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(66,50): error TS2339: Property 'isValidScore' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(99,13): error TS2339: Property 'getMainPlayoffQualifiers' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(99,39): error TS2339: Property 'getConsolationQualifiers' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(99,65): error TS2339: Property 'isGroupStage' does not exist on type '{ config: ClassicConfig; calculateMatchPoints: (score: MatchScore) => { p1: number; p2: number; }; calculateSetsDiff: (matches: Match[], playerId: string) => { ...; }; isValidScore: (score: MatchScore) => boolean; } | { ...; } | { ...; } | { ...; }'.
+examples/FormatLogicUsage.tsx(102,78): error TS2339: Property 'nombre' does not exist on type 'Division'.
+examples/FormatLogicUsage.tsx(161,17): error TS2367: This comparison appears to be unintentional because the types '0' and '2' have no overlap.
+examples/MatchModalUsage.tsx(7,23): error TS2307: Cannot find module './ui/Components' or its corresponding type declarations.
+examples/MatchModalUsage.tsx(8,58): error TS2307: Cannot find module './match-inputs' or its corresponding type declarations.
+examples/MatchModalUsage.tsx(9,61): error TS2307: Cannot find module './match-inputs' or its corresponding type declarations.
+examples/MatchModalUsage.tsx(13,12): error TS2304: Cannot find name 'Match'.
+examples/MatchModalUsage.tsx(15,13): error TS2304: Cannot find name 'RankingConfig'.
+examples/MatchModalUsage.tsx(140,20): error TS2304: Cannot find name 'match'.
+examples/MatchModalUsage.tsx(152,21): error TS2304: Cannot find name 'handleSave'.
+examples/MatchModalUsage.tsx(153,22): error TS2304: Cannot find name 'handleClose'.
+examples/MatchModalUsage.tsx(162,20): error TS2304: Cannot find name 'match'.
+examples/MatchModalUsage.tsx(169,21): error TS2304: Cannot find name 'handleSave'.
+examples/MatchModalUsage.tsx(170,22): error TS2304: Cannot find name 'handleClose'.
+examples/StandingsTableUsage.tsx(16,24): error TS2304: Cannot find name 'standings'.
+examples/StandingsTableUsage.tsx(17,22): error TS2304: Cannot find name 'players'.
+examples/StandingsTableUsage.tsx(18,13): error TS4104: The type 'readonly [{ readonly key: "pos"; readonly label: "Pos"; readonly sortable: true; readonly minWidth: "60px"; }, { readonly key: "playerId"; readonly label: "Jugador"; readonly sortable: false; readonly minWidth: "200px"; }, ... 4 more ..., { ...; }]' is 'readonly' and cannot be assigned to the mutable type 'StandingsColumn[]'.
+examples/StandingsTableUsage.tsx(19,28): error TS2304: Cannot find name 'handlePlayerClick'.
+examples/StandingsTableUsage.tsx(32,24): error TS2304: Cannot find name 'standings'.
+examples/StandingsTableUsage.tsx(33,22): error TS2304: Cannot find name 'players'.
+examples/StandingsTableUsage.tsx(34,13): error TS4104: The type 'readonly [{ readonly key: "pos"; readonly label: "Pos"; readonly sortable: true; readonly minWidth: "60px"; }, { readonly key: "playerId"; readonly label: "Jugador"; readonly sortable: false; readonly minWidth: "200px"; }, ... 4 more ..., { ...; }]' is 'readonly' and cannot be assigned to the mutable type 'StandingsColumn[]'.
+examples/StandingsTableUsage.tsx(35,28): error TS2304: Cannot find name 'handlePlayerClick'.
+examples/StandingsTableUsage.tsx(48,24): error TS2304: Cannot find name 'standings'.
+examples/StandingsTableUsage.tsx(49,22): error TS2304: Cannot find name 'players'.
+examples/StandingsTableUsage.tsx(50,13): error TS4104: The type 'readonly [{ readonly key: "pos"; readonly label: "Pos"; readonly sortable: true; readonly minWidth: "60px"; }, { readonly key: "playerId"; readonly label: "Jugador"; readonly sortable: false; readonly minWidth: "200px"; }, { ...; }, { ...; }, { ...; }]' is 'readonly' and cannot be assigned to the mutable type 'StandingsColumn[]'.
+examples/StandingsTableUsage.tsx(51,28): error TS2304: Cannot find name 'handlePlayerClick'.
+examples/StandingsTableUsage.tsx(76,24): error TS2304: Cannot find name 'standings'.
+examples/StandingsTableUsage.tsx(77,22): error TS2304: Cannot find name 'players'.
+services/PozoEngine.ts(34,13): error TS2367: This comparison appears to be unintentional because the types '"individual" | "fixed-pairs"' and '"pairs"' have no overlap.
+services/PozoEngine.ts(143,13): error TS2367: This comparison appears to be unintentional because the types '"individual" | "fixed-pairs"' and '"pairs"' have no overlap.
+utils/migrationPreview.ts(42,31): error TS2339: Property 'name' does not exist on type 'Ranking'.
+utils/migrationPreview.ts(54,27): error TS2339: Property 'name' does not exist on type 'Ranking'.
+vitest.config.ts(7,5): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'test' does not exist in type 'UserConfigExport'.

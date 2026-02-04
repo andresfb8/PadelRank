@@ -1930,10 +1930,12 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             const promotionCount = ranking.config?.promotionCount !== undefined ? ranking.config.promotionCount : 0;
                             const relegationCount = ranking.config?.relegationCount !== undefined ? ranking.config.relegationCount : 0;
                             const qualifiersCount = ranking.config?.hybridConfig?.qualifiersPerGroup !== undefined ? ranking.config.hybridConfig.qualifiersPerGroup : 2;
+                            const consolationCount = ranking.config?.hybridConfig?.consolationQualifiersPerGroup !== undefined ? ranking.config.hybridConfig.consolationQualifiersPerGroup : 0;
 
                             const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
                             const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
                             const isQualified = isHybrid && row.pos <= qualifiersCount;
+                            const isConsolation = isHybrid && row.pos > qualifiersCount && row.pos <= (qualifiersCount + consolationCount);
 
                             const formatCompactName = (name: string, surname?: string) => {
                               if (!name) return '?';
@@ -1953,13 +1955,14 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
 
                             return (
-                              <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted || isQualified ? 'bg-green-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
+                              <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted || isQualified ? 'bg-green-50/30' : isConsolation ? 'bg-red-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
                                 <div className="flex justify-between items-start mb-3">
                                   <div className="flex items-center gap-3">
                                     <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
                                       isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
                                         isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
-                                          'text-gray-500 bg-gray-50'
+                                          isConsolation ? 'bg-red-100 text-red-700' :
+                                            'text-gray-500 bg-gray-50'
                                       }`}>
                                       #{row.pos}
                                     </span>
@@ -1978,7 +1981,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                         {isPromoted && <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span>}
                                         {isRelegated && <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span>}
                                         {isQualified && <span className="text-green-600 flex items-center gap-1">✅ Clasificado</span>}
-                                        {!isAmericanoOrMexicano && !isPromoted && !isRelegated && !isQualified && 'Permanencia'}
+                                        {isConsolation && <span className="text-red-600 flex items-center gap-1 font-bold italic">🚩 Consolación</span>}
+                                        {!isAmericanoOrMexicano && !isPromoted && !isRelegated && !isQualified && !isConsolation && 'Permanencia'}
                                       </div>
                                     </div>
                                   </div>
@@ -2105,18 +2109,21 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                 const promotionCount = ranking.config?.promotionCount !== undefined ? ranking.config.promotionCount : 0;
                                 const relegationCount = ranking.config?.relegationCount !== undefined ? ranking.config.relegationCount : 0;
                                 const qualifiersCount = ranking.config?.hybridConfig?.qualifiersPerGroup !== undefined ? ranking.config.hybridConfig.qualifiersPerGroup : 2;
+                                const consolationCount = ranking.config?.hybridConfig?.consolationQualifiersPerGroup !== undefined ? ranking.config.hybridConfig.consolationQualifiersPerGroup : 0;
 
                                 const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
                                 const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
                                 const isQualified = isHybrid && row.pos <= qualifiersCount;
+                                const isConsolation = isHybrid && row.pos > qualifiersCount && row.pos <= (qualifiersCount + consolationCount);
 
                                 return (
-                                  <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
+                                  <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isConsolation ? 'bg-red-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
                                     <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10 border-r border-gray-100/50">
                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
                                         isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
                                           isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
-                                            'text-gray-500'
+                                            isConsolation ? 'bg-red-100 text-red-700' :
+                                              'text-gray-500'
                                         }`}>
                                         {row.pos}
                                       </div>
@@ -2137,6 +2144,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                         {isPromoted && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">ASC</span>}
                                         {isRelegated && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">DESC</span>}
                                         {isQualified && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">Q</span>}
+                                        {isConsolation && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold">Cons.</span>}
                                       </div>
 
                                     </td>
@@ -2189,6 +2197,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             <>
                               {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
                               {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
+                              {ranking.format === 'hybrid' && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> Zona Consolación</span>}
                             </>
                           )}
                         </div>
@@ -2260,10 +2269,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
                                   <div className="text-center mb-2">
                                     <div className="text-sm font-medium text-gray-900 border-b pb-2 mb-2 border-dashed border-gray-100">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div className="text-right pr-2 border-r border-gray-100">
+                                      <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2">
+                                        <div className="text-right pr-2">
                                           <span className="block font-bold">{p1.nombre} {p1.apellidos}</span>
                                           <span className="block font-bold">{p2.nombre} {p2.apellidos}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center justify-center px-1">
+                                          <div className="w-px h-3 bg-gray-100"></div>
+                                          <span className="text-[10px] font-bold text-gray-300 italic">VS</span>
+                                          <div className="w-px h-3 bg-gray-100"></div>
                                         </div>
                                         <div className="text-left pl-2">
                                           <span className="block font-bold">{p3.nombre} {p3.apellidos}</span>

@@ -41,48 +41,65 @@ export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
 
 export interface RankingConfig {
-  // For Classic/Individual (set-based scoring)
-  pointsPerWin2_0?: number;
-  pointsPerWin2_1?: number;
-  pointsDraw?: number;
-  pointsPerLoss2_1?: number;
-  pointsPerLoss2_0?: number; // Confirmed present
-  promotionCount?: number; // For individual ranking
-  relegationCount?: number; // For individual ranking
-  maxPlayersPerDivision?: number; // For Individual
+  // ===== SHARED (All Formats) =====
+  /** Whether this tournament affects global player statistics */
+  isOfficial?: boolean;
 
-  // For Americano/Mexicano (point-based scoring)
-  courts?: number; // Number of courts for scheduling
-  scoringMode?: ScoringMode; // Scoring system
-  customPoints?: number; // If scoringMode === 'custom'
+  /** Number of courts available for scheduling */
+  courts?: number;
 
-  // For Elimination
-  eliminationConfig?: {
-    consolation: boolean;
-    thirdPlaceMatch: boolean;
-    type: 'individual' | 'pairs';
-  };
-
-  // For Hybrid
-  hybridConfig?: {
-    qualifiersPerGroup: number; // Top N players from each group advance to Main Playoff
-    consolationQualifiersPerGroup?: number; // Next N players from each group advance to Consolation Playoff
-    pairsPerGroup?: number; // Number of pairs per group
-  };
-
-  // For Pozo (King of the Court)
-  pozoConfig?: {
-    variant: 'individual' | 'pairs';
-    numCourts: number;
-    totalRounds?: number;
-    scoringType: 'sets' | 'points'; // 'sets' (1 set) or 'points' (e.g. 21)
-    goldenPoint: boolean; // Usually true
-  };
-
+  /** Tournament branding configuration */
   branding?: {
     logoUrl?: string; // Base64 or URL
     hideDefaultLogo?: boolean;
   };
+
+  // ===== FORMAT-SPECIFIC NAMESPACES =====
+  /** Classic format configuration */
+  classicConfig?: import('./types/configs').ClassicConfig;
+
+  /** Individual format configuration */
+  individualConfig?: import('./types/configs').IndividualConfig;
+
+  /** Pairs format configuration */
+  pairsConfig?: import('./types/configs').PairsConfig;
+
+  /** Americano format configuration */
+  americanoConfig?: import('./types/configs').AmericanoConfig;
+
+  /** Mexicano format configuration */
+  mexicanoConfig?: import('./types/configs').MexicanoConfig;
+
+  /** Pozo format configuration */
+  pozoConfig?: import('./types/configs').PozoConfig;
+
+  /** Hybrid format configuration */
+  hybridConfig?: import('./types/configs').HybridConfig;
+
+  /** Elimination format configuration */
+  eliminationConfig?: import('./types/configs').EliminationConfig;
+
+  // ===== LEGACY FIELDS (Backward Compatibility) =====
+  /** @deprecated Use classicConfig.pointsPerWin2_0 */
+  pointsPerWin2_0?: number;
+  /** @deprecated Use classicConfig.pointsPerWin2_1 */
+  pointsPerWin2_1?: number;
+  /** @deprecated Use classicConfig.pointsDraw */
+  pointsDraw?: number;
+  /** @deprecated Use classicConfig.pointsPerLoss2_1 */
+  pointsPerLoss2_1?: number;
+  /** @deprecated Use classicConfig.pointsPerLoss2_0 */
+  pointsPerLoss2_0?: number;
+  /** @deprecated Use classicConfig.promotionCount */
+  promotionCount?: number;
+  /** @deprecated Use classicConfig.relegationCount */
+  relegationCount?: number;
+  /** @deprecated Use classicConfig.maxPlayersPerDivision */
+  maxPlayersPerDivision?: number;
+  /** @deprecated Use americanoConfig.scoringMode or mexicanoConfig.scoringMode */
+  scoringMode?: ScoringMode;
+  /** @deprecated Use americanoConfig.totalPoints or mexicanoConfig.totalPoints */
+  customPoints?: number;
 }
 
 export interface TVConfig {
@@ -144,9 +161,10 @@ export interface Division {
   retiredPlayers?: string[]; // IDs of players who left during the phase
   matches: Match[];
   name?: string; // Optional custom name (e.g. "Champions League")
-  type?: 'main' | 'consolation'; // For Elimination
+  type?: 'main' | 'consolation' | 'league-consolation-main'; // For Elimination and Hybrid Consolation
   stage?: 'group' | 'playoff'; // To distinguish phases in Hybrid
   category?: string; // E.g. "Primera Masculina", "Segunda Femenina"
+  standings?: StandingRow[];
 }
 
 export interface MatchPair {

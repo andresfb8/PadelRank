@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "migrate": "tsx scripts/migrateConfigs.ts",
+    "migrate:dry": "tsx scripts/migrateConfigs.ts all",
+    "migrate:live": "tsx scripts/migrateConfigs.ts all --live"
   },
   "dependencies": {
     "firebase": "^12.6.0",
@@ -28,6 +31,7 @@
     "firebase-admin": "^13.6.0",
     "firebase-tools": "^15.0.0",
     "jsdom": "^27.4.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^4.0.18"

@@ -2,23 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { PublicLayout } from './components/PublicLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { TVPage } from './pages/TVPage';
+import { AdminMigrationPage } from './pages/AdminMigrationPage';
 
 const App = () => {
   const [publicRankingId, setPublicRankingId] = useState<string | null>(null);
   const [tvRankingId, setTvRankingId] = useState<string | null>(null);
+
+  const [isMigration, setIsMigration] = useState(false);
 
   useEffect(() => {
     // Check for Public URL (Deep Linking) or TV Mode
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     const tvId = params.get('tv');
+    const migration = params.get('migration');
 
-    if (tvId) {
+    if (migration === 'true') {
+      setIsMigration(true);
+    } else if (tvId) {
       setTvRankingId(tvId);
     } else if (id) {
       setPublicRankingId(id);
     }
   }, []);
+
+  if (isMigration) {
+    // Lazy load or import directly if needed. Using direct import for simplicity.
+    // You will need to import AdminMigrationPage at the top
+    return <AdminMigrationPage />;
+  }
 
   if (tvRankingId) {
     return <TVPage rankingId={tvRankingId} />;
