@@ -13,6 +13,7 @@
     "migrate:live": "tsx scripts/migrateConfigs.ts all --live"
   },
   "dependencies": {
+    "@tanstack/react-table": "^8.21.3",
     "firebase": "^12.6.0",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",

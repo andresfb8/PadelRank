@@ -36,7 +36,14 @@ export interface Player {
 }
 
 
+
 export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination' | 'hybrid' | 'pozo';
+
+export type TieBreakCriterion = 'pts' | 'setsDiff' | 'gamesDiff' | 'pg' | 'setsWon' | 'gamesWon' | 'winRate' | 'directEncounter';
+
+export const DEFAULT_TIE_BREAK_ORDER: TieBreakCriterion[] = [
+  'pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon'
+];
 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
 
@@ -53,6 +60,9 @@ export interface RankingConfig {
     logoUrl?: string; // Base64 or URL
     hideDefaultLogo?: boolean;
   };
+
+  /** Custom tie-break order. If not provided, uses DEFAULT_TIE_BREAK_ORDER. */
+  tieBreakCriteria?: TieBreakCriterion[];
 
   // ===== FORMAT-SPECIFIC NAMESPACES =====
   /** Classic format configuration */
@@ -147,9 +157,12 @@ export interface ManualStatsAdjustment {
   pts?: number;
   pj?: number;
   pg?: number;
+  pp?: number;
   setsWon?: number;
+  setsLost?: number;
   setsDiff?: number;
   gamesWon?: number;
+  gamesLost?: number;
   gamesDiff?: number;
 }
 
@@ -209,11 +222,15 @@ export interface StandingRow {
   pos: number;
   pj: number;
   pg: number; // Partidos Ganados
+  pp: number; // Partidos Perdidos
   pts: number;
-  setsDiff: number;
-  gamesDiff: number;
   setsWon: number;
+  setsLost: number;
+  setsDiff: number;
   gamesWon: number;
+  gamesLost: number;
+  gamesDiff: number;
+  winRate: number; // % Victorias
   trend?: 'up' | 'down' | 'same';
   manualAdjustment?: number;
 }

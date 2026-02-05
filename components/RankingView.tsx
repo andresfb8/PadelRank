@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2 } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
+import { StandingsTable } from './shared/StandingsTable';
+import { FORMAT_COLUMN_PRESETS } from '../types/StandingsColumn';
 
 import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers, getQualifiedPlayersBuckets } from '../services/logic';
 import { Match, Player, Ranking, Division } from '../types';
@@ -372,7 +374,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
   // Data for current view
   // Data for current view with Sorting Logic applying to both standard and global standings
-  const rawStandings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any, ranking.manualPointsAdjustments, ranking.manualStatsAdjustments) : [];
+  const rawStandings = activeDivision ? generateStandings(activeDivision.id, activeDivision.matches, activeDivision.players, ranking.format as any, ranking.manualPointsAdjustments, ranking.manualStatsAdjustments, ranking.config?.tieBreakCriteria) : [];
   const rawGlobalStandings = activeTab === 'global' ? generateGlobalStandings(ranking) : [];
 
   const sortData = (data: any[]) => {
@@ -1547,220 +1549,21 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                     <h3 className="font-semibold text-gray-700 flex items-center gap-2"><BarChart size={18} className="text-primary" /> Estadísticas Globales</h3>
                     <p className="text-xs text-gray-500 mt-1">Comparativa de rendimiento entre todos los participantes.</p>
                   </div>
-                  {/* Mobile Card View */}
-                  <div className="md:hidden">
-                    {globalStandings.map((row) => {
-                      let displayName = 'Desconocido';
-
-                      const formatCompactName = (name: string, surname?: string) => {
-                        if (!name) return '?';
-                        return `${name} ${surname ? surname.charAt(0) + '.' : ''} `;
-                      };
-
-                      if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
-                        const [p1Id, p2Id] = row.playerId.split('::');
-                        const p1 = players[p1Id];
-                        const p2 = players[p2Id];
-                        displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
-                      } else {
-                        const player = players[row.playerId];
-                        const guest = ranking.guestPlayers?.find(g => g.id === row.playerId);
-
-                        if (player) displayName = formatCompactName(player.nombre, player.apellidos);
-                        else if (guest) displayName = `${guest.nombre} ${guest.apellidos || ''} (Inv)`;
-                      }
-
-                      const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
-
-                      return (
-                        <div key={row.playerId} className="p-4 border border-gray-100 bg-white shadow-sm mb-3 rounded-xl hover:shadow-md transition-shadow">
-                          <div className="flex justify-between items-start mb-3">
-                            <div className="flex items-center gap-3">
-                              <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                  row.pos === 3 ? 'bg-orange-100 text-orange-800' : 'text-gray-500 bg-gray-50'
-                                }`}>
-                                #{row.pos}
-                              </span>
-                              <div>
-                                {isPlayerClickEnabled && onPlayerClick ? (
-                                  <button
-                                    onClick={() => onPlayerClick(row.playerId)}
-                                    className="font-semibold text-gray-900 text-base hover:text-primary hover:underline text-left"
-                                  >
-                                    {displayName}
-                                  </button>
-                                ) : (
-                                  <div className="font-semibold text-gray-900 text-base">{displayName}</div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex flex-col items-end">
-                              <div className="flex items-center gap-1">
-                                {isGodMode && isAdmin && onUpdateRanking && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingPlayerId(row.playerId);
-                                      let name = '?';
-                                      if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
-                                        const [p1Id, p2Id] = row.playerId.split('::');
-                                        const p1 = players[p1Id];
-                                        const p2 = players[p2Id];
-                                        name = `${p1?.nombre || '?'} / ${p2?.nombre || '?'}`;
-                                      } else {
-                                        const p = players[row.playerId];
-                                        name = `${p?.nombre || '?'} ${p?.apellidos || ''}`;
-                                      }
-                                      setEditingPlayerName(name);
-                                      setIsStatsModalOpen(true);
-                                    }}
-                                    className="p-1.5 bg-amber-100 text-amber-700 rounded-lg mb-1 hover:bg-amber-200 transition-colors"
-                                    title="Editar estadísticas manualmente"
-                                  >
-                                    <Edit2 size={14} />
-                                  </button>
-                                )}
-                                <div className="text-2xl font-bold text-primary leading-none flex items-center gap-1">
-                                  {row.pts}
-                                  {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
-                                    <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
-                                      <AlertCircle size={8} />
-                                      {row.manualAdjustment > 0 ? '+' : ''}{row.manualAdjustment}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
-                            <div>
-                              <div className="text-xs text-gray-500 font-medium mb-0.5">PJ</div>
-                              <div className="font-bold text-gray-800">{row.pj}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-green-600 font-medium mb-0.5">PG</div>
-                              <div className="font-bold text-gray-800">{row.pg}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-red-500 font-medium mb-0.5">PP</div>
-                              <div className="font-bold text-gray-800">{row.pj - row.pg}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-blue-500 font-medium mb-0.5">%Vic</div>
-                              <div className="font-bold text-gray-800">{winrate}%</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div >
-
-                  <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full text-sm text-left whitespace-nowrap">
-                      <thead className="bg-gray-50 text-gray-500 font-medium border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-center w-12 sticky left-0 bg-gray-50 z-10">#</th>
-                          <th className="px-4 py-3 sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[260px] min-w-[260px] max-w-[260px]">
-                            {(ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador'}
-                          </th>
-                          <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pj')}>
-                            <div className="flex items-center justify-center gap-1">Partidos {getSortIcon('pj')}</div>
-                          </th>
-                          <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pts')}>
-                            <div className="flex items-center justify-center gap-1">PTS {getSortIcon('pts')}</div>
-                          </th>
-                          <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pg')}>
-                            <div className="flex items-center justify-center gap-1">PG {getSortIcon('pg')}</div>
-                          </th>
-                          <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('pp')}>
-                            <div className="flex items-center justify-center gap-1">PP {getSortIcon('pp')}</div>
-                          </th>
-                          <th className="px-4 py-3 text-center hidden sm:table-cell cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('setsDiff')}>
-                            <div className="flex items-center justify-center gap-1">Dif Sets {getSortIcon('setsDiff')}</div>
-                          </th>
-                          <th className="px-4 py-3 text-center hidden sm:table-cell cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('gamesDiff')}>
-                            <div className="flex items-center justify-center gap-1">Dif Juegos {getSortIcon('gamesDiff')}</div>
-                          </th>
-                          <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('winrate')}>
-                            <div className="flex items-center justify-center gap-1">% Vic {getSortIcon('winrate')}</div>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {globalStandings.map((row) => {
-                          let displayName = 'Desconocido';
-                          if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
-                            const [p1Id, p2Id] = row.playerId.split('::');
-                            const p1 = players[p1Id];
-                            const p2 = players[p2Id];
-                            displayName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
-                          } else {
-                            const player = players[row.playerId];
-                            if (player) displayName = `${player.nombre} ${player.apellidos}`;
-                          }
-
-                          const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
-                          return (
-                            <tr key={row.playerId} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10">{row.pos}</td>
-                              <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                {isPlayerClickEnabled && onPlayerClick ? (
-                                  <button
-                                    onClick={() => onPlayerClick(row.playerId)}
-                                    className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
-                                    title={displayName}
-                                  >
-                                    {displayName}
-                                  </button>
-                                ) : (
-                                  <div className="truncate max-w-[260px]" title={displayName}>{displayName}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
-                              <td className="px-4 py-3 text-center font-bold text-primary">
-                                <div className="flex items-center justify-center gap-1 group/pts">
-                                  {row.pts}
-                                  {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
-                                    <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
-                                      <AlertCircle size={8} />
-                                    </span>
-                                  )}
-                                  {isGodMode && isAdmin && onUpdateRanking && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingPlayerId(row.playerId);
-                                        // Find name
-                                        let name = '?';
-                                        const [p1, p2] = row.playerId.split('::').map(id => players[id]?.nombre || '?');
-                                        name = `${p1} / ${p2}`;
-                                        setEditingPlayerName(name);
-                                        setIsStatsModalOpen(true);
-                                      }}
-                                      className="p-1 hover:bg-amber-100 rounded opacity-0 group-hover/pts:opacity-100 transition-opacity text-amber-700"
-                                    >
-                                      <Edit2 size={12} />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-center text-green-600">{row.pg}</td>
-                              <td className="px-4 py-3 text-center text-red-600">{row.pj - row.pg}</td>
-                              <td className="px-4 py-3 text-center text-gray-600 hidden sm:table-cell">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
-                              <td className="px-4 py-3 text-center text-gray-600 hidden sm:table-cell">{row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff}</td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`px-2 py-1 rounded text-xs font-semibold ${winrate >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                  {winrate}%
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="p-4">
+                    <StandingsTable
+                      standings={globalStandings}
+                      players={players}
+                      onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
+                      columns={ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'individual' ? [...FORMAT_COLUMN_PRESETS.pointBasedFormat] : [...FORMAT_COLUMN_PRESETS.setBasedFormat]}
+                      isAmericanoOrMexicano={ranking.format === 'americano' || ranking.format === 'mexicano'}
+                      isHybrid={ranking.format === 'hybrid'}
+                      isAdmin={isAdmin}
+                      onEditStats={(row) => {
+                        setEditingPlayerId(row.playerId);
+                        setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
+                        setIsStatsModalOpen(true);
+                      }}
+                    />
                   </div>
                 </Card >
               )
@@ -2053,153 +1856,35 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           })}
                         </div>
 
-                        {/* Desktop Table View */}
-                        <div className="hidden md:block overflow-x-auto">
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className="bg-gray-50 border-b border-gray-200">
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 w-12 text-center">#</th>
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase sticky left-12 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Jugador</th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pj')}>
-                                  <div className="flex items-center justify-center gap-1">PJ {getSortIcon('pj')}</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pts')}>
-                                  <div className="flex items-center justify-center gap-1">PTS {getSortIcon('pts')}</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-green-600 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pg')}>
-                                  <div className="flex items-center justify-center gap-1">PG {getSortIcon('pg')}</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-red-500 uppercase w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('pp')}>
-                                  <div className="flex items-center justify-center gap-1">PP {getSortIcon('pp')}</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('setsDiff')}>
-                                  <div className="flex items-center justify-center gap-1">Dif S {getSortIcon('setsDiff')}</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-red-400 uppercase hidden sm:table-cell w-16" title="Sets Perdidos">
-                                  <div className="flex items-center justify-center gap-1">Set P</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase hidden sm:table-cell w-16 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('gamesDiff')}>
-                                  <div className="flex items-center justify-center gap-1">Dif J {getSortIcon('gamesDiff')}</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-red-400 uppercase hidden sm:table-cell w-16" title="Juegos Perdidos">
-                                  <div className="flex items-center justify-center gap-1">Jue P</div>
-                                </th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase w-20 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('winrate')}>
-                                  <div className="flex items-center justify-center gap-1">% Vic {getSortIcon('winrate')}</div>
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {activeTab === 'standings' && standings.map((row) => {
-                                let displayName = 'Desconocido';
-                                if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
-                                  const [p1Id, p2Id] = row.playerId.split('::');
-                                  const p1 = players[p1Id];
-                                  const p2 = players[p2Id];
-                                  displayName = `${p1?.nombre || '?'} ${p1?.apellidos || ''} / ${p2?.nombre || '?'} ${p2?.apellidos || ''}`;
-                                } else {
-                                  const player = players[row.playerId];
-                                  if (player) displayName = `${player.nombre} ${player.apellidos}`;
-                                }
+                        <div className="space-y-4">
+                          <StandingsTable
+                            standings={standings}
+                            players={players}
+                            onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
+                            columns={ranking.format === 'americano' || ranking.format === 'mexicano' ? [...FORMAT_COLUMN_PRESETS.pointBasedFormat] : [...FORMAT_COLUMN_PRESETS.setBasedFormat]}
+                            isAmericanoOrMexicano={ranking.format === 'americano' || ranking.format === 'mexicano'}
+                            isHybrid={ranking.format === 'hybrid'}
+                            isAdmin={isAdmin}
+                            onEditStats={(row) => {
+                              setEditingPlayerId(row.playerId);
+                              setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
+                              setIsStatsModalOpen(true);
+                            }}
+                            promotionCount={ranking.config?.promotionCount}
+                            relegationCount={ranking.config?.relegationCount}
+                            qualifiersCount={ranking.config?.hybridConfig?.qualifiersPerGroup}
+                            consolationCount={ranking.config?.hybridConfig?.consolationQualifiersPerGroup}
+                          />
 
-                                const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
-                                const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
-                                const isHybrid = ranking.format === 'hybrid';
-
-                                const promotionCount = ranking.config?.promotionCount !== undefined ? ranking.config.promotionCount : 0;
-                                const relegationCount = ranking.config?.relegationCount !== undefined ? ranking.config.relegationCount : 0;
-                                const qualifiersCount = ranking.config?.hybridConfig?.qualifiersPerGroup !== undefined ? ranking.config.hybridConfig.qualifiersPerGroup : 2;
-                                const consolationCount = ranking.config?.hybridConfig?.consolationQualifiersPerGroup !== undefined ? ranking.config.hybridConfig.consolationQualifiersPerGroup : 0;
-
-                                const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
-                                const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
-                                const isQualified = isHybrid && row.pos <= qualifiersCount;
-                                const isConsolation = isHybrid && row.pos > qualifiersCount && row.pos <= (qualifiersCount + consolationCount);
-
-                                return (
-                                  <tr key={row.playerId} className={`hover:bg-gray-50 transition-colors ${isPromoted || isQualified ? 'bg-green-50/20' : isConsolation ? 'bg-red-50/20' : isRelegated ? 'bg-red-50/20' : ''}`}>
-                                    <td className="px-4 py-3 text-center font-bold text-gray-400 sticky left-0 bg-white z-10 border-r border-gray-100/50">
-                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                        isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                          isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
-                                            isConsolation ? 'bg-red-100 text-red-700' :
-                                              'text-gray-500'
-                                        }`}>
-                                        {row.pos}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 font-medium text-gray-900 sticky left-12 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                                      <div className="flex items-center gap-2">
-                                        {isPlayerClickEnabled && onPlayerClick ? (
-                                          <button
-                                            onClick={() => onPlayerClick(row.playerId)}
-                                            className="truncate max-w-[260px] text-left hover:text-primary hover:underline cursor-pointer transition-colors"
-                                            title={displayName}
-                                          >
-                                            {displayName}
-                                          </button>
-                                        ) : (
-                                          <div className="truncate max-w-[260px]" title={displayName}>{displayName}</div>
-                                        )}
-                                        {isPromoted && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">ASC</span>}
-                                        {isRelegated && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">DESC</span>}
-                                        {isQualified && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">Q</span>}
-                                        {isConsolation && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold">Cons.</span>}
-                                      </div>
-
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-gray-600">{row.pj}</td>
-                                    <td className="px-4 py-3 text-center font-bold text-primary bg-primary/5 rounded-lg my-1">
-                                      <div className="flex items-center justify-center gap-1 group/pts">
-                                        {row.pts}
-                                        {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
-                                          <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
-                                            <AlertCircle size={8} />
-                                          </span>
-                                        )}
-                                        {isGodMode && isAdmin && onUpdateRanking && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setEditingPlayerId(row.playerId);
-                                              setEditingPlayerName(displayName);
-                                              setIsStatsModalOpen(true);
-                                            }}
-                                            className="p-1 hover:bg-amber-100 rounded opacity-0 group-hover/pts:opacity-100 transition-opacity text-amber-700"
-                                            title="Editar estadísticas manualmente"
-                                          >
-                                            <Edit2 size={12} />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-green-600 font-medium">{row.pg}</td>
-                                    <td className="px-4 py-3 text-center text-red-600 font-medium">{row.pj - row.pg}</td>
-                                    <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff}</td>
-                                    <td className="px-4 py-3 text-center text-red-400 hidden sm:table-cell text-xs">{row.setsWon - row.setsDiff}</td>
-                                    <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell text-xs">{row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff}</td>
-                                    <td className="px-4 py-3 text-center text-red-400 hidden sm:table-cell text-xs">{row.gamesWon - row.gamesDiff}</td>
-                                    <td className="px-4 py-3 text-center">
-                                      <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1 overflow-hidden">
-                                        <div className={`h-1.5 rounded-full ${winrate >= 50 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${winrate}%` }}></div>
-                                      </div>
-                                      <span className="text-xs text-gray-500">{winrate}%</span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <div className="p-2 bg-gray-50 text-xs text-gray-400 flex gap-4 justify-end border-t">
-                          {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
-                            <>
-                              {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
-                              {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
-                              {ranking.format === 'hybrid' && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> Zona Consolación</span>}
-                            </>
-                          )}
+                          <div className="p-4 bg-gray-50 text-[10px] sm:text-xs text-gray-400 flex flex-wrap gap-4 justify-end border-t rounded-b-xl">
+                            {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
+                              <>
+                                {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
+                                {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
+                                {ranking.format === 'hybrid' && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> Zona Consolación</span>}
+                              </>
+                            )}
+                          </div>
                         </div>
                       </>
                     )}

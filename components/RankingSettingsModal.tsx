@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target, Image as ImageIcon, Upload, Trash2 } from 'lucide-react';
-import { Ranking, RankingConfig, ScoringMode } from '../types';
+import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target, Image as ImageIcon, Upload, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, Plus } from 'lucide-react';
+import { Ranking, RankingConfig, ScoringMode, DEFAULT_TIE_BREAK_ORDER, TieBreakCriterion } from '../types';
 import { Button } from './ui/Components';
 import { processLogoUpload } from '../utils/imageProcessor';
 
@@ -348,6 +348,93 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                     </div>
                                 </div>
                             )}
+
+                            {/* Tie Break Configuration */}
+                            {ranking.format !== 'pozo' && (
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-6">
+                                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <ArrowUpDown size={18} className="text-purple-500" /> Criterios de Desempate
+                                    </h3>
+                                    <p className="text-sm text-gray-500 mb-4">
+                                        Define el orden de prioridad para desempatar la clasificación.
+                                    </p>
+
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                        {(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).map((criterion, idx, arr) => {
+                                            const labels: Record<string, string> = {
+                                                pts: 'Puntos',
+                                                setsDiff: 'Diferencia de Sets',
+                                                gamesDiff: 'Diferencia de Juegos',
+                                                pg: 'Partidos Ganados',
+                                                setsWon: 'Sets Ganados',
+                                                gamesWon: 'Juegos Ganados',
+                                                winRate: '% Victorias',
+                                                directEncounter: 'Enfrentamiento Directo'
+                                            };
+
+                                            const moveItem = (index: number, direction: 'up' | 'down') => {
+                                                if (isReadOnly) return;
+                                                const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
+                                                const targetIndex = direction === 'up' ? index - 1 : index + 1;
+                                                if (targetIndex < 0 || targetIndex >= newCriteria.length) return;
+
+                                                [newCriteria[index], newCriteria[targetIndex]] = [newCriteria[targetIndex], newCriteria[index]];
+                                                setConfig({ ...config, tieBreakCriteria: newCriteria });
+                                            };
+
+                                            if (criterion === 'directEncounter') {
+                                                return (
+                                                    <div key={criterion} className="flex items-center gap-3 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                                        <div className="text-blue-600 font-bold text-sm w-6 text-center">{idx + 1}º</div>
+                                                        <div className="flex-1 font-medium text-gray-800 flex items-center gap-2">
+                                                            <Users size={16} /> {labels[criterion]}
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            {!isReadOnly && (
+                                                                <>
+                                                                    <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-white rounded disabled:opacity-30"><ArrowUp size={16} /></button>
+                                                                    <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-white rounded disabled:opacity-30"><ArrowDown size={16} /></button>
+                                                                    <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== 'directEncounter') })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2"><X size={16} /></button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div key={criterion} className="flex items-center gap-3 mb-2 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                                                    <div className="text-gray-400 font-bold text-sm w-6 text-center">{idx + 1}º</div>
+                                                    <div className="flex-1 font-medium text-gray-700">{labels[criterion]}</div>
+                                                    <div className="flex items-center gap-1">
+                                                        {!isReadOnly && (
+                                                            <>
+                                                                <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ArrowUp size={16} /></button>
+                                                                <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ArrowDown size={16} /></button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {!isReadOnly && !(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).includes('directEncounter') && (
+                                            <Button
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
+                                                    newCriteria.splice(1, 0, 'directEncounter');
+                                                    setConfig({ ...config, tieBreakCriteria: newCriteria });
+                                                }}
+                                                className="w-full mt-2 text-sm border-dashed"
+                                            >
+                                                <Plus size={16} className="mr-2" /> Añadir "Enfrentamiento Directo"
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     )}
 

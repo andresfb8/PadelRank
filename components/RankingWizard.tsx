@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X, UserPlus, Shield, Wand2, Trash2, Plus } from 'lucide-react';
+import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X, UserPlus, Shield, Wand2, Trash2, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button, Card, Input } from './ui/Components';
 import * as PozoEngine from '../services/PozoEngine';
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
 import { TournamentEngine } from '../services/TournamentEngine';
-import { User, Player, Ranking, RankingFormat, RankingConfig, ScoringMode, Division } from '../types';
+import { User, Player, Ranking, RankingFormat, RankingConfig, ScoringMode, Division, TieBreakCriterion, DEFAULT_TIE_BREAK_ORDER } from '../types';
 import { SUBSCRIPTION_PLANS, canUseFormat, canCreateTournament } from '../config/subscriptionPlans';
 
 interface Props {
@@ -57,8 +57,9 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             pointsPerLoss2_0: 0
         },
         branding: {
-            logoUrl: currentUser?.branding?.logoUrl // Prefill with Club Logo
-        }
+            logoUrl: currentUser?.branding?.logoUrl
+        },
+        tieBreakCriteria: DEFAULT_TIE_BREAK_ORDER
     });
 
     // Players
@@ -622,6 +623,86 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     </div>
                 )
             }
+
+            {/* Tie Break Configuration - All Formats except Pozo */}
+            {format !== 'pozo' && (
+                <div className="border-t pt-4 mt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <ArrowUpDown size={18} /> Criterios de Desempate
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                        Define el orden de prioridad para desempatar la clasificación.
+                    </p>
+
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        {/* Ensure we have a valid array even if config is empty initially */}
+                        {(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).map((criterion, idx, arr) => {
+                            const labels: Record<string, string> = {
+                                pts: 'Puntos',
+                                setsDiff: 'Diferencia de Sets',
+                                gamesDiff: 'Diferencia de Juegos',
+                                pg: 'Partidos Ganados',
+                                setsWon: 'Sets Ganados',
+                                gamesWon: 'Juegos Ganados',
+                                winRate: '% Victorias',
+                                directEncounter: 'Enfrentamiento Directo'
+                            };
+
+                            const moveItem = (index: number, direction: 'up' | 'down') => {
+                                const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
+                                const targetIndex = direction === 'up' ? index - 1 : index + 1;
+                                if (targetIndex < 0 || targetIndex >= newCriteria.length) return;
+
+                                [newCriteria[index], newCriteria[targetIndex]] = [newCriteria[targetIndex], newCriteria[index]];
+                                setConfig({ ...config, tieBreakCriteria: newCriteria });
+                            };
+
+                            // Special styling for Direct Encounter
+                            if (criterion === 'directEncounter') {
+                                return (
+                                    <div key={criterion} className="flex items-center gap-3 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-200 animate-fade-in">
+                                        <div className="text-blue-600 font-bold text-sm min-w-[30px] text-center">{idx + 1}º</div>
+                                        <div className="flex-1 font-medium text-gray-800 flex items-center gap-2">
+                                            <Users size={16} /> {labels[criterion]}
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-white rounded disabled:opacity-30 transition-colors"><ArrowUp size={16} /></button>
+                                            <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-white rounded disabled:opacity-30 transition-colors"><ArrowDown size={16} /></button>
+                                            <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== 'directEncounter') })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2 transition-colors" title="Eliminar criterio"><X size={16} /></button>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div key={criterion} className="flex items-center gap-3 mb-2 bg-white p-3 rounded-lg border border-gray-200 shadow-sm transition-all hover:shadow-md">
+                                    <div className="text-gray-400 font-bold text-sm min-w-[30px] text-center">{idx + 1}º</div>
+                                    <div className="flex-1 font-medium text-gray-700">{labels[criterion]}</div>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 transition-colors"><ArrowUp size={16} /></button>
+                                        <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 transition-colors"><ArrowDown size={16} /></button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {!(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).includes('directEncounter') && (
+                            <Button
+                                variant="secondary"
+                                onClick={() => {
+                                    const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
+                                    // Default insert at position 1 (after Points)
+                                    newCriteria.splice(1, 0, 'directEncounter');
+                                    setConfig({ ...config, tieBreakCriteria: newCriteria });
+                                }}
+                                className="w-full mt-2 text-sm border-dashed text-gray-600 hover:text-blue-600 hover:border-blue-300"
+                            >
+                                <Plus size={16} className="mr-2" /> Añadir "Enfrentamiento Directo"
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
         </div >
     );
 

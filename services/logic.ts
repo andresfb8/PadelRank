@@ -1,5 +1,5 @@
 
-import { Match, MatchScore, Player, StandingRow, Ranking, Division } from "../types";
+import { Match, MatchScore, Player, StandingRow, Ranking, Division, TieBreakCriterion, DEFAULT_TIE_BREAK_ORDER } from "../types";
 
 // PRD 4.4.2 & 4.6.2 Logic
 export function calculateMatchPoints(
@@ -141,13 +141,96 @@ export function calculateMatchPoints(
   }
 }
 
+/**
+ * Helper function to compare two StandingRows based on a dynamic list of criteria.
+ * Includes support for 'directEncounter' which checks head-to-head results.
+ */
+function compareByCriteria(
+  a: StandingRow,
+  b: StandingRow,
+  criteria: TieBreakCriterion[],
+  matches: Match[]
+): number {
+  for (const criterion of criteria) {
+    let diff = 0;
+    switch (criterion) {
+      case 'pts':
+        diff = b.pts - a.pts;
+        break;
+      case 'setsDiff':
+        diff = b.setsDiff - a.setsDiff;
+        break;
+      case 'gamesDiff':
+        diff = b.gamesDiff - a.gamesDiff;
+        break;
+      case 'pg':
+        diff = b.pg - a.pg;
+        break;
+      case 'setsWon':
+        diff = b.setsWon - a.setsWon;
+        break;
+      case 'gamesWon':
+        diff = b.gamesWon - a.gamesWon;
+        break;
+      case 'winRate':
+        diff = b.winRate - a.winRate;
+        break;
+      case 'directEncounter':
+        diff = checkDirectEncounter(a.playerId, b.playerId, matches);
+        break;
+    }
+    if (diff !== 0) return diff;
+  }
+  // Fallback: Stable alphabetical sort
+  return a.playerId.localeCompare(b.playerId);
+}
+
+/**
+ * Returns comparison result based on head-to-head encounters.
+ * Positive if A wins, Negative if B wins, 0 if draw or no encounters.
+ */
+function checkDirectEncounter(playerA: string, playerB: string, matches: Match[]): number {
+  let winsA = 0;
+  let winsB = 0;
+
+  for (const m of matches) {
+    if (m.status !== 'finalizado') continue;
+
+    // Determine if this match involves both players (individual or pair format)
+    const p1Keys = [m.pair1.p1Id, m.pair1.p2Id || ''].filter(Boolean);
+    const p2Keys = [m.pair2.p1Id, m.pair2.p2Id || ''].filter(Boolean);
+
+    const pair1Key = p1Keys.sort().join('::');
+    const pair2Key = p2Keys.sort().join('::');
+
+    const isAPair1 = playerA === pair1Key || p1Keys.includes(playerA);
+    const isAPair2 = playerA === pair2Key || p2Keys.includes(playerA);
+    const isBPair1 = playerB === pair1Key || p1Keys.includes(playerB);
+    const isBPair2 = playerB === pair2Key || p2Keys.includes(playerB);
+
+    // A in Pair1, B in Pair2
+    if (isAPair1 && isBPair2) {
+      if (m.points.p1 > m.points.p2) winsA++;
+      else if (m.points.p2 > m.points.p1) winsB++;
+    }
+    // A in Pair2, B in Pair1
+    else if (isAPair2 && isBPair1) {
+      if (m.points.p2 > m.points.p1) winsA++;
+      else if (m.points.p1 > m.points.p2) winsB++;
+    }
+  }
+
+  return winsB - winsA; // Higher wins for A means A ranks better (lower diff)
+}
+
 export function generateStandings(
   divisionId: string,
   matches: Match[],
   playerIds: string[],
   format?: 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'hybrid' | 'hybrid',
   manualAdjustments?: Record<string, number>, // DEPRECATED
-  manualStatsAdjustments?: Record<string, import('../types').ManualStatsAdjustment>
+  manualStatsAdjustments?: Record<string, import('../types').ManualStatsAdjustment>,
+  tieBreakOrder?: import('../types').TieBreakCriterion[]
 ): StandingRow[] {
   const map: Record<string, StandingRow> = {};
 
@@ -164,8 +247,8 @@ export function generateStandings(
       const pair1Key = `${p1Ids[0]}::${p1Ids[1]}`;
       const pair2Key = `${p2Ids[0]}::${p2Ids[1]}`;
 
-      if (!map[pair1Key]) map[pair1Key] = { playerId: pair1Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
-      if (!map[pair2Key]) map[pair2Key] = { playerId: pair2Key, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
+      if (!map[pair1Key]) map[pair1Key] = { playerId: pair1Key, pos: 0, pj: 0, pg: 0, pp: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, winRate: 0 };
+      if (!map[pair2Key]) map[pair2Key] = { playerId: pair2Key, pos: 0, pj: 0, pg: 0, pp: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, winRate: 0 };
     });
 
     // 2. Process Stats for finalized matches
@@ -187,8 +270,13 @@ export function generateStandings(
       map[pair2Key].pj += 1;
 
       // Win/Loss
-      if (m.points.p1 > m.points.p2) map[pair1Key].pg += 1;
-      else if (m.points.p2 > m.points.p1) map[pair2Key].pg += 1;
+      if (m.points.p1 > m.points.p2) {
+        map[pair1Key].pg += 1;
+        map[pair2Key].pp += 1;
+      } else if (m.points.p2 > m.points.p1) {
+        map[pair2Key].pg += 1;
+        map[pair1Key].pp += 1;
+      }
 
       // Sets/Games
       if (m.status === 'finalizado' && m.score && m.score.set1) {
@@ -197,18 +285,22 @@ export function generateStandings(
           const g1 = s.p1;
           const g2 = s.p2;
           map[pair1Key].gamesWon += g1;
+          map[pair1Key].gamesLost += g2;
           map[pair1Key].gamesDiff += (g1 - g2);
           map[pair2Key].gamesWon += g2;
+          map[pair2Key].gamesLost += g1;
           map[pair2Key].gamesDiff += (g2 - g1);
 
           if (g1 > g2) {
             map[pair1Key].setsWon += 1;
             map[pair1Key].setsDiff += 1;
             map[pair2Key].setsDiff -= 1;
+            map[pair2Key].setsLost += 1;
           } else if (g2 > g1) {
             map[pair2Key].setsWon += 1;
             map[pair2Key].setsDiff += 1;
             map[pair1Key].setsDiff -= 1;
+            map[pair1Key].setsLost += 1;
           }
         });
       }
@@ -230,9 +322,12 @@ export function generateStandings(
           if (adj.pts) map[id].pts += adj.pts;
           if (adj.pj) map[id].pj += adj.pj;
           if (adj.pg) map[id].pg += adj.pg;
+          if (adj.pp) map[id].pp += adj.pp;
           if (adj.setsWon) map[id].setsWon += adj.setsWon;
+          if (adj.setsLost) map[id].setsLost += adj.setsLost;
           if (adj.setsDiff) map[id].setsDiff += adj.setsDiff;
           if (adj.gamesWon) map[id].gamesWon += adj.gamesWon;
+          if (adj.gamesLost) map[id].gamesLost += adj.gamesLost;
           if (adj.gamesDiff) map[id].gamesDiff += adj.gamesDiff;
 
           // Track total points adjustment for badge
@@ -242,19 +337,20 @@ export function generateStandings(
     }
 
     // Sort and Return
+    const effectiveOrder = tieBreakOrder || DEFAULT_TIE_BREAK_ORDER;
     return Object.values(map)
       .filter(row => !row.playerId.toLowerCase().includes('bye'))
-      .sort((a, b) => {
-        if (b.pts !== a.pts) return b.pts - a.pts;
-        if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
-        if (b.gamesDiff !== a.gamesDiff) return b.gamesDiff - a.gamesDiff;
-        return b.gamesWon - a.gamesWon;
-      }).map((row, idx) => ({ ...row, pos: idx + 1 }));
+      .map(row => ({
+        ...row,
+        winRate: row.pj > 0 ? (row.pg / row.pj) * 100 : 0
+      }))
+      .sort((a, b) => compareByCriteria(a, b, effectiveOrder, matches))
+      .map((row, idx) => ({ ...row, pos: idx + 1 }));
   }
 
   // STANDARD LOGIC (INDIVIDUALS)
   playerIds.forEach(pid => {
-    map[pid] = { playerId: pid, pos: 0, pj: 0, pg: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, gamesWon: 0 };
+    map[pid] = { playerId: pid, pos: 0, pj: 0, pg: 0, pp: 0, pts: 0, setsDiff: 0, gamesDiff: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, winRate: 0 };
   });
 
   matches.forEach(m => {
@@ -285,15 +381,27 @@ export function generateStandings(
         const g1 = s.p1;
         const g2 = s.p2;
 
-        p1s.forEach(id => { if (map[id]) { map[id].gamesWon += g1; map[id].gamesDiff += (g1 - g2); } });
-        p2s.forEach(id => { if (map[id]) { map[id].gamesWon += g2; map[id].gamesDiff += (g2 - g1); } });
+        p1s.forEach(id => {
+          if (map[id]) {
+            map[id].gamesWon += g1;
+            map[id].gamesLost += g2;
+            map[id].gamesDiff += (g1 - g2);
+          }
+        });
+        p2s.forEach(id => {
+          if (map[id]) {
+            map[id].gamesWon += g2;
+            map[id].gamesLost += g1;
+            map[id].gamesDiff += (g2 - g1);
+          }
+        });
 
         if (g1 > g2) {
           p1s.forEach(id => { if (map[id]) { map[id].setsWon += 1; map[id].setsDiff += 1; } });
-          p2s.forEach(id => { if (map[id]) { map[id].setsDiff -= 1; } });
+          p2s.forEach(id => { if (map[id]) { map[id].setsDiff -= 1; map[id].setsLost += 1; } });
         } else if (g2 > g1) {
           p2s.forEach(id => { if (map[id]) { map[id].setsWon += 1; map[id].setsDiff += 1; } });
-          p1s.forEach(id => { if (map[id]) { map[id].setsDiff -= 1; } });
+          p1s.forEach(id => { if (map[id]) { map[id].setsDiff -= 1; map[id].setsLost += 1; } });
         }
       });
     }
@@ -314,9 +422,12 @@ export function generateStandings(
         if (adj.pts) map[id].pts += adj.pts;
         if (adj.pj) map[id].pj += adj.pj;
         if (adj.pg) map[id].pg += adj.pg;
+        if (adj.pp) map[id].pp += adj.pp;
         if (adj.setsWon) map[id].setsWon += adj.setsWon;
+        if (adj.setsLost) map[id].setsLost += adj.setsLost;
         if (adj.setsDiff) map[id].setsDiff += adj.setsDiff;
         if (adj.gamesWon) map[id].gamesWon += adj.gamesWon;
+        if (adj.gamesLost) map[id].gamesLost += adj.gamesLost;
         if (adj.gamesDiff) map[id].gamesDiff += adj.gamesDiff;
 
         if (adj.pts) map[id].manualAdjustment = (map[id].manualAdjustment || 0) + adj.pts;
@@ -327,23 +438,29 @@ export function generateStandings(
           pos: 0,
           pj: adj.pj || 0,
           pg: adj.pg || 0,
+          pp: adj.pp || 0,
           pts: adj.pts || 0,
           setsDiff: adj.setsDiff || 0,
           gamesDiff: adj.gamesDiff || 0,
           setsWon: adj.setsWon || 0,
+          setsLost: adj.setsLost || 0,
           gamesWon: adj.gamesWon || 0,
+          gamesLost: adj.gamesLost || 0,
+          winRate: 0,
           manualAdjustment: adj.pts
         };
       }
     });
   }
 
-  return Object.values(map).sort((a, b) => {
-    if (b.pts !== a.pts) return b.pts - a.pts;
-    if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
-    if (b.gamesDiff !== a.gamesDiff) return b.gamesDiff - a.gamesDiff;
-    return b.gamesWon - a.gamesWon;
-  }).map((row, idx) => ({ ...row, pos: idx + 1 }));
+  const effectiveOrder = tieBreakOrder || DEFAULT_TIE_BREAK_ORDER;
+  return Object.values(map)
+    .map(row => ({
+      ...row,
+      winRate: row.pj > 0 ? (row.pg / row.pj) * 100 : 0
+    }))
+    .sort((a, b) => compareByCriteria(a, b, effectiveOrder, matches))
+    .map((row, idx) => ({ ...row, pos: idx + 1 }));
 }
 
 // Generate Global Standings for the entire ranking (all divisions)
@@ -387,7 +504,7 @@ export function generateGlobalStandings(ranking: Ranking): StandingRow[] {
   const validMatches = allMatches.filter(m => !!m);
   const validPlayers = Array.from(allPlayers).filter(p => !!p);
 
-  return generateStandings('global', validMatches, validPlayers, ranking.format as any, ranking.manualPointsAdjustments, ranking.manualStatsAdjustments);
+  return generateStandings('global', validMatches, validPlayers, ranking.format as any, ranking.manualPointsAdjustments, ranking.manualStatsAdjustments, ranking.config?.tieBreakCriteria);
 }
 
 export function calculatePromotions(
@@ -435,7 +552,7 @@ export function calculatePromotions(
   sortedDivisions.forEach(div => {
     const retiredSet = new Set(div.retiredPlayers || []);
 
-    const standings = generateStandings(div.id, div.matches, div.players);
+    const standings = generateStandings(div.id, div.matches, div.players, undefined, undefined, undefined, ranking.config?.tieBreakCriteria);
     const cands: Candidate[] = [];
 
     standings.forEach((row, idx) => {
@@ -642,7 +759,7 @@ export function getQualifiedPlayersBuckets(ranking: Ranking): { main: string[], 
 
   // Get Standings for all divisions
   // Use 'hybrid' format logic for the groups as they are pairs-based in hybrid mode
-  const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'hybrid'));
+  const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'hybrid', undefined, undefined, ranking.config?.tieBreakCriteria));
 
   const mainQualifiedIds: string[] = [];
   const consolationQualifiedIds: string[] = [];
