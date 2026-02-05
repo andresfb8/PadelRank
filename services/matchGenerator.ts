@@ -156,37 +156,48 @@ export const MatchGenerator = {
 
     // --- MEXICANO (Skill Based) ---
     // Generated Round by Round based on Standings.
-    generateMexicanoRound: (players: Player[], standings: StandingRow[], roundNumber: number, courts: number = 20): Match[] => {
+    generateMexicanoRound: (players: Player[], standings: StandingRow[], roundNumber: number, courts: number = 20, variant: 'individual' | 'pairs' = 'individual'): Match[] => {
         // Sort players by points
         const sorted = [...standings].sort((a, b) => b.pts - a.pts || b.gamesDiff - a.gamesDiff);
 
         const matches: Match[] = [];
-        // Pair 1 vs 2, 3 vs 4...
-        // But in Padel it's 2vs2. So 1&3 vs 2&4? Or 1&4 vs 2&3 (Balanced)?
-        // Mexicano usually: 1 & 3 vs 2 & 4 is common to balance, or 1 & 2 vs 3 & 4 (Top court vs lower court).
-        // Standard Mexicano:
-        // Court 1: Rank 1, Rank 2, Rank 3, Rank 4.
-        // They play together. Usually 1&4 vs 2&3 or 1&3 vs 2&4.
-        // Let's go with Snake Draft for balance: 1 & 4 vs 2 & 3.
-
         let courtIndex = 1;
 
-        // Group by 4
-        for (let i = 0; i < sorted.length; i += 4) {
-            const group = sorted.slice(i, i + 4);
-            if (group.length < 4) break; // Remainder sits out
+        if (variant === 'pairs') {
+            // Group by 2 (Pair vs Pair)
+            for (let i = 0; i < sorted.length; i += 2) {
+                const group = sorted.slice(i, i + 2);
+                if (group.length < 2) break; // Remainder sits out
 
-            // Players for this court
-            const p1 = group[0].playerId;
-            const p2 = group[1].playerId;
-            const p3 = group[2].playerId;
-            const p4 = group[3].playerId;
+                // Players (Pairs) for this match
+                const pair1Str = group[0].playerId;
+                const pair2Str = group[1].playerId;
 
-            // 1 & 4 vs 2 & 3 (Balanced)
-            // Use roundNumber as part of ID, but court assignment follows available courts
-            const currentCourt = ((courtIndex - 1) % courts) + 1;
-            matches.push(createMatch(0, roundNumber, p1, p4, p2, p3, currentCourt));
-            courtIndex++;
+                const [p1, p2] = pair1Str.split('::');
+                const [p3, p4] = pair2Str.split('::');
+
+                const currentCourt = ((courtIndex - 1) % courts) + 1;
+                matches.push(createMatch(0, roundNumber, p1, p2, p3, p4, currentCourt));
+                courtIndex++;
+            }
+        } else {
+            // Group by 4 (Individual Mexicano)
+            for (let i = 0; i < sorted.length; i += 4) {
+                const group = sorted.slice(i, i + 4);
+                if (group.length < 4) break; // Remainder sits out
+
+                // Players for this court
+                const p1 = group[0].playerId;
+                const p2 = group[1].playerId;
+                const p3 = group[2].playerId;
+                const p4 = group[3].playerId;
+
+                // 1 & 4 vs 2 & 3 (Balanced)
+                // Use roundNumber as part of ID, but court assignment follows available courts
+                const currentCourt = ((courtIndex - 1) % courts) + 1;
+                matches.push(createMatch(0, roundNumber, p1, p4, p2, p3, currentCourt));
+                courtIndex++;
+            }
         }
 
         return matches;
@@ -194,28 +205,52 @@ export const MatchGenerator = {
 
     // --- MEXICANO RANDOM (Shuffled Groups) ---
     // Generate a random round for Mexicano, shuffling players instead of using strict ranking
-    generateMexicanoRoundRandom: (players: Player[], roundNumber: number, courts: number = 20): Match[] => {
-        // Shuffle all players randomly
-        const shuffled = [...players].sort(() => Math.random() - 0.5);
+    generateMexicanoRoundRandom: (players: Player[], roundNumber: number, courts: number = 20, variant: 'individual' | 'pairs' = 'individual'): Match[] => {
+        // For pairs, we assume "players" array contains objects where ID is "p1::p2" or we rely on standings?
+        // Usually Random Round is for initialization or mixing.
+        // If variant=pairs, `players` should be the list of Pair strings (as IDs) ideally.
+        // OR we just use indices if we don't have player objects for pairs.
 
+        // Let's assume for 'pairs' variant, the 'players' array passed here holds "pseudo-players" representing pairs?
+        // OR we should accept string[] of IDs.
+        // Given signature uses Player[], let's assume we pass dummy players with pair IDs?
+        // Robustness: Just shuffle whatever inputs we get.
+
+        const shuffled = [...players].sort(() => Math.random() - 0.5);
         const matches: Match[] = [];
         let courtIndex = 1;
 
-        // Group by 4 (same as regular Mexicano, but with shuffled players)
-        for (let i = 0; i < shuffled.length; i += 4) {
-            const group = shuffled.slice(i, i + 4);
-            if (group.length < 4) break; // Remainder sits out
+        if (variant === 'pairs') {
+            for (let i = 0; i < shuffled.length; i += 2) {
+                const group = shuffled.slice(i, i + 2);
+                if (group.length < 2) break;
 
-            // Players for this court
-            const p1 = group[0].id;
-            const p2 = group[1].id;
-            const p3 = group[2].id;
-            const p4 = group[3].id;
+                const pair1Str = group[0].id;
+                const pair2Str = group[1].id;
 
-            // 1 & 4 vs 2 & 3 (Balanced)
-            const currentCourt = ((courtIndex - 1) % courts) + 1;
-            matches.push(createMatch(0, roundNumber, p1, p4, p2, p3, currentCourt));
-            courtIndex++;
+                // If it's a real Pair ID "A::B" verify split
+                const [p1, p2] = pair1Str.includes('::') ? pair1Str.split('::') : [pair1Str, ''];
+                const [p3, p4] = pair2Str.includes('::') ? pair2Str.split('::') : [pair2Str, ''];
+
+                const currentCourt = ((courtIndex - 1) % courts) + 1;
+                // If ids are not pairs, this breaks. But variant='pairs' implies data integrity.
+                matches.push(createMatch(0, roundNumber, p1, p2, p3, p4, currentCourt));
+                courtIndex++;
+            }
+        } else {
+            for (let i = 0; i < shuffled.length; i += 4) {
+                const group = shuffled.slice(i, i + 4);
+                if (group.length < 4) break;
+
+                const p1 = group[0].id;
+                const p2 = group[1].id;
+                const p3 = group[2].id;
+                const p4 = group[3].id;
+
+                const currentCourt = ((courtIndex - 1) % courts) + 1;
+                matches.push(createMatch(0, roundNumber, p1, p4, p2, p3, currentCourt));
+                courtIndex++;
+            }
         }
 
         return matches;

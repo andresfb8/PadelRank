@@ -39,7 +39,7 @@ export interface Player {
 
 export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' | 'pairs' | 'elimination' | 'hybrid' | 'pozo';
 
-export type TieBreakCriterion = 'pts' | 'setsDiff' | 'gamesDiff' | 'pg' | 'setsWon' | 'gamesWon' | 'winRate' | 'directEncounter';
+export type TieBreakCriterion = 'pts' | 'setsDiff' | 'gamesDiff' | 'pg' | 'setsWon' | 'gamesWon' | 'winRate' | 'directEncounter' | 'random';
 
 export const DEFAULT_TIE_BREAK_ORDER: TieBreakCriterion[] = [
   'pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon'

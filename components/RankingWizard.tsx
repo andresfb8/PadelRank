@@ -301,6 +301,42 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             {/* Mexicano/Americano Configuration */}
             {(format === 'mexicano' || format === 'americano') && (
                 <div className="border-t pt-4">
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Modalidad de Juego</label>
+                        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                            <button
+                                onClick={() => {
+                                    if (format === 'americano') {
+                                        setConfig({ ...config, americanoConfig: { ...config.americanoConfig!, variant: 'individual' } });
+                                    } else {
+                                        setConfig({ ...config, mexicanoConfig: { ...config.mexicanoConfig!, variant: 'individual' } });
+                                    }
+                                    setIndividualMaxPlayers(12);
+                                }}
+                                className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) === 'individual' || !(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Individual (Rotatorio)
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (format === 'americano') {
+                                        setConfig({ ...config, americanoConfig: { ...config.americanoConfig!, variant: 'pairs' } });
+                                    } else {
+                                        setConfig({ ...config, mexicanoConfig: { ...config.mexicanoConfig!, variant: 'pairs' } });
+                                    }
+                                    setIndividualMaxPlayers(8);
+                                }}
+                                className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) === 'pairs' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Parejas Fijas
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) === 'pairs'
+                                ? 'Las parejas son fijas durante todo el torneo. Se enfrentan contra otras parejas.'
+                                : 'Cada jugador juega individualmente cambiando de pareja en cada partido.'}
+                        </p>
+                    </div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Settings size={18} /> Configuración del Torneo</h3>
 
                     {/* Courts */}
@@ -341,6 +377,31 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 ? 'Sistema tradicional: 6 juegos por set, mejor de 3 sets'
                                 : 'Los equipos acumulan puntos hasta alcanzar el total. El sistema autorellena la puntuación del rival.'}
                         </p>
+                    </div>
+
+                    {/* Tournament Structure (Divisions & Size) */}
+                    <div className="border-t pt-4 mt-4">
+                        <h4 className="font-semibold text-gray-800 mb-3 text-sm">Estructura del Torneo</h4>
+                        <div className="grid md:grid-cols-4 gap-4">
+                            <Input
+                                type="number"
+                                label="Nº Divisiones"
+                                value={numDivisions}
+                                onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))}
+                            />
+                            <Input
+                                type="number"
+                                label={(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) === 'pairs' ? "Parejas por Div." : "Jugadores por Div."}
+                                value={individualMaxPlayers}
+                                onChange={(e: any) => {
+                                    const newValue = Math.max(0, parseInt(e.target.value) || 0);
+                                    setIndividualMaxPlayers(newValue);
+                                    setConfig({ ...config, maxPlayersPerDivision: newValue });
+                                }}
+                            />
+                            <Input type="number" label="Ascienden (Rondas)" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
+                            <Input type="number" label="Descienden (Rondas)" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
+                        </div>
                     </div>
                 </div>
             )}
@@ -624,8 +685,8 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 )
             }
 
-            {/* Tie Break Configuration - All Formats except Pozo */}
-            {format !== 'pozo' && (
+            {/* Tie Break Configuration - All Formats except Pozo and Elimination */}
+            {format !== 'pozo' && format !== 'elimination' && (
                 <div className="border-t pt-4 mt-4">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                         <ArrowUpDown size={18} /> Criterios de Desempate
@@ -635,8 +696,14 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     </p>
 
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+
                         {/* Ensure we have a valid array even if config is empty initially */}
-                        {(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).map((criterion, idx, arr) => {
+                        {(() => {
+                            const availableCriteria: TieBreakCriterion[] = [
+                                'pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon', 'winRate', 'directEncounter', 'random'
+                            ];
+                            const currentCriteria = config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER;
+
                             const labels: Record<string, string> = {
                                 pts: 'Puntos',
                                 setsDiff: 'Diferencia de Sets',
@@ -645,11 +712,12 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 setsWon: 'Sets Ganados',
                                 gamesWon: 'Juegos Ganados',
                                 winRate: '% Victorias',
-                                directEncounter: 'Enfrentamiento Directo'
+                                directEncounter: 'Enfrentamiento Directo',
+                                random: 'Sorteo (Aleatorio)'
                             };
 
                             const moveItem = (index: number, direction: 'up' | 'down') => {
-                                const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
+                                const newCriteria = [...currentCriteria];
                                 const targetIndex = direction === 'up' ? index - 1 : index + 1;
                                 if (targetIndex < 0 || targetIndex >= newCriteria.length) return;
 
@@ -657,49 +725,62 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 setConfig({ ...config, tieBreakCriteria: newCriteria });
                             };
 
-                            // Special styling for Direct Encounter
-                            if (criterion === 'directEncounter') {
-                                return (
-                                    <div key={criterion} className="flex items-center gap-3 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-200 animate-fade-in">
-                                        <div className="text-blue-600 font-bold text-sm min-w-[30px] text-center">{idx + 1}º</div>
-                                        <div className="flex-1 font-medium text-gray-800 flex items-center gap-2">
-                                            <Users size={16} /> {labels[criterion]}
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-white rounded disabled:opacity-30 transition-colors"><ArrowUp size={16} /></button>
-                                            <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-white rounded disabled:opacity-30 transition-colors"><ArrowDown size={16} /></button>
-                                            <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== 'directEncounter') })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2 transition-colors" title="Eliminar criterio"><X size={16} /></button>
-                                        </div>
-                                    </div>
-                                );
-                            }
+                            const removeItem = (item: TieBreakCriterion) => {
+                                const newCriteria = currentCriteria.filter(c => c !== item);
+                                setConfig({ ...config, tieBreakCriteria: newCriteria });
+                            };
+
+                            const addItem = (item: TieBreakCriterion) => {
+                                if (currentCriteria.includes(item)) return;
+                                const newCriteria = [...currentCriteria, item];
+                                setConfig({ ...config, tieBreakCriteria: newCriteria });
+                            };
 
                             return (
-                                <div key={criterion} className="flex items-center gap-3 mb-2 bg-white p-3 rounded-lg border border-gray-200 shadow-sm transition-all hover:shadow-md">
-                                    <div className="text-gray-400 font-bold text-sm min-w-[30px] text-center">{idx + 1}º</div>
-                                    <div className="flex-1 font-medium text-gray-700">{labels[criterion]}</div>
-                                    <div className="flex items-center gap-1">
-                                        <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 transition-colors"><ArrowUp size={16} /></button>
-                                        <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 transition-colors"><ArrowDown size={16} /></button>
+                                <div>
+                                    {/* Active Criteria List */}
+                                    <div className="space-y-2 mb-4">
+                                        {currentCriteria.map((criterion, idx) => {
+                                            const isSpecial = criterion === 'directEncounter' || criterion === 'random';
+                                            return (
+                                                <div key={criterion} className={`flex items-center gap-3 p-3 rounded-lg border shadow-sm transition-all ${isSpecial ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`}>
+                                                    <div className={`font-bold text-sm min-w-[30px] text-center ${isSpecial ? 'text-blue-600' : 'text-gray-400'}`}>{idx + 1}º</div>
+                                                    <div className="flex-1 font-medium text-gray-700 flex items-center gap-2">
+                                                        {criterion === 'directEncounter' && <Users size={16} className="text-blue-500" />}
+                                                        {criterion === 'random' && <Wand2 size={16} className="text-purple-500" />}
+                                                        {labels[criterion]}
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 transition-colors"><ArrowUp size={16} /></button>
+                                                        <button onClick={() => moveItem(idx, 'down')} disabled={idx === currentCriteria.length - 1} className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 transition-colors"><ArrowDown size={16} /></button>
+                                                        <button onClick={() => removeItem(criterion)} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2 transition-colors" title="Eliminar criterio"><X size={16} /></button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
+
+                                    {/* Add Criteria Dropdown */}
+                                    {availableCriteria.length > currentCriteria.length && (
+                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Añadir Criterio Adicional</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {availableCriteria.filter(c => !currentCriteria.includes(c)).map(c => (
+                                                    <Button
+                                                        key={c}
+                                                        variant="secondary"
+                                                        onClick={() => addItem(c)}
+                                                        className="text-xs py-1 h-auto bg-white border border-gray-300 hover:border-primary hover:text-primary transition-colors"
+                                                    >
+                                                        <Plus size={12} className="mr-1" /> {labels[c]}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
-                        })}
-
-                        {!(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).includes('directEncounter') && (
-                            <Button
-                                variant="secondary"
-                                onClick={() => {
-                                    const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
-                                    // Default insert at position 1 (after Points)
-                                    newCriteria.splice(1, 0, 'directEncounter');
-                                    setConfig({ ...config, tieBreakCriteria: newCriteria });
-                                }}
-                                className="w-full mt-2 text-sm border-dashed text-gray-600 hover:text-blue-600 hover:border-blue-300"
-                            >
-                                <Plus size={16} className="mr-2" /> Añadir "Enfrentamiento Directo"
-                            </Button>
-                        )}
+                        })()}
                     </div>
                 </div>
             )}
@@ -785,7 +866,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
                 setAssignments(newAssignments);
             }
-            else if (format === 'pairs' || format === 'hybrid') {
+            else if (format === 'pairs' || format === 'hybrid' || ((format === 'americano' || format === 'mexicano') && (format === 'americano' ? config.americanoConfig?.variant === 'pairs' : config.mexicanoConfig?.variant === 'pairs'))) {
                 // For Pairs, we need to create pairs random? Or just fill slots?
                 // User request says "Mezcle entre divisiones".
                 // Assuming randomized pairs too? Or just randomized players into pair slots?
@@ -855,7 +936,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                             <p className="text-sm text-gray-500">Selecciona todos los participantes para distribuirlos o añádelos manualmente abajo.</p>
                         </div>
                         {/* Auto Distribute Actions */}
-                        {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && (
+                        {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo' || ((format === 'americano' || format === 'mexicano') && (format === 'americano' ? config.americanoConfig?.variant === 'pairs' : config.mexicanoConfig?.variant === 'pairs'))) && (
                             <div className="flex gap-2">
                                 <Button onClick={handleAutoDistribute} className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
                                     <Wand2 size={16} className="mr-2" />
@@ -998,7 +1079,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 )}
 
 
-                {(format === 'pairs' || format === 'hybrid' || (format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs')) && (
+                {(format === 'pairs' || format === 'hybrid' || (format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs') || ((format === 'americano' || format === 'mexicano') && (format === 'americano' ? config.americanoConfig?.variant === 'pairs' : config.mexicanoConfig?.variant === 'pairs'))) && (
                     <div>
                         <div className="flex items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. {format === 'hybrid' ? 'Grupos (Parejas Fijas)' : 'Divisiones (Parejas)'}</h3>
@@ -1296,23 +1377,58 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             }
         } else {
             // Americano/Mexicano
-            if (selectedPlayerIds.length < 4) return alert("Selecciona al menos 4 jugadores");
+            const isPairsVariant = format === 'americano' ? config.americanoConfig?.variant === 'pairs' : config.mexicanoConfig?.variant === 'pairs';
 
-            let matches: any[] = [];
-            if (format === 'mexicano') {
-                matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
-            } else if (format === 'americano') {
-                const selectedPlayers = selectedPlayerIds.map(id => players[id]).filter(p => !!p);
-                matches = MatchGenerator.generateAmericano(selectedPlayers, config.courts || 2);
+            if (isPairsVariant) {
+                // Loop through divisions for Pairs Variant
+                for (let i = 0; i < numDivisions; i++) {
+                    const p = assignments[i] || [];
+                    const pairStrings = p.filter(x => x && x.includes('::') && !x.startsWith('::') && !x.endsWith('::'));
+
+                    if (pairStrings.length < 2) return alert(`Se necesitan al menos 2 parejas completas para la División ${i + 1} del formato de parejas.`);
+
+                    const pairs = pairStrings.map(s => s.split('::')); // [['id1','id2'], ...]
+                    let matches: any[] = [];
+
+                    if (format === 'americano') {
+                        // Americano Pairs => Treat as Pairs League (Round Robin)
+                        // Everyone plays against everyone (Pair vs Pair)
+                        matches = MatchGenerator.generatePairsLeague(pairs, 1);
+                    } else {
+                        // Mexicano Pairs => Random Round of Pairs
+                        const dummyPlayers: any[] = pairStrings.map(id => ({ id, nombre: '', stats: {} }));
+                        matches = MatchGenerator.generateMexicanoRoundRandom(dummyPlayers, 1, config.courts || 2, 'pairs');
+                    }
+
+                    divisions.push({
+                        id: `div-${crypto.randomUUID()}`,
+                        numero: i + 1,
+                        status: 'activa',
+                        players: pairs.flat(),
+                        matches: matches
+                    });
+                }
+
+            } else {
+                // Logic for Individual Variant (Existing)
+                if (selectedPlayerIds.length < 4) return alert("Selecciona al menos 4 jugadores");
+
+                let matches: any[] = [];
+                if (format === 'mexicano') {
+                    matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
+                } else if (format === 'americano') {
+                    const selectedPlayers = selectedPlayerIds.map(id => players[id]).filter(p => !!p);
+                    matches = MatchGenerator.generateAmericano(selectedPlayers, config.courts || 2);
+                }
+
+                divisions.push({
+                    id: `div-${crypto.randomUUID()}`,
+                    numero: 1,
+                    status: 'activa',
+                    players: selectedPlayerIds,
+                    matches: matches
+                });
             }
-
-            divisions.push({
-                id: `div-${crypto.randomUUID()}`,
-                numero: 1,
-                status: 'activa',
-                players: selectedPlayerIds,
-                matches: matches
-            });
         }
 
         // Filter valid Guest Players (only those selected)

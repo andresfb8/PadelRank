@@ -178,6 +178,17 @@ function compareByCriteria(
       case 'directEncounter':
         diff = checkDirectEncounter(a.playerId, b.playerId, matches);
         break;
+      case 'random':
+        // Deterministic "Random" based on hashing the ID.
+        // We use reversed ID comparison to decouple from name-based sorting while keeping it stable.
+        const hashA = a.playerId.split('').reverse().join('');
+        const hashB = b.playerId.split('').reverse().join('');
+        diff = hashB.localeCompare(hashA); // Descending or Ascending doesn't matter much, but let's do B vs A to be consistent with 'diff' convention?
+        // Actually, localeCompare returns -1, 0, 1.
+        // If we want random "winner", we just need an ordering.
+        // Let's use A compared to B.
+        diff = hashA.localeCompare(hashB);
+        break;
     }
     if (diff !== 0) return diff;
   }

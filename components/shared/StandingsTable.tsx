@@ -102,8 +102,8 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                 header: col.label,
                 cell: info => (
                     <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-900 w-4 text-center">{info.getValue()}</span>
                         {getPositionIcon(info.getValue())}
-                        <span className="font-bold text-gray-900">{info.getValue()}</span>
                     </div>
                 ),
                 enableSorting: col.sortable ?? true,

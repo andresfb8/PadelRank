@@ -8,11 +8,15 @@ export interface AmericanoConfig {
 
     /** Total points for the match (only used when scoringMode is a number) */
     totalPoints?: number;
+
+    /** Variant: Individual (rotating partners) or Fixed Pairs */
+    variant?: 'individual' | 'pairs';
 }
 
 /**
  * Default Americano Configuration
  */
 export const DEFAULT_AMERICANO_CONFIG: AmericanoConfig = {
-    scoringMode: '32'
+    scoringMode: '32',
+    variant: 'individual'
 };
