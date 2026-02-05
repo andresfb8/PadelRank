@@ -204,8 +204,8 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="space-y-6">
 
-        {/* Read-Only Schedule Context */}
-        {(match.startTime || match.court) && (
+        {/* Read-Only Schedule Context - Hide for Pozo */}
+        {format !== 'pozo' && (match.startTime || match.court) && (
           <div className="bg-blue-50 text-blue-800 text-xs px-3 py-2 rounded-md flex items-center gap-2 border border-blue-100">
             <Calendar size={14} />
             <span>
@@ -295,8 +295,8 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
           </div>
         )}
 
-        {/* Incomplete Toggle - Hide for Individual and Mexicano/Americano */}
-        {format !== 'individual' && format !== 'mexicano' && format !== 'americano' && format !== 'elimination' && (
+        {/* Incomplete Toggle - Hide for Individual, Mexicano/Americano AND POZO */}
+        {format !== 'individual' && format !== 'mexicano' && format !== 'americano' && format !== 'pozo' && format !== 'elimination' && (
           <div className={`flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100`}>
             <input
               type="checkbox"
@@ -311,8 +311,8 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
           </div>
         )}
 
-        {/* Analysis Result */}
-        {preview && (
+        {/* Analysis Result - Hide for Pozo */}
+        {preview && format !== 'pozo' && (
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
               <Info size={16} /> Análisis del Resultado
