@@ -365,11 +365,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
   // For elimination format, get all divisions of the same category (main + consolation)
   const categoryDivisions = ranking.format === 'elimination' && activeDivision
-    ? ranking.divisions.filter(d =>
-      d.numero === activeDivision.numero || // Same numero
-      (d.category && d.category === activeDivision.category) || //Same category
-      (d.name && activeDivision.name && d.name.includes(activeDivision.name.split(' ')[0])) // Same name prefix
-    )
+    ? ranking.divisions.filter(d => {
+      // Strict category matching
+      if (activeDivision.category && d.category) {
+        return d.category === activeDivision.category;
+      }
+      // Fallback matching logic
+      return d.numero === activeDivision.numero ||
+        (d.name && activeDivision.name && d.name.includes(activeDivision.name.split(' ')[0]));
+    })
     : activeDivision ? [activeDivision] : [];
 
   // Data for current view

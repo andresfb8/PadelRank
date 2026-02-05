@@ -5,12 +5,17 @@ import { Calendar, CheckCircle, CircleDashed } from 'lucide-react';
 interface Props {
     ranking: Ranking;
     players: Record<string, Player>;
+    divisionId?: string;
 }
 
-export const MatchesSlide = ({ ranking, players }: Props) => {
+export const MatchesSlide = ({ ranking, players, divisionId }: Props) => {
     // Intelligently select the most relevant division for TV mode
     const division = useMemo(() => {
         if (!ranking.divisions || ranking.divisions.length === 0) return null;
+
+        if (divisionId) {
+            return ranking.divisions.find(d => d.id === divisionId) || ranking.divisions[0];
+        }
 
         // If hybrid and in playoff phase, prefer playoff divisions
         if (ranking.format === 'hybrid' && ranking.phase === 'playoff') {
@@ -20,7 +25,7 @@ export const MatchesSlide = ({ ranking, players }: Props) => {
 
         // Default to first division
         return ranking.divisions[0];
-    }, [ranking]);
+    }, [ranking, divisionId]);
 
     const { finishedMatches, pendingMatches } = useMemo(() => {
         if (!division || !division.matches) return { finishedMatches: [], pendingMatches: [] };
@@ -60,9 +65,13 @@ export const MatchesSlide = ({ ranking, players }: Props) => {
                     {isFinished ? (
                         <div className="flex items-center gap-3">
                             <div className="text-3xl font-black text-yellow-400">
-                                {m.score?.set1?.p1}-{m.score?.set1?.p2}
+                                {m.score?.pointsScored ?
+                                    `${m.score.pointsScored.p1}-${m.score.pointsScored.p2}` :
+                                    `${m.score?.set1?.p1 || 0}-${m.score?.set1?.p2 || 0}`
+                                }
                             </div>
-                            {m.score?.set2 && (
+                            {/* Only show Set 2/3 if it's NOT point-based (like traditional sets) */}
+                            {!m.score?.pointsScored && m.score?.set2 && (
                                 <div className="text-3xl font-black text-yellow-400 opacity-70">
                                     {m.score?.set2?.p1}-{m.score?.set2?.p2}
                                 </div>
@@ -94,7 +103,10 @@ export const MatchesSlide = ({ ranking, players }: Props) => {
                 ) : (
                     <Calendar className="text-blue-400 w-12 h-12" />
                 )}
-                <h2 className="text-4xl font-bold tracking-tight">Resultados y Horarios</h2>
+                <div>
+                    <h2 className="text-4xl font-bold tracking-tight">Resultados y Horarios</h2>
+                    <p className="text-xl text-slate-400 font-medium">{division.name || `División ${division.numero}`}</p>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-8 flex-1 overflow-hidden">

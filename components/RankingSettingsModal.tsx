@@ -369,7 +369,8 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                                 setsWon: 'Sets Ganados',
                                                 gamesWon: 'Juegos Ganados',
                                                 winRate: '% Victorias',
-                                                directEncounter: 'Enfrentamiento Directo'
+                                                directEncounter: 'Enfrentamiento Directo',
+                                                random: 'Sorteo (Aleatorio)'
                                             };
 
                                             const moveItem = (index: number, direction: 'up' | 'down') => {
@@ -382,19 +383,21 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                                 setConfig({ ...config, tieBreakCriteria: newCriteria });
                                             };
 
-                                            if (criterion === 'directEncounter') {
+                                            if (criterion === 'directEncounter' || criterion === 'random') {
                                                 return (
                                                     <div key={criterion} className="flex items-center gap-3 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
                                                         <div className="text-blue-600 font-bold text-sm w-6 text-center">{idx + 1}º</div>
                                                         <div className="flex-1 font-medium text-gray-800 flex items-center gap-2">
-                                                            <Users size={16} /> {labels[criterion]}
+                                                            {criterion === 'directEncounter' && <Users size={16} />}
+                                                            {criterion === 'random' && <Settings size={16} />}
+                                                            {labels[criterion]}
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                             {!isReadOnly && (
                                                                 <>
                                                                     <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-white rounded disabled:opacity-30"><ArrowUp size={16} /></button>
                                                                     <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-white rounded disabled:opacity-30"><ArrowDown size={16} /></button>
-                                                                    <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== 'directEncounter') })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2"><X size={16} /></button>
+                                                                    <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== criterion) })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2"><X size={16} /></button>
                                                                 </>
                                                             )}
                                                         </div>
@@ -411,6 +414,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                                             <>
                                                                 <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ArrowUp size={16} /></button>
                                                                 <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ArrowDown size={16} /></button>
+                                                                <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== criterion) })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2"><X size={16} /></button>
                                                             </>
                                                         )}
                                                     </div>
@@ -418,19 +422,46 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                             );
                                         })}
 
-                                        {!isReadOnly && !(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).includes('directEncounter') && (
-                                            <Button
-                                                variant="secondary"
-                                                onClick={() => {
-                                                    const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
-                                                    newCriteria.splice(1, 0, 'directEncounter');
-                                                    setConfig({ ...config, tieBreakCriteria: newCriteria });
-                                                }}
-                                                className="w-full mt-2 text-sm border-dashed"
-                                            >
-                                                <Plus size={16} className="mr-2" /> Añadir "Enfrentamiento Directo"
-                                            </Button>
-                                        )}
+                                        {!isReadOnly && (() => {
+                                            const allCriteria: TieBreakCriterion[] = ['pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon', 'winRate', 'directEncounter', 'random'];
+                                            const currentCriteria = config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER;
+                                            const missingCriteria = allCriteria.filter(c => !currentCriteria.includes(c));
+
+                                            if (missingCriteria.length === 0) return null;
+
+                                            const labels: Record<string, string> = {
+                                                pts: 'Puntos',
+                                                setsDiff: 'Diferencia de Sets',
+                                                gamesDiff: 'Diferencia de Juegos',
+                                                pg: 'Partidos Ganados',
+                                                setsWon: 'Sets Ganados',
+                                                gamesWon: 'Juegos Ganados',
+                                                winRate: '% Victorias',
+                                                directEncounter: 'Enfrentamiento Directo',
+                                                random: 'Sorteo (Aleatorio)'
+                                            };
+
+                                            return (
+                                                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Añadir Criterio Adicional</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {missingCriteria.map(c => (
+                                                            <Button
+                                                                key={c}
+                                                                variant="secondary"
+                                                                onClick={() => {
+                                                                    const newCriteria = [...currentCriteria, c];
+                                                                    setConfig({ ...config, tieBreakCriteria: newCriteria });
+                                                                }}
+                                                                className="text-xs py-1 h-auto bg-white border border-gray-300 hover:border-primary hover:text-primary transition-colors"
+                                                            >
+                                                                <Plus size={12} className="mr-1" /> {labels[c]}
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             )}
@@ -595,6 +626,124 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+
+                            {/* Sponsor Management */}
+                            <div className="bg-white p-6 rounded-lg border border-gray-200 mt-6 pt-4 border-t">
+                                <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <Trophy size={18} className="text-yellow-500" /> Gestión de Patrocinadores
+                                </h4>
+
+                                {/* Sponsor List */}
+                                <div className="space-y-4 mb-6">
+                                    {(ranking.tvConfig?.sponsors || []).length > 0 ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                            {(ranking.tvConfig?.sponsors || []).map((sponsor, idx) => (
+                                                <div key={sponsor.id || idx} className="relative group bg-gray-50 rounded-lg p-3 border hover:border-blue-300 transition-colors">
+                                                    <div className="h-24 flex items-center justify-center mb-2 bg-white rounded border border-gray-100 p-2">
+                                                        {sponsor.url ? (
+                                                            <img src={sponsor.url} alt={sponsor.name} className="max-h-full max-w-full object-contain" />
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">Sin logo</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-center font-bold text-sm text-gray-700 truncate">{sponsor.name}</div>
+
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (confirm('¿Eliminar patrocinador?')) {
+                                                                    const currentSponsors = ranking.tvConfig?.sponsors || [];
+                                                                    const newSponsors = currentSponsors.filter((_, i) => i !== idx);
+                                                                    onUpdateRanking?.({
+                                                                        ...ranking,
+                                                                        tvConfig: {
+                                                                            ...(ranking.tvConfig || { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] }),
+                                                                            sponsors: newSponsors
+                                                                        }
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity transform hover:scale-110"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-400 text-sm">
+                                            No hay patrocinadores configurados.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Add Sponsor Form */}
+                                {!isReadOnly && (
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                        <h5 className="font-bold text-blue-800 text-sm mb-3">Añadir Nuevo Patrocinador</h5>
+                                        <div className="flex flex-col gap-3">
+                                            <input
+                                                id="new-sponsor-name"
+                                                type="text"
+                                                placeholder="Nombre del Patrocinador"
+                                                className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-blue-200 rounded-lg text-sm font-medium text-blue-700 cursor-pointer hover:bg-blue-100 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                    {isUploading ? <Upload size={16} className="animate-bounce" /> : <Upload size={16} />}
+                                                    {isUploading ? 'Procesando...' : 'Subir Logo'}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+
+                                                            const nameInput = document.getElementById('new-sponsor-name') as HTMLInputElement;
+                                                            const name = nameInput.value.trim();
+
+                                                            if (!name) {
+                                                                alert('Por favor, introduce el nombre del patrocinador primero.');
+                                                                return;
+                                                            }
+
+                                                            setIsUploading(true);
+                                                            try {
+                                                                const base64 = await processLogoUpload(file);
+                                                                const newSponsor = {
+                                                                    id: Date.now().toString(),
+                                                                    name: name,
+                                                                    url: base64
+                                                                };
+
+                                                                onUpdateRanking?.({
+                                                                    ...ranking,
+                                                                    tvConfig: {
+                                                                        ...(ranking.tvConfig || { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] }),
+                                                                        sponsors: [...(ranking.tvConfig?.sponsors || []), newSponsor]
+                                                                    }
+                                                                });
+
+                                                                // Reset inputs
+                                                                nameInput.value = '';
+                                                                e.target.value = ''; // Reset file input
+                                                            } catch (error: any) {
+                                                                alert(error.message);
+                                                            } finally {
+                                                                setIsUploading(false);
+                                                            }
+                                                        }}
+                                                        disabled={isUploading}
+                                                    />
+                                                </label>
+                                            </div>
+                                            <p className="text-xs text-blue-400">Recomendado: Imágenes PNG con fondo transparente.</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

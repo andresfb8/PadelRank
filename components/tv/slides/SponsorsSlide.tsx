@@ -26,7 +26,7 @@ export const SponsorsSlide = ({ ranking }: Props) => {
                     sponsors.map(s => (
                         <div key={s.id} className="flex flex-col items-center gap-4">
                             {s.url ? (
-                                <img src={s.url} alt={s.name} className="h-32 object-contain filter grayscale hover:grayscale-0 transition-all duration-500" />
+                                <img src={s.url} alt={s.name} className="h-32 object-contain transition-all duration-500" />
                             ) : (
                                 <div className="h-32 w-64 bg-gray-200 flex items-center justify-center rounded-xl font-bold text-gray-400 text-2xl">
                                     {s.name}

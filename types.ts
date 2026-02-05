@@ -42,7 +42,7 @@ export type RankingFormat = 'classic' | 'americano' | 'mexicano' | 'individual' 
 export type TieBreakCriterion = 'pts' | 'setsDiff' | 'gamesDiff' | 'pg' | 'setsWon' | 'gamesWon' | 'winRate' | 'directEncounter' | 'random';
 
 export const DEFAULT_TIE_BREAK_ORDER: TieBreakCriterion[] = [
-  'pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon'
+  'pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon', 'random'
 ];
 
 export type ScoringMode = '16' | '21' | '24' | '31' | '32' | 'custom' | 'per-game';
