@@ -84,6 +84,16 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
 
     const columnHelper = createColumnHelper<StandingRow>();
 
+    // Helper to colorize headers
+    const getHeaderContent = (col: StandingsColumn) => {
+        const isWonStat = ['pg', 'setsWon', 'gamesWon'].includes(col.key);
+        const isLostStat = ['pp', 'setsLost', 'gamesLost'].includes(col.key);
+
+        if (isWonStat) return <span className="text-green-600">{col.label}</span>;
+        if (isLostStat) return <span className="text-red-500">{col.label}</span>;
+        return col.label;
+    };
+
     // Build table columns from StandingsColumn definitions
     const tableColumns: ColumnDef<StandingRow, any>[] = columns.map(col => {
         // Special handling for common columns
@@ -114,9 +124,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     return (
                         <div className="flex items-center gap-2">
                             <span
-                                className={`font-medium text-gray-900 truncate max-w-[100px] sm:max-w-[200px] ${onPlayerClick && !isPairFormat ? 'cursor-pointer hover:text-primary' : ''}`}
+                                className={`font-medium text-gray-900 truncate max-w-[100px] sm:max-w-[200px] ${onPlayerClick ? 'cursor-pointer hover:text-primary' : ''}`}
                                 onClick={() => {
-                                    if (onPlayerClick && !isPairFormat) {
+                                    if (onPlayerClick) {
                                         onPlayerClick(info.getValue());
                                     }
                                 }}
@@ -153,7 +163,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
 
         if (col.key === 'pg') {
             return columnHelper.accessor('pg', {
-                header: col.label,
+                header: () => getHeaderContent(col),
                 cell: info => <span className="text-green-600 font-semibold">{info.getValue()}</span>,
                 enableSorting: col.sortable ?? true,
                 meta: { className: col.className }
@@ -185,9 +195,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
             });
         }
 
-        // Generic column
+        // Generic column (includes pp, setsWon, setsLost, gamesWon, gamesLost)
         return columnHelper.accessor(col.key as any, {
-            header: col.label,
+            header: () => getHeaderContent(col),
             cell: col.render ? (info => col.render!(info.getValue(), info.row.original)) : (info => <span className="text-gray-600">{info.getValue()}</span>),
             enableSorting: col.sortable ?? true,
             meta: { className: col.className }

@@ -344,17 +344,49 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
               </div>
             ) : (
               <>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-gray-600">Estado:</span>
-                  <Badge type={preview.finalizationType === 'completo' ? 'success' : (preview.finalizationType === 'empate_manual' ? 'default' : 'warning')}>
-                    {preview.description}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center font-mono text-sm">
-                  <span>Reparto de Puntos:</span>
-                  <span className="font-bold">
-                    {`${preview.points.p1} - ${preview.points.p2}`}
-                  </span>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
+                    <div className="flex flex-col max-w-[70%]">
+                      <span className="font-medium text-gray-700 truncate">
+                        {(() => {
+                          const pp1 = getPlayer(match.pair1.p1Id);
+                          const pp2 = match.pair1.p2Id ? getPlayer(match.pair1.p2Id) : null;
+                          return `${pp1?.nombre || '?'}${pp2 ? ' & ' + pp2.nombre : ''}`;
+                        })()}
+                      </span>
+                      <span
+                        className={`text-xs font-bold uppercase mt-0.5 ${preview.points.p1 > preview.points.p2 ? 'text-green-600' :
+                          preview.points.p1 < preview.points.p2 ? 'text-red-500' : 'text-gray-500'
+                          }`}
+                      >
+                        {preview.points.p1 > preview.points.p2 ? 'Victoria' :
+                          preview.points.p1 < preview.points.p2 ? 'Derrota' : 'Empate'}
+                      </span>
+
+
+                    </div>
+                    <span className="font-bold text-lg text-primary">{preview.points.p1} pts</span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
+                    <div className="flex flex-col max-w-[70%]">
+                      <span className="font-medium text-gray-700 truncate">
+                        {(() => {
+                          const pp1 = getPlayer(match.pair2.p1Id);
+                          const pp2 = match.pair2.p2Id ? getPlayer(match.pair2.p2Id) : null;
+                          return `${pp1?.nombre || '?'}${pp2 ? ' & ' + pp2.nombre : ''}`;
+                        })()}
+                      </span>
+                      <span
+                        className={`text-xs font-bold uppercase mt-0.5 ${preview.points.p2 > preview.points.p1 ? 'text-green-600' :
+                          preview.points.p2 < preview.points.p1 ? 'text-red-500' : 'text-gray-500'
+                          }`}
+                      >
+                        {preview.points.p2 > preview.points.p1 ? 'Victoria' :
+                          preview.points.p2 < preview.points.p1 ? 'Derrota' : 'Empate'}
+                      </span>
+                    </div>
+                    <span className="font-bold text-lg text-primary">{preview.points.p2} pts</span>
+                  </div>
                 </div>
               </>
             )}

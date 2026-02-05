@@ -1554,7 +1554,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       standings={globalStandings}
                       players={players}
                       onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
-                      columns={ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'individual' ? [...FORMAT_COLUMN_PRESETS.pointBasedFormat] : [...FORMAT_COLUMN_PRESETS.setBasedFormat]}
+                      columns={ranking.format === 'americano' || ranking.format === 'mexicano' ? [...FORMAT_COLUMN_PRESETS.pointBasedFormat] : [...FORMAT_COLUMN_PRESETS.setBasedFormat]}
                       isAmericanoOrMexicano={ranking.format === 'americano' || ranking.format === 'mexicano'}
                       isHybrid={ranking.format === 'hybrid'}
                       isAdmin={isAdmin}
@@ -1833,7 +1833,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
+                                <div className="grid grid-cols-3 gap-2 gap-y-3 text-center bg-gray-50 rounded-lg p-2">
                                   <div>
                                     <div className="text-xs text-gray-500 font-medium mb-0.5">PJ</div>
                                     <div className="font-bold text-gray-800">{row.pj}</div>
@@ -1846,6 +1846,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                     <div className="text-xs text-red-500 font-medium mb-0.5">PP</div>
                                     <div className="font-bold text-gray-800">{row.pj - row.pg}</div>
                                   </div>
+
+                                  <div>
+                                    <div className="text-xs text-purple-600 font-medium mb-0.5">DS</div>
+                                    <div className="font-bold text-gray-800">{(row.setsWon || 0) - (row.setsLost || 0)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-orange-600 font-medium mb-0.5">DJ</div>
+                                    <div className="font-bold text-gray-800">{(row.gamesWon || 0) - (row.gamesLost || 0)}</div>
+                                  </div>
                                   <div>
                                     <div className="text-xs text-blue-500 font-medium mb-0.5">%</div>
                                     <div className="font-bold text-gray-800">{winrate}%</div>
@@ -1856,7 +1865,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           })}
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-4 hidden md:block">
                           <StandingsTable
                             standings={standings}
                             players={players}
