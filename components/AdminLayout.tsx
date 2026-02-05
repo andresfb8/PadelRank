@@ -262,7 +262,14 @@ export const AdminLayout = () => {
             alert("Error al guardar torneo.");
         }
     };
-    const handleUpdateRanking = async (r: Ranking) => await updateRanking(r);
+    const handleUpdateRanking = async (r: Ranking) => {
+        try {
+            await updateRanking(r);
+        } catch (error: any) {
+            console.error("Error updating ranking:", error);
+            alert("❌ Error al guardar cambios en el torneo.\n\n" + (error.message || "Posible error de permisos. Verifica si tienes permisos de edición sobre este torneo."));
+        }
+    };
     const handleDeleteRanking = async (id: string) => {
         if (confirm('¿Borrar torneo?')) await deleteRanking(id);
     };

@@ -18,7 +18,7 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
     };
 
     // --- Derived Data & Stats Calculation ---
-    const { history, enhancedStats } = useMemo(() => {
+    const { history, enhancedStats, manualAdj } = useMemo(() => {
         const history: Array<{
             match: Match;
             rankingName: string;
@@ -146,6 +146,24 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
             }
         });
 
+        // --- Manual Adjustments (God Mode) ---
+        // Accumulate adjustments from all rankings for this player
+        const manualAdj = { wins: 0, losses: 0, setsWon: 0, setsLost: 0, setsDiff: 0, gamesWon: 0, gamesLost: 0, gamesDiff: 0 };
+
+        rankings.forEach(r => {
+            const adj = r.manualStatsAdjustments?.[player.id];
+            if (adj) {
+                if (adj.pg) manualAdj.wins += adj.pg;
+                if (adj.pp) manualAdj.losses += adj.pp;
+                if (adj.setsWon) manualAdj.setsWon += adj.setsWon;
+                if (adj.setsLost) manualAdj.setsLost += adj.setsLost; // Although we don't display setsLost explicitly in summary, might be good for net
+                if (adj.setsDiff) manualAdj.setsDiff += adj.setsDiff;
+                if (adj.gamesWon) manualAdj.gamesWon += adj.gamesWon;
+                if (adj.gamesLost) manualAdj.gamesLost += adj.gamesLost;
+                if (adj.gamesDiff) manualAdj.gamesDiff += adj.gamesDiff;
+            }
+        });
+
         // --- New Stats: Sets/Games & Streaks ---
         let totalSetsWon = 0;
         let totalSetsPlayed = 0;
@@ -259,7 +277,8 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                 sets: { won: totalSetsWon, total: totalSetsPlayed, diff: netSets },
                 games: { won: totalGamesWon, total: totalGamesPlayed, diff: netGames },
                 streaks: { current: currentStreak, best: bestStreak }
-            }
+            },
+            manualAdj
         }; // Most recent first
     }, [player, rankings]);
 
@@ -320,22 +339,22 @@ export const PlayerDetailView = ({ player, players, rankings, onBack }: Props) =
                     <div className="space-y-4">
                         <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                             <span className="text-gray-600">Victorias</span>
-                            <span className="font-bold text-emerald-600">{player.stats?.pg ?? 0}</span>
+                            <span className="font-bold text-emerald-600">{(player.stats?.pg ?? 0) + manualAdj.wins}</span>
                         </div>
                         <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                             <span className="text-gray-600">Derrotas</span>
-                            <span className="font-bold text-rose-600">{player.stats?.pp ?? 0}</span>
+                            <span className="font-bold text-rose-600">{(player.stats?.pp ?? 0) + manualAdj.losses}</span>
                         </div>
                         <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                             <span className="text-gray-600">Dif. Sets</span>
-                            <span className={`font-bold ${enhancedStats.sets.diff > 0 ? 'text-emerald-600' : enhancedStats.sets.diff < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
-                                {enhancedStats.sets.diff > 0 ? `+${enhancedStats.sets.diff}` : enhancedStats.sets.diff}
+                            <span className={`font-bold ${(enhancedStats.sets.diff + manualAdj.setsDiff) > 0 ? 'text-emerald-600' : (enhancedStats.sets.diff + manualAdj.setsDiff) < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
+                                {(enhancedStats.sets.diff + manualAdj.setsDiff) > 0 ? `+${enhancedStats.sets.diff + manualAdj.setsDiff}` : (enhancedStats.sets.diff + manualAdj.setsDiff)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                             <span className="text-gray-600">Dif. Juegos</span>
-                            <span className={`font-bold ${enhancedStats.games.diff > 0 ? 'text-emerald-600' : enhancedStats.games.diff < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
-                                {enhancedStats.games.diff > 0 ? `+${enhancedStats.games.diff}` : enhancedStats.games.diff}
+                            <span className={`font-bold ${(enhancedStats.games.diff + manualAdj.gamesDiff) > 0 ? 'text-emerald-600' : (enhancedStats.games.diff + manualAdj.gamesDiff) < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
+                                {(enhancedStats.games.diff + manualAdj.gamesDiff) > 0 ? `+${enhancedStats.games.diff + manualAdj.gamesDiff}` : (enhancedStats.games.diff + manualAdj.gamesDiff)}
                             </span>
                         </div>
                     </div>
