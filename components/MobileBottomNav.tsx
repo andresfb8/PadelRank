@@ -53,15 +53,18 @@ export const MobileBottomNav = ({ currentView, onNavigate, isAdmin, isSuperAdmin
                         <button
                             key={item.id}
                             onClick={() => onNavigate(item.id)}
-                            className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-300 w-16 group ${isActive
-                                ? 'text-primary font-bold bg-primary-50'
-                                : 'text-gray-400 hover:text-gray-600'
+                            className={`flex flex-col items-center justify-center py-1 transition-all duration-300 relative ${isActive
+                                ? 'text-primary'
+                                : 'text-gray-400 hover:text-gray-600 font-medium'
                                 }`}
                         >
-                            <div className={`transition-transform duration-300 ${isActive ? 'scale-110 mb-1' : 'mb-0.5'}`}>
-                                <Icon size={isActive ? 20 : 22} strokeWidth={isActive ? 2.5 : 2} />
+                            {isActive && (
+                                <div className="absolute -top-1 w-12 h-1 bg-primary rounded-full animate-fade-in" />
+                            )}
+                            <div className={`p-2 rounded-2xl transition-all duration-300 ${isActive ? 'bg-primary/10 mb-1' : 'mb-1'}`}>
+                                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
                             </div>
-                            <span className={`text-[10px] font-medium transition-all duration-300 ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 hidden'}`}>
+                            <span className={`text-[10px] uppercase tracking-wider font-bold transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-60'}`}>
                                 {item.label}
                             </span>
                         </button>

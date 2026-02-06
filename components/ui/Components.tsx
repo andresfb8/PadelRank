@@ -3,11 +3,11 @@ import React from 'react';
 export const Button = ({ children, onClick, variant = 'primary', className = '', ...props }: any) => {
   const baseStyle = "px-5 py-2.5 rounded-xl font-bold transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-95";
   const variants = {
-    primary: "bg-primary text-white shadow-md hover:shadow-lg hover:-translate-y-0.5",
-    secondary: "bg-white text-secondary-700 border border-gray-200 shadow-sm hover:bg-gray-50 hover:border-gray-300",
-    danger: "bg-red-600 text-white shadow-md hover:bg-red-700 shadow-red-500/30",
-    success: "bg-green-600 text-white shadow-md hover:bg-green-700 shadow-green-500/30",
-    outline: "border-2 border-primary text-primary hover:bg-primary-50 bg-transparent"
+    primary: "bg-primary text-white shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:-translate-y-0.5 active:scale-[0.98]",
+    secondary: "bg-white text-gray-700 border border-gray-100 shadow-sm hover:bg-gray-50 hover:border-gray-200",
+    danger: "bg-red-500 text-white shadow-lg shadow-red-500/20 hover:bg-red-600",
+    success: "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-600",
+    outline: "border-2 border-primary/20 text-primary hover:bg-primary-50 bg-transparent"
   };
   return (
     <button onClick={onClick} className={`${baseStyle} ${variants[variant as keyof typeof variants]} ${className}`} {...props}>
@@ -16,8 +16,8 @@ export const Button = ({ children, onClick, variant = 'primary', className = '',
   );
 };
 
-export const Card = ({ children, className = '' }: any) => (
-  <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-6 ${className}`}>
+export const Card = ({ children, className = '', noPadding = false }: any) => (
+  <div className={`bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 ${noPadding ? '' : 'p-6'} ${className}`}>
     {children}
   </div>
 );

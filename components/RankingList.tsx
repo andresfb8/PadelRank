@@ -288,29 +288,23 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                     <div
                       key={ranking.id}
                       onClick={() => onSelect(ranking)}
-                      className="group bg-white p-5 rounded-xl border border-gray-200 hover:border-primary hover:shadow-md cursor-pointer transition-all relative overflow-hidden"
+                      className="group bg-white p-6 rounded-2xl border border-gray-100 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 cursor-pointer transition-all relative overflow-hidden flex flex-col h-full"
                     >
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Trophy size={64} className="text-primary" />
+                      <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all">
+                        <Trophy size={80} className="text-primary" />
                       </div>
 
-                      <div className="relative z-10">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex gap-2">
-                            <span className={`px-2 py-1 rounded text-xs font-semibold ${ranking.status === 'activo' ? 'bg-green-100 text-green-700' :
-                              ranking.status === 'pausado' ? 'bg-orange-100 text-orange-700' :
-                                'bg-gray-100 text-gray-600'
+                      <div className="relative z-10 flex flex-col h-full">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${ranking.status === 'activo' ? 'bg-green-50 text-green-700 border-green-100' :
+                              ranking.status === 'pausado' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                                'bg-gray-50 text-gray-600 border-gray-100'
                               }`}>
                               {ranking.status === 'activo' ? 'Activo' : ranking.status === 'pausado' ? 'Pausado' : 'Finalizado'}
                             </span>
-                            <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-50 text-blue-700 uppercase tracking-wider">
-                              {ranking.format === 'americano' ? 'Americano' :
-                                ranking.format === 'mexicano' ? 'Mexicano' :
-                                  ranking.format === 'individual' ? 'Individual' :
-                                    ranking.format === 'pairs' ? 'Ranking por Parejas' :
-                                      ranking.format === 'elimination' ? 'Eliminación' :
-                                        ranking.format === 'hybrid' ? 'Híbrido' :
-                                          ranking.format === 'pozo' ? 'Pozo' : 'Ranking clásica'}
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/5 text-primary border border-primary/10">
+                              {ranking.format}
                             </span>
                           </div>
                           <div className="flex gap-1">
@@ -319,7 +313,7 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                                 e.stopPropagation();
                                 onDuplicate(ranking.id);
                               }}
-                              className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                               title="Duplicar torneo"
                             >
                               <Copy size={16} />
@@ -329,7 +323,7 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                                 e.stopPropagation();
                                 onDelete(ranking.id);
                               }}
-                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                               title="Eliminar torneo"
                             >
                               <Trash2 size={16} />
@@ -337,28 +331,23 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                           </div>
                         </div>
 
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">{ranking.nombre}</h3>
-                        <p className="text-gray-500 text-sm mb-4">
-                          {ranking.categoria}
-                          <span className="mx-2">•</span>
-                          {ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} Jugadores
-                        </p>
-
-                        <div className="flex items-center text-sm text-gray-400 gap-4">
-                          <div className="flex items-center gap-1">
-                            <Calendar size={14} />
-                            <span>{ranking.fechaInicio}</span>
+                        <div className="mb-auto">
+                          <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-primary transition-colors">{ranking.nombre}</h3>
+                          <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
+                            <span className="uppercase tracking-wide text-[11px] font-bold text-gray-400">{ranking.categoria}</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                            <span>{ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} JUGADORES</span>
                           </div>
-                          {ranking.rules && (
-                            <div className="flex items-center gap-1 text-orange-600" title="Tiene normas específicas">
-                              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                              <span>Normas</span>
-                            </div>
-                          )}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center text-primary text-sm font-medium">
-                          Ver Detalles <ChevronRight size={16} className="ml-1" />
+                        <div className="mt-6 flex items-center justify-between">
+                          <div className="flex items-center text-xs text-gray-400 font-bold gap-1 mt-1">
+                            <Calendar size={14} className="opacity-50" />
+                            <span>{ranking.fechaInicio}</span>
+                          </div>
+                          <div className="flex items-center text-primary text-xs font-black uppercase tracking-widest">
+                            Entrar <ChevronRight size={16} className="ml-0.5 group-hover:translate-x-1 transition-transform" />
+                          </div>
                         </div>
                       </div>
                     </div>
