@@ -1417,9 +1417,10 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 if (format === 'mexicano') {
                     matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
                 } else if (format === 'americano') {
-                    const selectedPlayers = selectedPlayerIds.map(id => players[id]).filter(p => !!p);
+                    const selectedPlayers = selectedPlayerIds.map(id => availablePlayers.find(p => p.id === id)).filter(p => !!p) as Player[];
                     matches = MatchGenerator.generateAmericano(selectedPlayers, config.courts || 2);
                 }
+
 
                 divisions.push({
                     id: `div-${crypto.randomUUID()}`,

@@ -642,8 +642,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     else if (ranking.format === 'americano') {
       const pObjs = activeDivision.players.map(id => players[id] || { id } as Player);
       newMatches = MatchGenerator.generateAmericano(pObjs, ranking.config?.courts || 2);
-      newMatches.forEach(m => m.jornada = nextRound);
     }
+
     // Fallback save for non-Pozo
     if (newMatches.length === 0) return alert("No se pudieron generar partidos. Verifica el número de jugadores.");
 
