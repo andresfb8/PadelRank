@@ -7,10 +7,15 @@ export interface User {
   role: Role;
   clubName?: string;
   status: 'active' | 'pending' | 'rejected' | 'blocked';
+
   // SaaS Subscription fields
   plan?: 'basic' | 'pro' | 'star' | 'weekend' | 'trial';
-  planExpiry?: number; // timestamp for Weekend Warrior plan
-  stripeCustomerId?: string; // For future Stripe integration
+  subscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'unpaid';
+  planExpiry?: number; // timestamp for Weekend Warrior plan or cancel_at_period_end
+  stripeCustomerId?: string; // For Stripe integration
+  cancelAtPeriodEnd?: boolean;
+  isLegacyFree?: boolean; // For migrated users with 100% discount
+
   createdAt?: string; // ISO timestamp for when the user was created
   internalNotes?: string; // Private notes for SuperAdmin use
   lastLogin?: string; // ISO timestamp of the last time the user logged in

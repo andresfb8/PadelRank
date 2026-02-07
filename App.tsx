@@ -4,6 +4,8 @@ import { AdminLayout } from './components/AdminLayout';
 import { TVPage } from './pages/TVPage';
 import { AdminMigrationPage } from './pages/AdminMigrationPage';
 
+import { PaymentSuccess, PaymentCancel } from './pages/PaymentStatus';
+
 const App = () => {
   const [publicRankingId, setPublicRankingId] = useState<string | null>(null);
   const [tvRankingId, setTvRankingId] = useState<string | null>(null);
@@ -25,6 +27,11 @@ const App = () => {
       setPublicRankingId(id);
     }
   }, []);
+
+  // Simple Routing
+  const path = window.location.pathname;
+  if (path === '/payment/success') return <PaymentSuccess />;
+  if (path === '/payment/cancel') return <PaymentCancel />;
 
   if (isMigration) {
     // Lazy load or import directly if needed. Using direct import for simplicity.

@@ -2,56 +2,35 @@ import React, { useState } from 'react';
 import {
     Trophy,
     Users,
-    Settings,
-    Activity,
     ChevronRight,
     Check,
     Smartphone,
-    Layout,
-    BarChart3,
-    ShieldCheck,
-    Zap,
-    Star,
+    Activity,
     LogIn,
     Menu,
     X,
-    Calendar,
-    Layers,
-    TrendingUp,
-    History,
-    Award,
-    ArrowUpRight,
-    ArrowDownRight,
-    MousePointer2,
     Clock,
     Search,
     Plus,
-    Flame,
-    Target,
-    UserMinus,
-    Cpu,
-    UserCheck,
     Sparkles,
-    Gift,
-    Mail,
-    Tv,
+    UserCheck,
+    Cpu,
     MonitorPlay,
     Palette,
-    Image as ImageIcon
+    Gift,
+    Mail,
+    Star,
+    ShieldCheck
 } from 'lucide-react';
 
 const App = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-    // Configuración de WhatsApp
-    const whatsappNumber = "34625277697";
-    const whatsappMessage = encodeURIComponent("Hola! Vengo de la web y me gustaria probar RacketGrid");
-    const whatsappLink = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`;
-
     const subscriptionPlans = [
         {
             name: "Básico",
             price: "19",
+            priceId: "price_1SyENKH0qNNQGErtnwAw3w9R",
             period: "/mes",
             description: "Ideal para pequeños grupos o clubes que inician.",
             features: [
@@ -71,6 +50,7 @@ const App = () => {
         {
             name: "Pro",
             price: "39",
+            priceId: "price_1SyENLH0qNNQGErtnn8H2yK7",
             period: "/mes",
             description: "La solución completa para clubes en crecimiento.",
             features: [
@@ -94,6 +74,7 @@ const App = () => {
         {
             name: "Plan Star Point",
             price: "59",
+            priceId: "price_1SyENLH0qNNQGErtanrpSTkh",
             period: "/mes",
             description: "Potencia total e ilimitada para grandes centros.",
             features: [
@@ -112,6 +93,7 @@ const App = () => {
     const eventPass = {
         name: "Weekend Warrior",
         price: "39",
+        priceId: "price_1QuU3dG36W3wUv2p3m7XFvU4",
         period: "/evento",
         badge: "Pase por Evento Único",
         description: "Desbloquea toda la potencia del Plan Star Point para un solo torneo de alto impacto.",
@@ -478,9 +460,7 @@ const App = () => {
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <a
-                            href={whatsappLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href="https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=price_1SyENLH0qNNQGErtnn8H2yK7&plan=pro"
                             className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl text-lg font-bold transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
                         >
                             Prueba Gratuita <ChevronRight className="w-5 h-5" />
@@ -808,9 +788,7 @@ const App = () => {
                                     ))}
                                 </div>
                                 <a
-                                    href={whatsappLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    href={`https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=${plan.priceId}&plan=${plan.name.toLowerCase().includes('básico') ? 'basic' : plan.name.toLowerCase().includes('pro') ? 'pro' : 'star'}`}
                                     className={`w-full py-4 rounded-xl font-bold text-center transition-all ${plan.featured ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-100' : 'bg-slate-900 hover:bg-slate-800 text-white'
                                         }`}
                                 >
@@ -836,9 +814,7 @@ const App = () => {
                                 <div className="mb-2"><span className="text-5xl font-black text-slate-900">{eventPass.price}€</span><span className="text-slate-500 font-bold ml-1">{eventPass.period}</span></div>
                                 <p className="text-[10px] text-slate-400 font-bold mb-4 uppercase tracking-tighter">IVA Incluido</p>
                                 <a
-                                    href={whatsappLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    href={`https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=${eventPass.priceId}&plan=weekend`}
                                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-xl shadow-indigo-100 inline-block"
                                 >
                                     Comprar Pase Único

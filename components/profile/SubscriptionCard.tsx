@@ -1,6 +1,7 @@
 import { Crown, Users, Trophy, TrendingUp, Calendar } from 'lucide-react';
 import { User } from '../../types';
 import { Button } from '../ui/Components';
+import { createPortalSession } from '../../services/stripeService';
 
 interface SubscriptionCardProps {
     user: User;
@@ -58,8 +59,8 @@ export const SubscriptionCard = ({ user, totalPlayers, activeTournaments }: Subs
                     <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                             className={`h-2 rounded-full transition-all ${playerUsage > 90 ? 'bg-red-500' :
-                                    playerUsage > 70 ? 'bg-yellow-500' :
-                                        'bg-green-500'
+                                playerUsage > 70 ? 'bg-yellow-500' :
+                                    'bg-green-500'
                                 }`}
                             style={{ width: `${Math.min(playerUsage, 100)}%` }}
                         />
@@ -80,8 +81,8 @@ export const SubscriptionCard = ({ user, totalPlayers, activeTournaments }: Subs
                     <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                             className={`h-2 rounded-full transition-all ${tournamentUsage > 90 ? 'bg-red-500' :
-                                    tournamentUsage > 70 ? 'bg-yellow-500' :
-                                        'bg-indigo-500'
+                                tournamentUsage > 70 ? 'bg-yellow-500' :
+                                    'bg-indigo-500'
                                 }`}
                             style={{ width: `${Math.min(tournamentUsage, 100)}%` }}
                         />
@@ -100,18 +101,24 @@ export const SubscriptionCard = ({ user, totalPlayers, activeTournaments }: Subs
             )}
 
             {/* Actions */}
-            <div className="flex gap-3">
-                <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700">
+            <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                    onClick={async () => {
+                        try {
+                            await createPortalSession();
+                        } catch (err) {
+                            alert("No se pudo abrir el portal de gestión. Por favor intenta de nuevo.");
+                        }
+                    }}
+                >
                     <TrendingUp size={18} className="mr-2" />
-                    Mejorar Plan
-                </Button>
-                <Button variant="secondary" className="flex-1">
-                    Ver Planes
+                    Gestionar Suscripción
                 </Button>
             </div>
 
             <p className="text-xs text-gray-500 text-center mt-4">
-                La facturación se gestionará a través de Stripe próximamente
+                La facturación y cambios de plan se gestionan de forma segura a través de Stripe
             </p>
         </div>
     );

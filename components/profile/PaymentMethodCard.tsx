@@ -1,6 +1,7 @@
 import { CreditCard, Plus } from 'lucide-react';
 import { User } from '../../types';
 import { Button } from '../ui/Components';
+import { createPortalSession } from '../../services/stripeService';
 
 interface PaymentMethodCardProps {
     user: User;
@@ -27,7 +28,17 @@ export const PaymentMethodCard = ({ user }: PaymentMethodCardProps) => {
                         <div className="text-lg tracking-wider mb-2">•••• •••• •••• 1234</div>
                         <div className="text-xs opacity-70">TITULAR DE LA TARJETA</div>
                     </div>
-                    <Button variant="secondary" className="w-full">
+                    <Button
+                        variant="secondary"
+                        className="w-full"
+                        onClick={async () => {
+                            try {
+                                await createPortalSession();
+                            } catch (err) {
+                                alert("No se pudo abrir el portal de facturación.");
+                            }
+                        }}
+                    >
                         Actualizar Tarjeta
                     </Button>
                 </div>
@@ -39,12 +50,21 @@ export const PaymentMethodCard = ({ user }: PaymentMethodCardProps) => {
                     <p className="text-gray-500 text-sm mb-4">
                         No hay método de pago configurado
                     </p>
-                    <Button className="w-full">
+                    <Button
+                        className="w-full"
+                        onClick={async () => {
+                            try {
+                                await createPortalSession();
+                            } catch (err) {
+                                alert("No se pudo abrir el portal de facturación.");
+                            }
+                        }}
+                    >
                         <Plus size={18} className="mr-2" />
                         Añadir Tarjeta
                     </Button>
                     <p className="text-xs text-gray-400 mt-3">
-                        Integración con Stripe próximamente
+                        Configura tus datos de pago de forma segura en Stripe
                     </p>
                 </div>
             )}
