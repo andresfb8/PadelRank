@@ -95,3 +95,39 @@ export const handleSubscriptionDeleted = async (subscription: any) => {
         planExpiry: admin.firestore.FieldValue.delete(),
     });
 };
+
+export const handleInvoicePaymentFailed = async (invoice: any) => {
+    const customerId = invoice.customer as string;
+
+    // Find user by stripeCustomerId
+    const usersSnapshot = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+
+    if (usersSnapshot.empty) {
+        console.error(`User not found for Stripe Customer: ${customerId}`);
+        return;
+    }
+
+    const userDoc = usersSnapshot.docs[0];
+    await userDoc.ref.update({
+        hasFailedPayment: true,
+        lastPaymentError: invoice.last_finalization_error?.message || 'Error de pago'
+    });
+};
+
+export const handleInvoicePaymentSucceeded = async (invoice: any) => {
+    const customerId = invoice.customer as string;
+
+    // Find user by stripeCustomerId
+    const usersSnapshot = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+
+    if (usersSnapshot.empty) {
+        console.error(`User not found for Stripe Customer: ${customerId}`);
+        return;
+    }
+
+    const userDoc = usersSnapshot.docs[0];
+    await userDoc.ref.update({
+        hasFailedPayment: false,
+        lastPaymentError: admin.firestore.FieldValue.delete()
+    });
+};

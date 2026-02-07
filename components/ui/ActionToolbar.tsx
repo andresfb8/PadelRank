@@ -67,17 +67,7 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
         }
     }, [showOverflow]);
 
-    const getButtonVariant = (variant?: string) => {
-        switch (variant) {
-            case 'danger':
-                return 'bg-red-600 hover:bg-red-700 text-white';
-            case 'primary':
-                return 'bg-blue-600 hover:bg-blue-700 text-white';
-            case 'secondary':
-            default:
-                return 'bg-gray-100 hover:bg-gray-200 text-gray-700';
-        }
-    };
+
 
     const renderAction = (action: ToolbarAction, isInMenu = false) => {
         const Icon = action.icon;
@@ -103,7 +93,8 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
             <Button
                 key={action.id}
                 onClick={action.onClick}
-                className={`flex items-center gap-2 ${getButtonVariant(action.variant)} ${action.className || ''}`}
+                variant={action.variant || 'secondary'}
+                className={`flex items-center gap-2 ${action.className || ''}`}
                 title={action.title || action.label}
             >
                 <Icon size={18} />

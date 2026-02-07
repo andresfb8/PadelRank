@@ -15,7 +15,8 @@ import {
     Calendar,
     ArrowRight,
     Crown,
-    Zap
+    Zap,
+    ExternalLink
 } from 'lucide-react';
 import { SUBSCRIPTION_PLANS } from '../config/subscriptionPlans';
 
@@ -156,11 +157,42 @@ export const SuperAdminAnalytics = ({
                     <p className="text-gray-500 mt-1">Vista global del negocio y operaciones</p>
                 </div>
                 <div className="flex gap-3">
+                    <a
+                        href="https://dashboard.stripe.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors font-medium text-sm"
+                    >
+                        <ExternalLink size={18} />
+                        Stripe Dashboard
+                    </a>
                     <Button onClick={onCreateClient} className="flex items-center gap-2">
                         <Plus size={18} /> Nuevo Cliente
                     </Button>
                 </div>
             </div>
+
+            {/* SaaS Alerts */}
+            {activeAdmins.some(u => u.hasFailedPayment) && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-6 animate-pulse">
+                    <h3 className="text-lg font-bold text-red-900 mb-2 flex items-center gap-2">
+                        <AlertTriangle className="text-red-600" size={24} />
+                        Urgente: Pagos Fallidos Detectados
+                    </h3>
+                    <p className="text-red-700 mb-4">
+                        Hay {activeAdmins.filter(u => u.hasFailedPayment).length} clientes con problemas en su última factura.
+                        Esto puede afectar a su acceso a la plataforma.
+                    </p>
+                    <Button
+                        variant="danger"
+                        onClick={() => onNavigate('admin_management')}
+                        className="flex items-center gap-2"
+                    >
+                        Gestionar Pagos Fallidos
+                        <ArrowRight size={18} />
+                    </Button>
+                </div>
+            )}
 
             {/* Top KPIs - Row 1: Business Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

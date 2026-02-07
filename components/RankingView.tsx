@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus } from 'lucide-react';
+import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
 import { exportRankingToPDF } from '../services/export';
@@ -169,6 +169,22 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
     onUpdateRanking(updatedRanking);
   };
+
+  const getVisibleColumns = (presets: typeof FORMAT_COLUMN_PRESETS.pointBasedFormat | typeof FORMAT_COLUMN_PRESETS.setBasedFormat) => {
+    const visibleConfig = ranking.config?.visibleColumns;
+    if (!visibleConfig) return [...presets];
+
+    return presets.filter(col =>
+      ['pos', 'player', 'pts', 'pj', 'pg', 'winRate'].includes(col.key) || // Always required + mobile basics
+      visibleConfig.includes(col.key)
+    );
+  };
+
+  const isColumnVisible = (key: string) => {
+    const visibleConfig = ranking.config?.visibleColumns;
+    if (!visibleConfig) return true;
+    return ['pts', 'pj', 'pg', 'winRate'].includes(key) || visibleConfig.includes(key);
+  };
   const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
   const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '', nextPhaseDiv: '' });
   const [isManualMatchModalOpen, setIsManualMatchModalOpen] = useState(false);
@@ -281,71 +297,114 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     </div>
   );
 
-  const renderMobileStandings = (data: any[], isGlobal: boolean = false) => (
-    <div className="space-y-4 md:hidden">
-      {data.map((row) => {
+  const renderMobileStandings = (data: typeof standings, isGlobal = false) => (
+    <div className="space-y-3">
+      {data.map((row, index) => {
+        let player: any = players[row.playerId];
         let displayName = '';
+
         if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
           const [p1Id, p2Id] = row.playerId.split('::');
-          displayName = `${players[p1Id]?.nombre || '?'} / ${players[p2Id]?.nombre || '?'}`;
+          // Handle case where players might not be loaded yet or bad ID
+          const p1Name = players[p1Id]?.nombre || '?';
+          const p2Name = players[p2Id]?.nombre || '?';
+          displayName = `${p1Name} / ${p2Name}`;
+          // Mock player object for display consistency
+          player = { nombre: displayName, apellidos: '' };
         } else {
-          displayName = players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : 'Desconocido';
+          if (!player) return null; // Should not happen but safe guard
+          displayName = `${player.nombre} ${player.apellidos}`;
         }
 
+
+        const isPromoting = (!isGlobal && ranking.config?.promotionCount && index < ranking.config.promotionCount);
+        const isRelegating = (!isGlobal && ranking.config?.relegationCount && index >= data.length - ranking.config.relegationCount);
+        const positionClass = isPromoting ? "bg-green-100 text-green-700" : isRelegating ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600";
+        // Rank change logic would need history, simpler for now to omit or calc if available
+        const rankChange = row.previousRank ? row.previousRank - (index + 1) : 0;
+
         return (
-          <Card key={row.playerId} className="relative overflow-hidden pt-6 pb-3">
-            <div className="absolute left-4 top-4 italic text-2xl font-black text-black z-0">
-              {row.pos}º
+          <div
+            key={row.playerId}
+            onClick={() => onPlayerClick && onPlayerClick(row.playerId)}
+            className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 transition-all active:scale-[0.98] ${index < 3 ? 'border-l-4 border-l-yellow-400' : ''}`}
+          >
+            {/* Header: Position & Name */}
+            <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-50">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black ${positionClass}`}>
+                {row.position || index + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-gray-900 truncate text-base">
+                    {displayName}
+                  </span>
+                  {/* Status Badges */}
+                  {rankChange > 0 && <span className="text-xs font-bold text-green-500 flex items-center bg-green-50 px-1.5 py-0.5 rounded">+{rankChange}</span>}
+                  {rankChange < 0 && <span className="text-xs font-bold text-red-500 flex items-center bg-red-50 px-1.5 py-0.5 rounded">{rankChange}</span>}
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-2xl font-black text-primary leading-none">{row.points}</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Puntos</span>
+              </div>
             </div>
 
-            <div className="relative z-10 flex justify-between items-start mb-4">
-              <div className="pl-10">
-                <h3 className="font-extrabold text-gray-900 text-base leading-tight mb-1">{displayName}</h3>
-                {!isGlobal && (
-                  <div className="flex items-center gap-2">
-                    <Badge type={row.pos <= 2 ? 'success' : 'default'} className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">
-                      {row.pos <= 2 ? 'Ascenso' : 'Permanencia'}
-                    </Badge>
-                  </div>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-4 gap-2 text-center">
+              {/* Wins - Always verify if PG is standard */}
+              <div className="bg-green-50 rounded-lg p-2 flex flex-col items-center justify-center">
+                <span className="text-lg font-black text-green-600 leading-tight">{row.matchesWon}</span>
+                <span className="text-[10px] font-bold text-green-800/60 uppercase">PG</span>
+              </div>
+
+              {/* Win Rate */}
+              <div className="bg-blue-50 rounded-lg p-2 flex flex-col items-center justify-center">
+                <span className="text-lg font-black text-blue-600 leading-tight">{Math.round(row.winRate)}%</span>
+                <span className="text-[10px] font-bold text-blue-800/60 uppercase">% Vic</span>
+              </div>
+
+              {/* Sets Diff - Conditional */}
+              {isColumnVisible('setsDiff') && (
+                <div className="bg-gray-50 rounded-lg p-2 flex flex-col items-center justify-center">
+                  <span className={`text-lg font-black leading-tight ${row.setsWon - row.setsLost > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
+                    {row.setsWon - row.setsLost > 0 ? '+' : ''}{row.setsWon - row.setsLost}
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">Dif Sets</span>
+                </div>
+              )}
+
+              {/* Games Diff - Conditional */}
+              {isColumnVisible('gamesDiff') && (
+                <div className="bg-gray-50 rounded-lg p-2 flex flex-col items-center justify-center">
+                  <span className={`text-lg font-black leading-tight ${row.gamesWon - row.gamesLost > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
+                    {row.gamesWon - row.gamesLost > 0 ? '+' : ''}{row.gamesWon - row.gamesLost}
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">Dif Jue</span>
+                </div>
+              )}
+            </div>
+
+            {/* Matches Played Footer */}
+            <div className="mt-3 pt-2 border-t border-gray-50 flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-gray-300"></span>
+                  PJ: <span className="font-bold text-gray-700">{row.matchesPlayed}</span>
+                </span>
+                {isColumnVisible('pp') && (
+                  <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-300"></span>
+                    PP: <span className="font-bold text-gray-700">{row.matchesLost}</span>
+                  </span>
                 )}
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-black text-primary leading-none tracking-tighter">{row.pts}</div>
-                <div className="text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] mt-1 mr-0.5">Puntos</div>
+              <div className="flex items-center gap-1 text-primary/80">
+                <span className="text-xs font-bold">Ver Detalles</span>
+                <ArrowRight size={14} />
               </div>
             </div>
-
-            <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 pt-3 pb-1 px-1 rounded-b-xl">
-              <div className="flex flex-col items-center">
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">PJ</div>
-                <div className="text-xs font-black text-gray-900">{row.pj}</div>
-              </div>
-              <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">PG</div>
-                <div className="text-xs font-black text-gray-900">{row.pg}</div>
-              </div>
-              <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">PP</div>
-                <div className="text-xs font-black text-gray-900">{row.pp}</div>
-              </div>
-              <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">DifS</div>
-                <div className="text-xs font-black text-gray-900">
-                  {row.setsDiff > 0 ? '+' : ''}{row.setsDiff}
-                </div>
-              </div>
-              <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">DifJ</div>
-                <div className="text-xs font-black text-gray-900">
-                  {row.gamesDiff > 0 ? '+' : ''}{row.gamesDiff}
-                </div>
-              </div>
-              <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">%</div>
-                <div className="text-xs font-black text-gray-900">{Math.round(row.winRate)}%</div>
-              </div>
-            </div>
-          </Card>
+          </div>
         );
       })}
     </div>
@@ -1177,7 +1236,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
         <ActionToolbar
           actions={[
-            // Import Match-Pairs and Hybrid only
+            // Import Match - Pairs and Hybrid only
             {
               id: 'import-match',
               icon: Save,
@@ -1189,13 +1248,30 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               title: 'Importar partido pasado'
             },
             {
+              id: 'finalize-phase',
+              icon: CheckCircle,
+              label: 'Finalizar Fase',
+              onClick: handleOpenPromotionModal,
+              visible: isAdmin && (ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs'),
+              variant: 'primary',
+              title: 'Gestionar ascensos y descensos'
+            },
+            {
+              id: 'start-playoffs',
+              icon: Play,
+              label: 'Iniciar Playoff',
+              onClick: handleStartPlayoffs,
+              visible: isAdmin && ranking.format === 'hybrid' && ranking.phase !== 'playoff',
+              variant: 'primary',
+              title: 'Generar cuadros eliminatorios'
+            },
+            {
               id: 'new-round',
               icon: Plus,
               label: 'Nueva Ronda',
               onClick: handleGenerateNextRound,
               visible: ranking.format !== 'pairs' && ranking.format !== 'elimination' && ranking.format !== 'pozo',
-              variant: 'primary',
-              className: 'bg-orange-600 hover:bg-orange-700'
+              variant: 'primary'
             },
             {
               id: 'export-pdf',
@@ -1224,6 +1300,22 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               visible: isAdmin,
               variant: isGodMode ? 'primary' : 'secondary',
               className: isGodMode ? 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-200' : ''
+            },
+            {
+              id: 'settings',
+              icon: Settings,
+              label: 'Ajustes',
+              onClick: () => setIsSettingsModalOpen(true),
+              visible: isAdmin,
+              variant: 'secondary'
+            },
+            {
+              id: 'share',
+              icon: copied ? Check : Share2,
+              label: copied ? 'Copiado' : 'Compartir',
+              onClick: copyToClipboard,
+              visible: true,
+              variant: 'secondary'
             }
           ]}
           primaryActionIds={primaryIds}
@@ -1568,8 +1660,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                         standings={globalStandings}
                         players={players}
                         onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
-                        columns={ranking.format === 'americano' || ranking.format === 'mexicano' ? [...FORMAT_COLUMN_PRESETS.pointBasedFormat] : [...FORMAT_COLUMN_PRESETS.setBasedFormat]}
-                        isAmericanoOrMexicano={ranking.format === 'americano' || ranking.format === 'mexicano'}
+                        columns={getVisibleColumns(['americano', 'mexicano', 'pozo'].includes(ranking.format) ? FORMAT_COLUMN_PRESETS.pointBasedFormat : FORMAT_COLUMN_PRESETS.setBasedFormat)}
+                        isAmericanoOrMexicano={['americano', 'mexicano', 'pozo'].includes(ranking.format)}
                         isHybrid={ranking.format === 'hybrid'}
                         isAdmin={isAdmin}
                         onEditStats={(row) => {
@@ -1887,8 +1979,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                             standings={standings}
                             players={players}
                             onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
-                            columns={ranking.format === 'americano' || ranking.format === 'mexicano' ? [...FORMAT_COLUMN_PRESETS.pointBasedFormat] : [...FORMAT_COLUMN_PRESETS.setBasedFormat]}
-                            isAmericanoOrMexicano={ranking.format === 'americano' || ranking.format === 'mexicano'}
+                            columns={getVisibleColumns(['americano', 'mexicano', 'pozo'].includes(ranking.format) ? FORMAT_COLUMN_PRESETS.pointBasedFormat : FORMAT_COLUMN_PRESETS.setBasedFormat)}
+                            isAmericanoOrMexicano={['americano', 'mexicano', 'pozo'].includes(ranking.format)}
                             isHybrid={ranking.format === 'hybrid'}
                             isAdmin={isAdmin}
                             onEditStats={(row) => {

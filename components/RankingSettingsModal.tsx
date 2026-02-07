@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target, Image as ImageIcon, Upload, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, Plus } from 'lucide-react';
+import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target, Image as ImageIcon, Upload, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, Plus, BarChart2 } from 'lucide-react';
 import { Ranking, RankingConfig, ScoringMode, DEFAULT_TIE_BREAK_ORDER, TieBreakCriterion } from '../types';
 import { Button } from './ui/Components';
 import { processLogoUpload } from '../utils/imageProcessor';
@@ -15,7 +15,7 @@ interface Props {
 
 export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking, isAdmin, userPlan }: Props) => {
     const [config, setConfig] = useState<RankingConfig>(ranking.config || {});
-    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv' | 'divisions' | 'branding'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv' | 'divisions' | 'branding' | 'stats'>('general');
     const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
@@ -139,6 +139,12 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                             <Trophy size={16} /> Puntuación
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('stats')}
+                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'stats' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <BarChart2 size={16} /> Estadísticas
+                    </button>
                     {showPromotionsTab && (
                         <button
                             onClick={() => setActiveTab('promotions')}
@@ -912,6 +918,85 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                                 Solo el administrador puede cambiar el logo.
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === 'stats' && (
+                        <div className="space-y-6">
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
+                                <p className="text-sm text-blue-800 flex items-start gap-2">
+                                    <Info size={16} className="mt-0.5 shrink-0" />
+                                    Elige qué estadísticas se muestran en la tabla de clasificación.
+                                </p>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                    <BarChart2 size={18} className="text-primary" /> Columnas Visibles
+                                </h3>
+
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {[
+                                            { key: 'pp', label: 'Partidos Perdidos (PP)', always: true },
+                                            { key: 'setsWon', label: 'Sets Ganados (SG)', setBasedOnly: true },
+                                            { key: 'setsLost', label: 'Sets Perdidos (SP)', setBasedOnly: true },
+                                            { key: 'setsDiff', label: 'Diferencia de Sets (DS)', setBasedOnly: true },
+                                            { key: 'gamesWon', label: 'Juegos Ganados (JG)', setBasedOnly: true },
+                                            { key: 'gamesLost', label: 'Juegos Perdidos (JP)', setBasedOnly: true },
+                                            { key: 'gamesDiff', label: 'Diferencia de Juegos (DJ)', setBasedOnly: true },
+                                        ].filter(col => {
+                                            const isPointBased = ['americano', 'mexicano', 'pozo'].includes(ranking.format);
+                                            if (isPointBased) {
+                                                return col.always;
+                                            }
+                                            return true;
+                                        }).map((col) => (
+                                            <div key={col.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                <span className="text-sm font-medium text-gray-700">{col.label}</span>
+                                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                                    <input
+                                                        type="checkbox"
+                                                        name={col.key}
+                                                        id={`toggle-col-${col.key}`}
+                                                        checked={
+                                                            (config.visibleColumns === undefined) ||
+                                                            config.visibleColumns.includes(col.key)
+                                                        }
+                                                        onChange={(e) => {
+                                                            if (isReadOnly) return;
+                                                            const val = e.target.checked;
+                                                            let newVisible = config.visibleColumns;
+
+                                                            if (newVisible === undefined) {
+                                                                newVisible = ['pts', 'pj', 'pg', 'pp', 'setsWon', 'setsLost', 'setsDiff', 'gamesWon', 'gamesLost', 'gamesDiff', 'winRate'];
+                                                            }
+
+                                                            if (val) {
+                                                                if (!newVisible.includes(col.key)) newVisible = [...newVisible, col.key];
+                                                            } else {
+                                                                newVisible = newVisible.filter(k => k !== col.key);
+                                                            }
+
+                                                            setConfig({ ...config, visibleColumns: newVisible });
+                                                        }}
+                                                        disabled={isReadOnly}
+                                                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                                                        style={{
+                                                            right: ((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? '0' : 'auto',
+                                                            left: ((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? 'auto' : '0',
+                                                            borderColor: ((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? '#3b82f6' : '#e5e7eb'
+                                                        }}
+                                                    />
+                                                    <label htmlFor={`toggle-col-${col.key}`} className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? 'bg-blue-500' : 'bg-gray-300'}`}></label>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-2">
+                                        * Puntos, PJ, PG y % Victorias son siempre visibles.
                                     </div>
                                 </div>
                             </div>

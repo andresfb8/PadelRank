@@ -1,4 +1,4 @@
-import { Crown, Users, Trophy, TrendingUp, Calendar } from 'lucide-react';
+import { Crown, Users, Trophy, TrendingUp, Calendar, AlertCircle, ExternalLink } from 'lucide-react';
 import { User } from '../../types';
 import { Button } from '../ui/Components';
 import { createPortalSession } from '../../services/stripeService';
@@ -100,21 +100,44 @@ export const SubscriptionCard = ({ user, totalPlayers, activeTournaments }: Subs
                 </div>
             )}
 
+            {/* Payment Failure Warning */}
+            {user.hasFailedPayment && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                    <div className="flex items-start gap-3 text-red-700">
+                        <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                        <div>
+                            <p className="font-bold text-sm">Problema con el último pago</p>
+                            <p className="text-xs mt-1 opacity-90">
+                                {user.lastPaymentError || "No se pudo procesar tu última factura. Por favor, actualiza tu método de pago."}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                    onClick={async () => {
-                        try {
-                            await createPortalSession();
-                        } catch (err) {
-                            alert("No se pudo abrir el portal de gestión. Por favor intenta de nuevo.");
-                        }
-                    }}
-                >
-                    <TrendingUp size={18} className="mr-2" />
-                    Gestionar Suscripción
-                </Button>
+                {user.stripeCustomerId ? (
+                    <Button
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 font-bold"
+                        onClick={async () => {
+                            try {
+                                await createPortalSession();
+                            } catch (err) {
+                                alert("No se pudo abrir el portal de gestión. Por favor intenta de nuevo.");
+                            }
+                        }}
+                    >
+                        <ExternalLink size={18} className="mr-2" />
+                        Gestionar en Stripe
+                    </Button>
+                ) : (
+                    <div className="flex-1 bg-gray-100 rounded-xl p-3 text-center border border-gray-200">
+                        <p className="text-gray-500 text-xs font-medium italic">
+                            Suscripción gestionada de forma externa o manual
+                        </p>
+                    </div>
+                )}
             </div>
 
             <p className="text-xs text-gray-500 text-center mt-4">

@@ -17,7 +17,8 @@ exports.STRIPE_CONFIG = {
             metadataId: "star"
         },
         weekend: {
-            priceId: "price_1SyENMH0qNNQGErtQsOQE9Yo",
+            priceId: "price_1QuU3dG36W3wUv2p3m7XFvU4",
+            amount: 3900,
             metadataId: "weekend"
         }
     },

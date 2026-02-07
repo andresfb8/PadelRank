@@ -50,22 +50,31 @@ export const PaymentMethodCard = ({ user }: PaymentMethodCardProps) => {
                     <p className="text-gray-500 text-sm mb-4">
                         No hay método de pago configurado
                     </p>
-                    <Button
-                        className="w-full"
-                        onClick={async () => {
-                            try {
-                                await createPortalSession();
-                            } catch (err) {
-                                alert("No se pudo abrir el portal de facturación.");
-                            }
-                        }}
-                    >
-                        <Plus size={18} className="mr-2" />
-                        Añadir Tarjeta
-                    </Button>
-                    <p className="text-xs text-gray-400 mt-3">
-                        Configura tus datos de pago de forma segura en Stripe
-                    </p>
+                    {user.stripeCustomerId ? (
+                        <Button
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold"
+                            onClick={async () => {
+                                try {
+                                    await createPortalSession();
+                                } catch (err) {
+                                    alert("No se pudo abrir el portal de facturación.");
+                                }
+                            }}
+                        >
+                            <Plus size={18} className="mr-2" />
+                            Gestionar en Stripe
+                        </Button>
+                    ) : (
+                        <div className="w-full bg-gray-50 rounded-xl p-3 text-center border border-dashed border-gray-200">
+                            <p className="text-gray-400 text-xs italic">
+                                Método de pago no gestionable por Stripe
+                            </p>
+                        </div>
+                    )}
+                    <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-center gap-2">
+                        <span className="text-[10px] text-gray-400 font-medium tracking-widest uppercase">Secured by</span>
+                        <span className="text-blue-600 font-bold italic tracking-tighter text-sm">Stripe</span>
+                    </div>
                 </div>
             )}
         </div>

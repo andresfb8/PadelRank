@@ -176,7 +176,13 @@ export const exportRankingToPDF = (
     players: Record<string, Player>,
     config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
 ) => {
-    const doc = new jsPDF();
+    // Determine orientation: Landscape for brackets (elimination/playoff)
+    const isLandscape = ranking.format === 'elimination' || (ranking.format === 'hybrid' && ranking.phase === 'playoff');
+    const doc = new jsPDF({
+        orientation: isLandscape ? 'l' : 'p',
+        unit: 'mm',
+        format: 'a4'
+    });
     const pageWidth = doc.internal.pageSize.width;
 
     // --- Header ---
@@ -260,35 +266,50 @@ export const exportRankingToPDF = (
     };
 
     // --- Table Columns Definition ---
-    const tableColumns = [
-        { header: '#', dataKey: 'pos' },
-        { header: (ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador', dataKey: 'name' },
-        { header: 'PJ', dataKey: 'pj' },
-        { header: 'PTS', dataKey: 'pts' },
-        { header: 'PG', dataKey: 'pg' },
-        { header: 'PP', dataKey: 'pp' },
-        { header: '% Vic', dataKey: 'winrate' },
+    let tableColumns = [
+        { header: '#', dataKey: 'pos', key: 'pos' },
+        { header: (ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador', dataKey: 'name', key: 'player' },
+        { header: 'PJ', dataKey: 'matchCount', key: 'pj' }, // Note: key 'pj' matches config
+        { header: 'PTS', dataKey: 'pts', key: 'pts' },
+        { header: 'PG', dataKey: 'matchesWon', key: 'pg' },
+        { header: 'PP', dataKey: 'matchesLost', key: 'pp' },
+        { header: '% Vic', dataKey: 'winRate', key: 'winRate' },
     ];
 
     // Add Sets/Games diff for non-points based formats (Standard Padel)
-    if (ranking.format !== 'americano' && ranking.format !== 'mexicano') {
+    if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
         tableColumns.push(
-            { header: 'Dif Sets', dataKey: 'setsDiff' },
-            { header: 'Dif Juegos', dataKey: 'gamesDiff' }
+            { header: 'Dif Sets', dataKey: 'setsDiff', key: 'setsDiff' },
+            { header: 'Dif Juegos', dataKey: 'gamesDiff', key: 'gamesDiff' }
+        );
+    }
+
+    // Filter columns based on config
+    const visibleConfig = ranking.config?.visibleColumns;
+    if (visibleConfig) {
+        tableColumns = tableColumns.filter(col =>
+            // Always show Position and Name
+            ['pos', 'player'].includes(col.key) ||
+            // Show mandatory columns as per web view logic if not explicitly in config, 
+            // but for safety rely on config. If config exists, it should have mandatory ones.
+            // Fallback: If 'pts' is missing in config (shouldn't happen with UI), force it?
+            // Better: Trust config + enforce pos/player.
+            visibleConfig.includes(col.key)
         );
     }
 
     // --- Table Data Transformation ---
     const tableData = standings.map(row => {
-        const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
+        // Prepare data with keys matching tableColumns 'dataKey'
+        // Using loose matching for transformation flexibility
         return {
             pos: row.pos,
             name: formatName(row.playerId),
-            pj: row.pj,
+            matchCount: row.pj, // mapped to 'pj' header
             pts: row.pts,
-            pg: row.pg,
-            pp: row.pj - row.pg, // Calculated PP
-            winrate: `${winrate}%`,
+            matchesWon: row.pg, // mapped to 'pg' header
+            matchesLost: row.pj - row.pg, // mapped to 'pp' header
+            winRate: `${Math.round(row.winRate)}%`,
             setsDiff: row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff,
             gamesDiff: row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff
         };
@@ -296,10 +317,12 @@ export const exportRankingToPDF = (
 
     // --- Generate Table ---
     if (standings.length > 0) {
+        const finalBody = tableData.map(row => tableColumns.map(c => (row as any)[c.dataKey]));
+
         autoTable(doc, {
             startY: currentY,
             head: [tableColumns.map(c => c.header)],
-            body: tableData.map(row => tableColumns.map(c => row[c.dataKey as keyof typeof row])),
+            body: finalBody,
             styles: {
                 fontSize: 10,
                 cellPadding: 3,
@@ -311,17 +334,19 @@ export const exportRankingToPDF = (
                 fontStyle: 'bold',
                 halign: 'center'
             },
-            columnStyles: {
-                0: { halign: 'center', fontStyle: 'bold', cellWidth: 15 }, // Pos
-                1: { halign: 'left' }, // Name
-                2: { halign: 'center' }, // PJ
-                3: { halign: 'center', fontStyle: 'bold' }, // PTS
-                4: { halign: 'center', textColor: [0, 100, 0] }, // PG (Greenish)
-                5: { halign: 'center', textColor: [150, 0, 0] }, // PP (Reddish)
-                6: { halign: 'center' }, // Winrate
-                7: { halign: 'center', textColor: [100, 100, 100] }, // Sets
-                8: { halign: 'center', textColor: [100, 100, 100] }  // Games
-            },
+            // Dynamic column styles tricky with dynamic columns. 
+            // We can map styles by index after filtering.
+            columnStyles: tableColumns.reduce((acc, col, index) => {
+                if (col.key === 'pos') acc[index] = { halign: 'center', fontStyle: 'bold', cellWidth: 15 };
+                else if (col.key === 'player') acc[index] = { halign: 'left' };
+                else if (col.key === 'pts') acc[index] = { halign: 'center', fontStyle: 'bold' };
+                else if (col.key === 'pg') acc[index] = { halign: 'center', textColor: [0, 100, 0] };
+                else if (col.key === 'pp') acc[index] = { halign: 'center', textColor: [150, 0, 0] };
+                else if (col.key === 'winRate') acc[index] = { halign: 'center' };
+                else if (col.key === 'setsDiff' || col.key === 'gamesDiff') acc[index] = { halign: 'center', textColor: [100, 100, 100] };
+                else acc[index] = { halign: 'center' };
+                return acc;
+            }, {} as any),
             alternateRowStyles: {
                 fillColor: [245, 245, 245]
             },

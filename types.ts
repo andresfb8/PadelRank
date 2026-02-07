@@ -15,6 +15,8 @@ export interface User {
   stripeCustomerId?: string; // For Stripe integration
   cancelAtPeriodEnd?: boolean;
   isLegacyFree?: boolean; // For migrated users with 100% discount
+  hasFailedPayment?: boolean;
+  lastPaymentError?: string;
 
   createdAt?: string; // ISO timestamp for when the user was created
   internalNotes?: string; // Private notes for SuperAdmin use
@@ -68,6 +70,9 @@ export interface RankingConfig {
 
   /** Custom tie-break order. If not provided, uses DEFAULT_TIE_BREAK_ORDER. */
   tieBreakCriteria?: TieBreakCriterion[];
+
+  /** Visible columns in standings table (keys from StandingsColumn) */
+  visibleColumns?: string[];
 
   // ===== FORMAT-SPECIFIC NAMESPACES =====
   /** Classic format configuration */

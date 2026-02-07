@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button, Card, Input, Modal, Badge } from './ui/Components';
 import { User } from '../types';
-import { Ban, Check, X, Trash2, Mail, Shield, Plus, Building, Lock, Unlock } from 'lucide-react';
+import { Ban, Check, X, Trash2, Mail, Shield, Plus, Building, Lock, Unlock, CreditCard, Calendar, AlertCircle, ExternalLink } from 'lucide-react';
 
 interface Props {
   users: User[];
@@ -77,6 +77,9 @@ export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate
                 <th className="px-6 py-4">Usuario</th>
                 <th className="px-6 py-4">Email</th>
                 <th className="px-6 py-4">Club/Escuela</th>
+                <th className="px-6 py-4">Plan</th>
+                <th className="px-6 py-4">Próximo Cobro</th>
+                <th className="px-6 py-4 text-center">Estado Pago</th>
                 <th className="px-6 py-4 text-center">Estado</th>
                 <th className="px-6 py-4 text-center">Acciones</th>
               </tr>
@@ -89,6 +92,38 @@ export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate
                   <td className="px-6 py-4 text-gray-500 flex items-center gap-2">
                     <Building size={14} className="text-gray-400" />
                     {user.clubName || '-'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <Badge type={user.plan === 'star' ? 'success' : user.plan === 'pro' ? 'warning' : 'neutral'}>
+                        {user.plan?.toUpperCase() || 'FREE'}
+                      </Badge>
+                      {user.isLegacyFree && <span className="text-[10px] text-gray-400 mt-1 italic">Legacy Free</span>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-gray-500 text-sm">
+                    {user.planExpiry ? (
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <Calendar size={14} className="text-gray-400" />
+                        {new Date(user.planExpiry).toLocaleDateString()}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {user.hasFailedPayment ? (
+                      <div className="flex flex-col items-center">
+                        <Badge type="danger" className="flex items-center gap-1">
+                          <AlertCircle size={12} /> Pago Fallido
+                        </Badge>
+                        {user.lastPaymentError && <span className="text-[9px] text-red-500 mt-1 max-w-[120px] truncate" title={user.lastPaymentError}>{user.lastPaymentError}</span>}
+                      </div>
+                    ) : user.subscriptionStatus === 'active' ? (
+                      <Badge type="success">Al día</Badge>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <Badge type={user.status === 'active' ? 'success' : user.status === 'blocked' ? 'danger' : 'warning'}>
@@ -114,20 +149,34 @@ export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => onDelete(user.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        title="Eliminar Administrador"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => onDelete(user.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Eliminar Administrador"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                        {user.stripeCustomerId && (
+                          <a
+                            href={`https://dashboard.stripe.com/customers/${user.stripeCustomerId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold hover:bg-blue-100 transition-colors flex items-center gap-1 inline-flex"
+                            title="Ver en Stripe"
+                          >
+                            <ExternalLink size={12} />
+                            STRIPE
+                          </a>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
               ))}
               {(activeTab === 'active' ? activeUsers : pendingUsers).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     No hay {activeTab === 'active' ? 'administradores activos' : 'solicitudes pendientes'}.
                   </td>
                 </tr>
@@ -178,6 +227,6 @@ export const AdminManagement = ({ users, onApprove, onReject, onDelete, onCreate
           </div>
         </div>
       </Modal>
-    </div>
+    </div >
   );
 };

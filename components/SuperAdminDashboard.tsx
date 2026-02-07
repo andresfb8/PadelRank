@@ -12,7 +12,10 @@ import {
     ChevronRight,
     Crown,
     Calendar,
-    Zap
+    Zap,
+    AlertCircle,
+    ExternalLink,
+    TrendingUp
 } from 'lucide-react';
 import { SUBSCRIPTION_PLANS, getPlanBadgeColor } from '../config/subscriptionPlans';
 
@@ -152,6 +155,15 @@ export const SuperAdminDashboard = ({
                     <p className="text-gray-500 mt-1">Gestión de clientes y suscripciones</p>
                 </div>
                 <div className="flex gap-3">
+                    <a
+                        href="https://dashboard.stripe.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors font-medium text-sm"
+                    >
+                        <ExternalLink size={18} />
+                        Stripe Dashboard
+                    </a>
                     <Button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2">
                         <Plus size={18} /> Nuevo Cliente
                     </Button>
@@ -209,6 +221,19 @@ export const SuperAdminDashboard = ({
                 </Card>
             </div>
 
+            {/* Payment Alerts */}
+            {activeAdmins.some(u => u.hasFailedPayment) && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-red-700">
+                        <AlertCircle />
+                        <div>
+                            <p className="font-bold">Pagos Fallidos Detectados</p>
+                            <p className="text-sm">Hay {activeAdmins.filter(u => u.hasFailedPayment).length} clientes con problemas en su última factura.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Search Bar */}
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -228,6 +253,7 @@ export const SuperAdminDashboard = ({
                             <tr>
                                 <th className="px-6 py-4">Cliente</th>
                                 <th className="px-6 py-4">Plan</th>
+                                <th className="px-6 py-4 text-center">Facturación</th>
                                 <th className="px-6 py-4 text-center">Torneos</th>
                                 <th className="px-6 py-4 text-center">Jugadores</th>
                                 <th className="px-6 py-4 text-center">Actividad</th>
@@ -254,9 +280,26 @@ export const SuperAdminDashboard = ({
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getPlanBadgeColor(plan)}`}>
-                                                {planInfo.name}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getPlanBadgeColor(plan)}`}>
+                                                    {planInfo.name}
+                                                </span>
+                                                {user.hasFailedPayment && (
+                                                    <span className="text-[10px] text-red-500 mt-1 font-bold flex items-center gap-1">
+                                                        <AlertCircle size={10} /> Pago Fallido
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {user.planExpiry ? (
+                                                <div className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                                                    {new Date(user.planExpiry).toLocaleDateString()}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-300">-</span>
+                                            )}
+                                            <div className="text-[10px] text-gray-400">Próximo cobro</div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="text-sm">
@@ -321,6 +364,18 @@ export const SuperAdminDashboard = ({
                                                 >
                                                     <Zap size={18} />
                                                 </button>
+                                                {user.stripeCustomerId && (
+                                                    <a
+                                                        href={`https://dashboard.stripe.com/customers/${user.stripeCustomerId}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+                                                        title="Ver en Stripe"
+                                                    >
+                                                        <ExternalLink size={12} />
+                                                        STRIPE
+                                                    </a>
+                                                )}
                                                 <button
                                                     onClick={() => {
                                                         if (confirm(`¿Eliminar a ${user.name}?`)) {
@@ -339,7 +394,7 @@ export const SuperAdminDashboard = ({
                             })}
                             {filteredAdmins.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                                         No se encontraron clientes.
                                     </td>
                                 </tr>
@@ -377,29 +432,31 @@ export const SuperAdminDashboard = ({
             </div>
 
             {/* Pending Requests Section */}
-            {pendingUsers.length > 0 && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
-                    <h3 className="text-lg font-bold text-orange-900 mb-4">Solicitudes Pendientes</h3>
-                    <div className="space-y-3">
-                        {pendingUsers.map(user => (
-                            <div key={user.id} className="bg-white p-4 rounded-lg flex items-center justify-between">
-                                <div>
-                                    <div className="font-bold text-gray-900">{user.name}</div>
-                                    <div className="text-sm text-gray-500">{user.email}</div>
+            {
+                pendingUsers.length > 0 && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
+                        <h3 className="text-lg font-bold text-orange-900 mb-4">Solicitudes Pendientes</h3>
+                        <div className="space-y-3">
+                            {pendingUsers.map(user => (
+                                <div key={user.id} className="bg-white p-4 rounded-lg flex items-center justify-between">
+                                    <div>
+                                        <div className="font-bold text-gray-900">{user.name}</div>
+                                        <div className="text-sm text-gray-500">{user.email}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button onClick={() => onApprove(user.id)} className="bg-green-600 hover:bg-green-700">
+                                            Aprobar
+                                        </Button>
+                                        <Button variant="danger" onClick={() => onReject(user.id)}>
+                                            Rechazar
+                                        </Button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button onClick={() => onApprove(user.id)} className="bg-green-600 hover:bg-green-700">
-                                        Aprobar
-                                    </Button>
-                                    <Button variant="danger" onClick={() => onReject(user.id)}>
-                                        Rechazar
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Create Admin Modal */}
             <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Crear Nuevo Cliente">
@@ -509,6 +566,6 @@ export const SuperAdminDashboard = ({
                     </div>
                 </div>
             </Modal>
-        </div>
+        </div >
     );
 };

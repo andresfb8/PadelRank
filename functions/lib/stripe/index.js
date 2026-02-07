@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.claimSubscription = exports.getCheckoutSession = exports.stripeWebhook = exports.createPortalSession = exports.createCheckoutSession = void 0;
+exports.checkoutRedirect = exports.claimSubscription = exports.getCheckoutSession = exports.stripeWebhook = exports.createPortalSession = exports.createCheckoutSession = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const stripe_1 = require("stripe");
@@ -177,6 +177,49 @@ exports.claimSubscription = (0, https_1.onCall)({
     catch (error) {
         console.error("Error claiming subscription:", error);
         throw new https_1.HttpsError('internal', error.message);
+    }
+});
+exports.checkoutRedirect = (0, https_1.onRequest)({
+    secrets: [stripeSecretKey],
+    cors: true
+}, async (req, res) => {
+    const { priceId, plan } = req.query;
+    if (!priceId) {
+        res.status(400).send('Missing priceId');
+        return;
+    }
+    const stripe = getStripe();
+    const mode = plan === 'weekend' ? 'payment' : 'subscription';
+    const isPro = priceId === config_1.STRIPE_CONFIG.products.pro.priceId;
+    // Determine the origin for redirects. 
+    // Usually we want to go back to the app, not the landing.
+    const origin = 'https://app.racketgrid.com';
+    try {
+        const session = await stripe.checkout.sessions.create({
+            mode: mode,
+            payment_method_types: ["card"],
+            line_items: [
+                {
+                    price: priceId,
+                    quantity: 1,
+                },
+            ],
+            success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/payment/cancel`,
+            subscription_data: mode === "subscription" ? {
+                trial_period_days: isPro ? 30 : undefined,
+            } : undefined,
+        });
+        if (session.url) {
+            res.redirect(303, session.url);
+        }
+        else {
+            res.status(500).send('Failed to create session URL');
+        }
+    }
+    catch (error) {
+        console.error("Stripe Redirect Error:", error);
+        res.status(500).send(error.message);
     }
 });
 //# sourceMappingURL=index.js.map
