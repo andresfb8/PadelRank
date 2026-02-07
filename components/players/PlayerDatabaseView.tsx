@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Player, User, Ranking } from '../../types';
-import { PlayerStatsHeader } from './PlayerStatsHeader';
-import { PlayerFilters, ViewMode, PlayerSegment } from './PlayerFilters';
+import { PlayerFilters, PlayerSegment } from './PlayerFilters';
 import { PlayerList } from '../PlayerList';
 import { Drawer } from '../ui/Drawer';
 import { PlayerDetailView } from '../PlayerDetailView';
@@ -28,7 +27,6 @@ export const PlayerDatabaseView = ({
     onImportPlayers
 }: PlayerDatabaseViewProps) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [viewMode, setViewMode] = useState<ViewMode>('table');
     const [activeSegment, setActiveSegment] = useState<PlayerSegment>('all');
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
@@ -89,15 +87,10 @@ export const PlayerDatabaseView = ({
 
     return (
         <div className="space-y-6">
-            {/* Stats Header */}
-            <PlayerStatsHeader players={players} />
-
             {/* Filters */}
             <PlayerFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
                 activeSegment={activeSegment}
                 onSegmentChange={setActiveSegment}
                 totalCount={Object.keys(players).length}

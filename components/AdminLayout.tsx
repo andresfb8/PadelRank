@@ -492,6 +492,12 @@ export const AdminLayout = () => {
                         </div>
                         <Button className="w-full py-3 text-lg">Entrar</Button>
                     </form>
+
+                    <div className="mt-8 pt-6 border-t border-gray-100 flex flex-wrap justify-center gap-x-4 gap-y-2">
+                        <a href="https://racketgrid.com#aviso" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-gray-400 hover:text-primary uppercase tracking-wider transition-colors">Aviso Legal</a>
+                        <a href="https://racketgrid.com#privacidad" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-gray-400 hover:text-primary uppercase tracking-wider transition-colors">Privacidad</a>
+                        <a href="https://racketgrid.com#cookies" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-gray-400 hover:text-primary uppercase tracking-wider transition-colors">Cookies</a>
+                    </div>
                 </div>
             </div>
         );

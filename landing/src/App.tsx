@@ -20,10 +20,22 @@ import {
     Gift,
     Mail,
     Star,
-    ShieldCheck
+    ShieldCheck,
+    Instagram,
+    MessageCircle
 } from 'lucide-react';
+import { CookieBanner } from './components/CookieBanner';
+import { LegalModal } from './components/LegalModal';
 
 const App = () => {
+    const [legalModal, setLegalModal] = useState<{ isOpen: boolean; type: 'aviso' | 'privacidad' | 'cookies' }>({
+        isOpen: false,
+        type: 'aviso'
+    });
+
+    const openLegal = (type: 'aviso' | 'privacidad' | 'cookies') => {
+        setLegalModal({ isOpen: true, type });
+    };
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const subscriptionPlans = [
@@ -825,20 +837,64 @@ const App = () => {
                 </div>
             </section>
 
+            {/* Cookie Banner */}
+            <CookieBanner />
+
+            {/* Legal Modals */}
+            <LegalModal
+                isOpen={legalModal.isOpen}
+                onClose={() => setLegalModal({ ...legalModal, isOpen: false })}
+                type={legalModal.type}
+            />
+
+            {/* WhatsApp Floating Button */}
+            <a
+                href="https://wa.me/34625277697"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="fixed bottom-6 right-6 z-[90] bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center justify-center group"
+                title="Contactar por WhatsApp"
+            >
+                <div className="absolute right-full mr-3 bg-white text-slate-900 px-4 py-2 rounded-xl text-sm font-bold shadow-xl opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all pointer-events-none whitespace-nowrap border border-slate-100 italic">
+                    ¿Hablamos por WhatsApp?
+                </div>
+                <MessageCircle size={28} />
+            </a>
+
             {/* Footer con email */}
-            <footer className="bg-white border-t border-slate-100 py-12 px-6">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
-                    <div className="flex flex-col md:flex-row items-center gap-8">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-indigo-600 p-1.5 rounded-lg"><Trophy className="text-white w-4 h-4" /></div>
-                            <span className="text-lg font-black tracking-tight">Racket <span className="text-indigo-600">Grid</span></span>
+            <footer className="bg-white border-t border-slate-100 py-16 px-6">
+                <div className="max-w-7xl mx-auto">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-12 mb-12">
+                        <div className="flex flex-col md:flex-row items-center gap-8">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-indigo-600 p-1.5 rounded-lg"><Trophy className="text-white w-4 h-4" /></div>
+                                <span className="text-xl font-black tracking-tight">Racket <span className="text-indigo-600">Grid</span></span>
+                            </div>
+                            <div className="flex items-center gap-6">
+                                <a href="mailto:hola@racketgrid.com" className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-medium">
+                                    <Mail className="w-4 h-4" />
+                                    <span>hola@racketgrid.com</span>
+                                </a>
+                                <a href="https://instagram.com/racketgridapp" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-slate-500 hover:text-pink-600 transition-colors font-medium">
+                                    <Instagram className="w-4 h-4" />
+                                    <span>@racketgridapp</span>
+                                </a>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-medium">
-                            <Mail className="w-4 h-4" />
-                            <a href="mailto:hola@racketgrid.com">hola@racketgrid.com</a>
+
+                        <div className="flex flex-wrap justify-center gap-6">
+                            <button onClick={() => openLegal('aviso')} className="text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors tracking-tight">Aviso Legal</button>
+                            <button onClick={() => openLegal('privacidad')} className="text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors tracking-tight">Privacidad</button>
+                            <button onClick={() => openLegal('cookies')} className="text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors tracking-tight">Cookies</button>
                         </div>
                     </div>
-                    <p className="text-sm text-slate-400">© 2026 Racket Grid. Gestión inteligente para clubes de pádel.</p>
+
+                    <div className="pt-8 border-t border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <p className="text-sm text-slate-400 font-medium italic">© 2026 Racket Grid. Gestión inteligente para clubes de pádel.</p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-300 font-bold uppercase tracking-widest">
+                            Hecho con <Star className="w-2.5 h-2.5 fill-slate-300" /> para amantes del deporte
+                        </div>
+                    </div>
                 </div>
             </footer>
         </div>

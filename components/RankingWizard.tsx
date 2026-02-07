@@ -62,6 +62,20 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         tieBreakCriteria: DEFAULT_TIE_BREAK_ORDER
     });
 
+    // Reactively update branding if user profile changes (e.g. logo upload)
+    React.useEffect(() => {
+        if (currentUser?.branding?.logoUrl) {
+            setConfig(prev => ({
+                ...prev,
+                branding: {
+                    ...prev.branding,
+                    logoUrl: currentUser.branding.logoUrl
+                }
+            }));
+        }
+    }, [currentUser?.branding?.logoUrl]);
+
+
     // Players
     // For Classic & Individual: We use Divisions logic.
     // For Others: We just need a pool of players.
@@ -379,30 +393,32 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                         </p>
                     </div>
 
-                    {/* Tournament Structure (Divisions & Size) */}
-                    <div className="border-t pt-4 mt-4">
-                        <h4 className="font-semibold text-gray-800 mb-3 text-sm">Estructura del Torneo</h4>
-                        <div className="grid md:grid-cols-4 gap-4">
-                            <Input
-                                type="number"
-                                label="Nº Divisiones"
-                                value={numDivisions}
-                                onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))}
-                            />
-                            <Input
-                                type="number"
-                                label={(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) === 'pairs' ? "Parejas por Div." : "Jugadores por Div."}
-                                value={individualMaxPlayers}
-                                onChange={(e: any) => {
-                                    const newValue = Math.max(0, parseInt(e.target.value) || 0);
-                                    setIndividualMaxPlayers(newValue);
-                                    setConfig({ ...config, maxPlayersPerDivision: newValue });
-                                }}
-                            />
-                            <Input type="number" label="Ascienden (Rondas)" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
-                            <Input type="number" label="Descienden (Rondas)" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
+                    {/* Tournament Structure (Divisions & Size) - HIDDEN for Mexicano/Americano as requested */}
+                    {!(format === 'mexicano' || format === 'americano') && (
+                        <div className="border-t pt-4 mt-4">
+                            <h4 className="font-semibold text-gray-800 mb-3 text-sm">Estructura del Torneo</h4>
+                            <div className="grid md:grid-cols-4 gap-4">
+                                <Input
+                                    type="number"
+                                    label="Nº Divisiones"
+                                    value={numDivisions}
+                                    onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))}
+                                />
+                                <Input
+                                    type="number"
+                                    label={(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant) === 'pairs' ? "Parejas por Div." : "Jugadores por Div."}
+                                    value={individualMaxPlayers}
+                                    onChange={(e: any) => {
+                                        const newValue = Math.max(0, parseInt(e.target.value) || 0);
+                                        setIndividualMaxPlayers(newValue);
+                                        setConfig({ ...config, maxPlayersPerDivision: newValue });
+                                    }}
+                                />
+                                <Input type="number" label="Ascienden (Rondas)" value={config.promotionCount} onChange={(e: any) => setConfig({ ...config, promotionCount: parseInt(e.target.value) || 0 })} />
+                                <Input type="number" label="Descienden (Rondas)" value={config.relegationCount} onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
 
@@ -1002,22 +1018,6 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                             title="Añadir Jugador Individual"
                                         ><Plus size={16} /></Button>
                                     </div>
-                                    {/* Add Pair Shortcut */}
-                                    <div className="mt-2 text-xs text-blue-600 underline cursor-pointer flex items-center gap-1" onClick={() => {
-                                        const p1 = prompt("Nombre Jugador 1 de la Pareja:");
-                                        if (!p1) return;
-                                        const p2 = prompt("Nombre Jugador 2 de la Pareja:");
-                                        if (!p2) return;
-
-                                        const g1 = { id: `guest-${Date.now()}-1`, nombre: p1, apellidos: '' };
-                                        const g2 = { id: `guest-${Date.now()}-2`, nombre: p2, apellidos: '' };
-
-                                        const newGuests = [...guestPlayers, g1, g2];
-                                        setGuestPlayers(newGuests);
-                                        setSelectedPlayerIds([...selectedPlayerIds, g1.id, g2.id]);
-                                    }}>
-                                        <Users size={12} /> Añadir Pareja Rápida
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1043,90 +1043,244 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 <div className="border-t pt-6"></div>
 
                 {/* 2. Manual Assignments / View (Conditional per format) */}
-                {(format === 'classic' || format === 'individual' || (format === 'pozo' && config.pozoConfig?.variant === 'individual')) && (
+                {(format === 'classic' || format === 'individual' || (format === 'pozo' && config.pozoConfig?.variant === 'individual') || ((format === 'americano' || format === 'mexicano') && ((format === 'americano' ? config.americanoConfig?.variant === 'individual' : config.mexicanoConfig?.variant === 'individual') || !(format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant)))) && (
                     <div>
-                        <div className="flex items-center gap-4 mb-4">
+                        <div className="flex flex-wrap items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. Grupos / Divisiones (Manual)</h3>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm">Num. Divisiones:</span>
                                 <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
                             </div>
+
+                            {/* Dynamic Size Input for Mexicano/Americano */}
+                            {(format === 'mexicano' || format === 'americano') && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm">Jugadores/Div:</span>
+                                    <input
+                                        type="number"
+                                        min="2"
+                                        max="100"
+                                        value={individualMaxPlayers || 4}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value) || 4;
+                                            setIndividualMaxPlayers(val);
+                                            setConfig({ ...config, maxPlayersPerDivision: val });
+                                        }}
+                                        className="border p-1 w-16 text-center rounded"
+                                    />
+                                </div>
+                            )}
+
+                            <Button
+                                onClick={() => {
+                                    // 1. Gather ALL players (Pool + Assigned)
+                                    const assignedPlayers = Object.values(assignments).flat().map((p: string) =>
+                                        p.includes('::') ? p.split('::') : [p]
+                                    ).flat().filter(Boolean);
+
+                                    const allPlayers = Array.from(new Set([...selectedPlayerIds, ...assignedPlayers]));
+
+                                    if (allPlayers.length === 0) return alert("No hay jugadores seleccionados (ni en bolsa ni asignados).");
+                                    if (numDivisions < 1) return alert("Define el número de divisiones");
+
+                                    const shuffled = allPlayers.sort(() => Math.random() - 0.5);
+                                    // Distribute evenly
+                                    // Ideal size roughly
+                                    const baseSize = Math.floor(shuffled.length / numDivisions);
+                                    const remainder = shuffled.length % numDivisions;
+
+                                    const newAssignments: Record<number, string[]> = {};
+                                    let currentIndex = 0;
+
+                                    for (let i = 0; i < numDivisions; i++) {
+                                        // If remainder > 0, give one extra to first 'remainder' divisions
+                                        const size = baseSize + (i < remainder ? 1 : 0);
+                                        const chunk = shuffled.slice(currentIndex, currentIndex + size);
+
+                                        // For individual, just assign
+                                        // Ensure we respect min UI size if needed, but primarily just data
+                                        // The UI loop will adapt
+                                        newAssignments[i] = chunk;
+                                        currentIndex += size;
+                                    }
+                                    setAssignments(newAssignments);
+                                }}
+                                variant="secondary"
+                                className="ml-2 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
+                            >
+                                <Wand2 size={14} className="mr-1" /> Distribución Aleatoria
+                            </Button>
                         </div>
 
-                        {/* Classic/Individual Rendering Logic (Simplified as before) */}
-                        {Array.from({ length: numDivisions }).map((_, divIdx) => (
-                            <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
-                                <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
-                                <div className="grid md:grid-cols-2 gap-3">
-                                    {Array.from({ length: format === 'classic' || format === 'pozo' ? 4 : individualMaxPlayers }).map((_, pIdx) => {
-                                        const currentList = assignments[divIdx] || [];
-                                        const val = currentList[pIdx] || '';
-                                        const used = new Set<string>();
-                                        Object.values(assignments).forEach((arr: string[]) => arr?.forEach(id => { if (id && id !== val) used.add(id) }));
-                                        const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+                        {/* Classic/Individual Rendering Logic */}
+                        {Array.from({ length: numDivisions }).map((_, divIdx) => {
+                            const currentList = assignments[divIdx] || [];
+                            // Dynamic Size: Max of Configured/4 OR Current List Length
+                            // This allows variable sizes per division (e.g. 5 in div1, 4 in div2)
+                            const slotsCount = Math.max(format === 'classic' || format === 'pozo' ? 4 : (individualMaxPlayers || 4), currentList.length);
 
-                                        return (
-                                            <div key={pIdx}>
-                                                <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
-                                                <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, format === 'classic' || format === 'pozo' ? 4 : individualMaxPlayers)} placeholder="Seleccionar..." />
-                                            </div>
-                                        )
-                                    })}
+                            return (
+                                <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
+                                    <h4 className="font-bold mb-2">División {divIdx + 1}</h4>
+                                    <div className="grid md:grid-cols-2 gap-3">
+                                        {Array.from({ length: slotsCount }).map((_, pIdx) => {
+                                            const val = currentList[pIdx] || '';
+                                            const used = new Set<string>();
+                                            // Filter only used in OTHER slots
+                                            Object.values(assignments).forEach((arr: any) => arr?.forEach((pairStr: string) => {
+                                                if (!pairStr || pairStr === val) return;
+                                                if (pairStr.includes('::')) {
+                                                    const [u1, u2] = pairStr.split('::');
+                                                    if (u1) used.add(u1);
+                                                    if (u2) used.add(u2);
+                                                } else {
+                                                    used.add(pairStr);
+                                                }
+                                            }));
+                                            const options = availablePlayers.filter(p => !used.has(p.id)).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+
+                                            return (
+                                                <div key={pIdx}>
+                                                    <label className="text-xs text-gray-500">Jugador {pIdx + 1}</label>
+                                                    <SearchableSelect options={options} value={val} onChange={(v) => handleAssignment(divIdx, pIdx, v, slotsCount)} placeholder="Seleccionar..." />
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 
 
                 {(format === 'pairs' || format === 'hybrid' || (format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs') || ((format === 'americano' || format === 'mexicano') && (format === 'americano' ? config.americanoConfig?.variant === 'pairs' : config.mexicanoConfig?.variant === 'pairs'))) && (
                     <div>
-                        <div className="flex items-center gap-4 mb-4">
+                        <div className="flex flex-wrap items-center gap-4 mb-4">
                             <h3 className="font-bold text-gray-800">2. {format === 'hybrid' ? 'Grupos (Parejas Fijas)' : 'Divisiones (Parejas)'}</h3>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm">{format === 'hybrid' ? 'Num. Grupos:' : 'Num. Divisiones:'}</span>
                                 <input type="number" min="1" max="20" value={numDivisions} onChange={(e) => setNumDivisions(parseInt(e.target.value) || 1)} className="border p-1 w-16 text-center rounded" />
                             </div>
-                        </div>
-                        {Array.from({ length: numDivisions }).map((_, divIdx) => (
-                            <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
-                                <h4 className="font-bold mb-2">{format === 'hybrid' ? `Grupo ${String.fromCharCode(65 + divIdx)}` : `División ${divIdx + 1}`}</h4>
-                                <div className="grid gap-4">
-                                    {Array.from({ length: format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers)) }).map((_, pairIdx) => {
-                                        const currentList = assignments[divIdx] || [];
-                                        const val = currentList[pairIdx] || '';
-                                        const [p1Id, p2Id] = val ? val.split('::') : ['', ''];
 
-                                        const used = new Set<string>();
-                                        Object.values(assignments).forEach((arr: string[]) => arr?.forEach(pairStr => {
-                                            if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('::'); if (u1) used.add(u1); if (u2) used.add(u2); }
-                                        }));
-                                        if (p1Id) used.add(p1Id);
-                                        if (p2Id) used.add(p2Id);
-                                        const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
-
-
-                                        return (
-                                            <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border">
-                                                <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
-                                                <div className="flex-1 grid grid-cols-2 gap-2">
-                                                    <SearchableSelect options={getOpts(p1Id)} value={p1Id} onChange={(v) => {
-                                                        const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers)));
-                                                    }} placeholder="A" />
-                                                    <SearchableSelect options={getOpts(p2Id)} value={p2Id} onChange={(v) => {
-                                                        const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
-                                                        handleAssignment(divIdx, pairIdx, finalVal, format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers)));
-                                                    }} placeholder="B" />
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                            {/* Dynamic Size Input for Mexicano/Americano Pairs */}
+                            {(format === 'mexicano' || format === 'americano') && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm">Parejas/Div:</span>
+                                    <input
+                                        type="number"
+                                        min="2"
+                                        max="50"
+                                        value={individualMaxPlayers || 4}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value) || 4;
+                                            setIndividualMaxPlayers(val); // Reuse individualMaxPlayers for pairs count per div in this context
+                                            setConfig({ ...config, maxPlayersPerDivision: val });
+                                        }}
+                                        className="border p-1 w-16 text-center rounded"
+                                    />
                                 </div>
-                            </div>
-                        ))}
+                            )}
+
+                            <Button
+                                onClick={() => {
+                                    // 1. Gather ALL players (Pool + Assigned Pairs)
+                                    const assignedPlayers = Object.values(assignments).flat().map((p: string) =>
+                                        p.includes('::') ? p.split('::') : [p]
+                                    ).flat().filter(Boolean);
+
+                                    const allPlayers = Array.from(new Set([...selectedPlayerIds, ...assignedPlayers]));
+
+                                    if (allPlayers.length === 0) return alert("No hay jugadores seleccionados (ni en bolsa ni asignados).");
+                                    if (numDivisions < 1) return alert("Define el número de divisiones/grupos");
+
+                                    const shuffled = allPlayers.sort(() => Math.random() - 0.5);
+
+                                    // Logic for Pairs/Hybrid
+                                    const targetPairsPerGroup = format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : Math.max(2, individualMaxPlayers || 2);
+
+                                    const newAssignments: Record<number, string[]> = {};
+                                    let currentIndex = 0;
+
+                                    for (let i = 0; i < numDivisions; i++) {
+                                        // Ideal size roughly (in PAIRS count)
+                                        const totalPairs = Math.floor(shuffled.length / 2);
+                                        const basePairsPerDiv = Math.floor(totalPairs / numDivisions);
+                                        const remainderPairs = totalPairs % numDivisions;
+
+                                        const pairsForThisDiv = basePairsPerDiv + (i < remainderPairs ? 1 : 0);
+                                        const playersForThisDiv = pairsForThisDiv * 2;
+
+                                        const chunk = shuffled.slice(currentIndex, currentIndex + playersForThisDiv);
+                                        currentIndex += playersForThisDiv;
+
+                                        const pairStrings: string[] = [];
+                                        for (let k = 0; k < chunk.length; k += 2) {
+                                            const p1 = chunk[k];
+                                            const p2 = chunk[k + 1];
+                                            if (p1 && p2) pairStrings.push(`${p1}::${p2}`);
+                                            else if (p1) pairStrings.push(`${p1}::`);
+                                        }
+
+                                        newAssignments[i] = pairStrings;
+                                    }
+                                    setAssignments(newAssignments);
+                                }}
+                                variant="secondary"
+                                className="ml-2 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
+                            >
+                                <Wand2 size={14} className="mr-1" /> Distribución Aleatoria
+                            </Button>
+                        </div>
+                        {Array.from({ length: numDivisions }).map((_, divIdx) => {
+                            const currentList = assignments[divIdx] || [];
+                            // Dynamic Rendering for Pairs
+                            const minSlots = format === 'hybrid' ? (config.hybridConfig?.pairsPerGroup || 4) : (format === 'pozo' ? 2 : Math.max(2, individualMaxPlayers || 2));
+                            const slotsCount = Math.max(minSlots, currentList.length);
+
+                            return (
+                                <div key={divIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
+                                    <h4 className="font-bold mb-2">{format === 'hybrid' ? `Grupo ${String.fromCharCode(65 + divIdx)}` : `División ${divIdx + 1}`}</h4>
+                                    <div className="grid gap-4">
+                                        {Array.from({ length: slotsCount }).map((_, pairIdx) => {
+                                            const val = currentList[pairIdx] || '';
+                                            const [p1Id, p2Id] = val ? val.split('::') : ['', ''];
+
+                                            const used = new Set<string>();
+                                            Object.values(assignments).forEach((arr: any) => arr?.forEach((pairStr: string) => {
+                                                if (!pairStr || pairStr === val) return;
+                                                const [u1, u2] = pairStr.split('::');
+                                                if (u1) used.add(u1);
+                                                if (u2) used.add(u2);
+                                            }));
+                                            if (p1Id) used.add(p1Id);
+                                            if (p2Id) used.add(p2Id);
+                                            const getOpts = (excludeId: string) => availablePlayers.filter(p => !used.has(p.id) || p.id === excludeId).map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+
+
+                                            return (
+                                                <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border">
+                                                    <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
+                                                    <div className="flex-1 grid grid-cols-2 gap-2">
+                                                        <SearchableSelect options={getOpts(p1Id || '')} value={p1Id} onChange={(v) => {
+                                                            const currentP1 = v; const currentP2 = p2Id; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
+                                                            handleAssignment(divIdx, pairIdx, finalVal, slotsCount);
+                                                        }} placeholder="Jugador A" />
+                                                        <SearchableSelect options={getOpts(p2Id || '')} value={p2Id} onChange={(v) => {
+                                                            const currentP1 = p1Id; const currentP2 = v; const finalVal = (currentP1 || currentP2) ? `${currentP1 || ''}::${currentP2 || ''}` : '';
+                                                            handleAssignment(divIdx, pairIdx, finalVal, slotsCount);
+                                                        }} placeholder="Jugador B" />
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
+
 
                 {(format === 'elimination' && config.eliminationConfig?.type === 'pairs') && (
                     <div>
@@ -1166,8 +1320,11 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
                                         const used = new Set<string>();
                                         // Check usage across ALL categories
-                                        Object.values(assignments).forEach((list: string[]) => list?.forEach(pairStr => {
-                                            if (pairStr && pairStr !== val) { const [u1, u2] = pairStr.split('::'); if (u1) used.add(u1); if (u2) used.add(u2); }
+                                        Object.values(assignments).forEach((list: any) => list?.forEach((pairStr: string) => {
+                                            if (!pairStr || pairStr === val) return;
+                                            const [u1, u2] = pairStr.split('::');
+                                            if (u1) used.add(u1);
+                                            if (u2) used.add(u2);
                                         }));
 
                                         if (p1Id) used.add(p1Id);
@@ -1410,34 +1567,58 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 }
 
             } else {
-                // Logic for Individual Variant (Existing)
-                if (selectedPlayerIds.length < 4) return alert("Selecciona al menos 4 jugadores");
+                // Logic for Individual Variant (Multi-Division Support)
+                // Calculate total participants from manual assignments to check against validation
+                const manuallyAssignedCount = Object.values(assignments).flat().filter(Boolean).length;
 
-                let matches: any[] = [];
-                if (format === 'mexicano') {
-                    matches = MatchGenerator.generateIndividualRound(selectedPlayerIds, 0, 1);
-                } else if (format === 'americano') {
-                    const selectedPlayers = selectedPlayerIds.map(id => availablePlayers.find(p => p.id === id)).filter(p => !!p) as Player[];
-                    matches = MatchGenerator.generateAmericano(selectedPlayers, config.courts || 2);
+                // Validation: Must have enough players in Pool OR Manually Assigned
+                if (selectedPlayerIds.length < 4 && manuallyAssignedCount < 4) {
+                    return alert("Selecciona al menos 4 jugadores (en la bolsa o asignados manualmente)");
                 }
 
+                for (let i = 0; i < numDivisions; i++) {
+                    const p = assignments[i] || [];
+                    let activePlayers = p.filter(x => x);
 
-                divisions.push({
-                    id: `div-${crypto.randomUUID()}`,
-                    numero: 1,
-                    status: 'activa',
-                    players: selectedPlayerIds,
-                    matches: matches
-                });
+                    // Fallback to pool selection for Single Division if no manual assignment
+                    if (numDivisions === 1 && activePlayers.length === 0 && selectedPlayerIds.length >= 4) {
+                        activePlayers = selectedPlayerIds;
+                    }
+
+                    if (activePlayers.length < 4) {
+                        return alert(`La División ${i + 1} debe tener al menos 4 jugadores`);
+                    }
+
+                    let matches: any[] = [];
+                    if (format === 'mexicano') {
+                        matches = MatchGenerator.generateIndividualRound(activePlayers, i, 1);
+                    } else if (format === 'americano') {
+                        const selectedPlayers = activePlayers.map(id => availablePlayers.find(p => p.id === id)).filter(p => !!p) as Player[];
+                        matches = MatchGenerator.generateAmericano(selectedPlayers, config.courts || 2);
+                    }
+
+                    divisions.push({
+                        id: `div-${crypto.randomUUID()}`,
+                        numero: i + 1,
+                        status: 'activa',
+                        players: activePlayers,
+                        matches: matches
+                    });
+                }
             }
         }
 
-        // Filter valid Guest Players (only those selected)
-        const activeGuestPlayers = guestPlayers.filter(g =>
-            format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo'
-                ? Object.values(assignments).flat().map((pair: unknown) => (pair as string).includes('::') ? (pair as string).split('::') : (pair as string)).flat().includes(g.id)
-                : selectedPlayerIds.includes(g.id)
-        );
+        // Filter valid Guest Players (only those selected or manually assigned)
+        const activeGuestPlayers = guestPlayers.filter(g => {
+            const isManualFormat = format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo' || format === 'mexicano' || format === 'americano';
+
+            if (isManualFormat) {
+                const manualIds = Object.values(assignments).flat().map((pair: unknown) => (pair as string).includes('::') ? (pair as string).split('::') : (pair as string)).flat();
+                // Check manual OR pool (for single div fallback)
+                return manualIds.includes(g.id) || selectedPlayerIds.includes(g.id);
+            }
+            return selectedPlayerIds.includes(g.id);
+        });
 
         const newRanking: Ranking = {
             id: `r-${crypto.randomUUID()}`,

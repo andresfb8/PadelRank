@@ -63,12 +63,18 @@ export const ClubSettingsModal = ({ isOpen, onClose, user, rankings, onUpdateUse
 
             // 2. Propagate to Rankings if checked
             if (propagateToRankings && logoUrl) {
-                const userRankings = rankings.filter(r => r.ownerId === user.id);
+                // We assume rankings passed to this modal are those the user has permission to manage
+                // (Filtered in AdminLayout)
+                const userRankings = rankings;
 
-                // Execute in parallel promises
-                const updates = userRankings.map(r => {
+                // Execute updates and track results
+                let successCount = 0;
+                let failCount = 0;
+
+                const results = await Promise.allSettled(userRankings.map(r => {
                     const updatedRanking = {
                         ...r,
+                        ownerId: r.ownerId || user.id, // "Heal" missing ownerId
                         config: {
                             ...r.config,
                             branding: {
@@ -78,10 +84,18 @@ export const ClubSettingsModal = ({ isOpen, onClose, user, rankings, onUpdateUse
                         }
                     };
                     return updateRanking(updatedRanking);
+                }));
+
+                results.forEach(res => {
+                    if (res.status === 'fulfilled') successCount++;
+                    else failCount++;
                 });
 
-                await Promise.all(updates);
-                alert(`Logo actualizado en perfil y aplicado a ${updates.length} torneos activos.`);
+                if (failCount > 0) {
+                    alert(`Logo actualizado en perfil. Propagación: ${successCount} torneos actualizados, ${failCount} fallidos (posiblemente por permisos).`);
+                } else {
+                    alert(`Logo actualizado en perfil y aplicado a ${successCount} torneos activos.`);
+                }
             }
 
             onClose();

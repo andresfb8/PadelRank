@@ -103,6 +103,20 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     setSortConfig({ key, direction });
   };
 
+  const getFormatLabel = (format?: string) => {
+    switch (format) {
+      case 'americano': return 'Americano';
+      case 'mexicano': return 'Mexicano';
+      case 'individual': return 'Individual';
+      case 'pairs': return 'Parejas';
+      case 'elimination': return 'Eliminación';
+      case 'hybrid': return 'Híbrido';
+      case 'pozo': return 'Pozo';
+      case 'classic': return 'Liga';
+      default: return 'Liga';
+    }
+  };
+
   const getSortIcon = (key: string) => {
     if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="opacity-30" />;
     return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />;
@@ -212,13 +226,27 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         </div>
       </div>
 
-      <div className="space-y-1">
-        <h1 className="text-2xl font-black text-gray-900 leading-tight">
-          {ranking.nombre}
-        </h1>
+      <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <Badge type="success" className="bg-green-100 text-green-700 uppercase px-2 py-0.5 rounded-full text-[10px] tracking-wider font-bold">ACTIVO</Badge>
-          <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none">• {ranking.categoria}</span>
+          <Badge
+            type={ranking.status === 'activo' ? 'success' : ranking.status === 'pausado' ? 'warning' : 'neutral'}
+            className="uppercase cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => isAdmin && setIsStatusModalOpen(true)}
+          >
+            {ranking.status === 'activo' ? 'ACTIVO' : ranking.status === 'pausado' ? 'PAUSADO' : 'FINALIZADO'}
+          </Badge>
+          <Badge type="info" className="uppercase opacity-70">
+            {getFormatLabel(ranking.format)}
+          </Badge>
+        </div>
+        <h2 className="text-3xl font-black text-gray-900 tracking-tight leading-none">{ranking.nombre}</h2>
+        <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
+          <span>{ranking.categoria}</span>
+          <span>•</span>
+          <div className="flex items-center gap-1">
+            <Users size={12} />
+            <span>{Object.keys(players).length} Jugadores</span>
+          </div>
         </div>
       </div>
     </div>
@@ -858,6 +886,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       if (currentRound > 0 && activeDivision.matches.some(m => m.status === 'pendiente')) {
         return alert("Debes finalizar todos los partidos de la ronda actual antes de generar la siguiente en modo Mexicano.");
       }
+      const variant = ranking.format === 'americano' ? ranking.americanoConfig?.variant : ranking.mexicanoConfig?.variant;
       newMatches = MatchGenerator.generateMexicanoRound(
         activeDivision.players.map(id => {
           const guest = ranking.guestPlayers?.find(g => g.id === id);
@@ -865,7 +894,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         }),
         standings,
         nextRound,
-        ranking.config?.courts
+        ranking.config?.courts,
+        variant || 'individual'
       );
     }
     // Individual Logic
@@ -892,29 +922,28 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     };
 
     onUpdateRanking(updatedRanking);
-    alert(`✅ Ronda ${nextRound} generada(${newMatches.length} partidos).`);
+    alert(`✅ Ronda ${nextRound} generada.`);
   };
 
   const handleGenerateRandomRound = () => {
-    if (!onUpdateRanking || !activeDivision) return;
+    if (!onUpdateRanking || !activeDivision || !ranking.id) return;
+
     if (ranking.format !== 'mexicano') return;
 
     const currentRound = activeDivision.matches.reduce((max, m) => Math.max(max, m.jornada), 0);
 
-    // In Mexicano/Americano, previous round must be finished mainly for ranking based gen, 
-    // but for random round it's less critical strictly speaking, BUT good practice to finish rounds.
     if (currentRound > 0 && activeDivision.matches.some(m => m.status === 'pendiente')) {
       return alert("Debes finalizar todos los partidos de la ronda actual antes de generar la siguiente.");
     }
 
-    const nextRound = currentRound + 1;
-
     const pObjs = activeDivision.players.map(id => {
-      const guest = ranking.guestPlayers?.find(g => g.id === id);
+      const guest = (ranking.guestPlayers || []).find(g => g.id === id);
       return players[id] || (guest ? { ...guest, stats: { winrate: 50 }, email: '', telefono: '', fechaNacimiento: '' } as Player : { id, nombre: '?', apellidos: '', stats: { winrate: 0 } as any } as Player);
     });
 
-    const newMatches = MatchGenerator.generateMexicanoRoundRandom(pObjs, nextRound, ranking.config?.courts);
+    const nextRound = currentRound + 1;
+    const variant = ranking.format === 'americano' ? ranking.americanoConfig?.variant : ranking.mexicanoConfig?.variant;
+    const newMatches = MatchGenerator.generateMexicanoRoundRandom(pObjs, nextRound, ranking.config?.courts, variant || 'individual');
 
     if (newMatches.length === 0) return alert("No se pudieron generar partidos. Verifica el número de jugadores.");
 
@@ -929,7 +958,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     };
 
     onUpdateRanking(updatedRanking);
-    alert(`✅ Ronda Aleatoria ${nextRound} generada(${newMatches.length} partidos).`);
+    alert(`✅ Ronda Aleatoria ${nextRound} generada (${newMatches.length} partidos).`);
   };
 
   const handleAddPairAndRegenerate = async () => {
@@ -1227,7 +1256,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           <div>
             <h2 className="text-2xl font-bold text-gray-900 leading-tight">{ranking.nombre}</h2>
             <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-              <Badge type="success" className="uppercase">{ranking.status}</Badge>
+              <Badge
+                type={ranking.status === 'activo' ? 'success' : ranking.status === 'pausado' ? 'warning' : 'neutral'}
+                className="uppercase cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => isAdmin && setIsStatusModalOpen(true)}
+              >
+                {ranking.status === 'activo' ? 'Activo' : ranking.status === 'pausado' ? 'Pausado' : 'Finalizado'}
+              </Badge>
+              <Badge type="info" className="uppercase opacity-70">
+                {getFormatLabel(ranking.format)}
+              </Badge>
               <span>•</span>
               <span>{ranking.categoria}</span>
             </div>
@@ -1272,6 +1310,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: handleGenerateNextRound,
               visible: ranking.format !== 'pairs' && ranking.format !== 'elimination' && ranking.format !== 'pozo',
               variant: 'primary'
+            },
+            {
+              id: 'random-distribution',
+              icon: Shuffle,
+              label: 'Aleatoria',
+              onClick: handleGenerateRandomRound,
+              visible: isAdmin && ranking.format === 'mexicano',
+              variant: 'secondary',
+              className: 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100',
+              title: 'Generar ronda con emparejamientos aleatorios'
             },
             {
               id: 'export-pdf',
@@ -1449,7 +1497,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           ) : (
             <>
               {/* Division Tabs */}
-              {ranking.format !== 'mexicano' && ranking.format !== 'americano' && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs' || (ranking.format === 'hybrid')) && (
+              {((ranking.format !== 'mexicano' && ranking.format !== 'americano') || ranking.divisions.length > 1) && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs' || (ranking.format === 'hybrid')) && (
                 <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
                   {ranking.format !== 'elimination' && (
                     <button

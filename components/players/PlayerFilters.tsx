@@ -1,14 +1,11 @@
-import { Search, LayoutGrid, List, Filter } from 'lucide-react';
+import { Search, Filter, List } from 'lucide-react';
 import { Button } from '../ui/Components';
 
-export type ViewMode = 'table' | 'grid';
 export type PlayerSegment = 'all' | 'top' | 'new' | 'inactive';
 
 interface PlayerFiltersProps {
     searchTerm: string;
     onSearchChange: (value: string) => void;
-    viewMode: ViewMode;
-    onViewModeChange: (mode: ViewMode) => void;
     activeSegment: PlayerSegment;
     onSegmentChange: (segment: PlayerSegment) => void;
     totalCount: number;
@@ -18,8 +15,6 @@ interface PlayerFiltersProps {
 export const PlayerFilters = ({
     searchTerm,
     onSearchChange,
-    viewMode,
-    onViewModeChange,
     activeSegment,
     onSegmentChange,
     totalCount,
@@ -51,30 +46,6 @@ export const PlayerFilters = ({
                         </div>
                     )}
                 </div>
-
-                {/* View Mode Toggle */}
-                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
-                    <button
-                        onClick={() => onViewModeChange('table')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'table'
-                                ? 'bg-white text-gray-900 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                    >
-                        <List size={18} className="inline mr-2" />
-                        Lista
-                    </button>
-                    <button
-                        onClick={() => onViewModeChange('grid')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'grid'
-                                ? 'bg-white text-gray-900 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                    >
-                        <LayoutGrid size={18} className="inline mr-2" />
-                        Grid
-                    </button>
-                </div>
             </div>
 
             {/* Segment Tabs */}
@@ -84,15 +55,15 @@ export const PlayerFilters = ({
                         key={segment.id}
                         onClick={() => onSegmentChange(segment.id)}
                         className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${activeSegment === segment.id
-                                ? 'bg-primary text-white shadow-md'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                     >
                         {segment.label}
                         {segment.count > 0 && (
                             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeSegment === segment.id
-                                    ? 'bg-white/20'
-                                    : 'bg-gray-200'
+                                ? 'bg-white/20'
+                                : 'bg-gray-200'
                                 }`}>
                                 {segment.count}
                             </span>

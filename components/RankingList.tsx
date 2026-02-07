@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon, Copy, LayoutGrid, List, Building, ArrowLeft, Search } from 'lucide-react';
+import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon, Copy, LayoutGrid, List, Building, ArrowLeft, Search, Share2, Link as LinkIcon, Activity } from 'lucide-react';
 import { Button } from './ui/Components';
-import { Ranking, User } from '../types';
+import { Ranking, User, RankingFormat } from '../types';
 
 interface Props {
   rankings: Ranking[];
@@ -18,6 +18,89 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string>('all');
+  const [selectedFormat, setSelectedFormat] = useState<RankingFormat | 'all'>('all');
+
+  // --- HELPERS ---
+  const handleCopyLink = (url?: string) => {
+    if (!url) return;
+    navigator.clipboard.writeText(url);
+    alert('¡Enlace copiado al portapapeles!');
+  };
+
+  const getFormatLabel = (format?: RankingFormat) => {
+    switch (format) {
+      case 'americano': return 'Americano';
+      case 'mexicano': return 'Mexicano';
+      case 'individual': return 'Individual';
+      case 'pairs': return 'Parejas';
+      case 'elimination': return 'Eliminación';
+      case 'hybrid': return 'Híbrido';
+      case 'pozo': return 'Pozo';
+      case 'classic': return 'Liga';
+      default: return 'Liga';
+    }
+  };
+
+  const getFormatStyles = (format?: RankingFormat) => {
+    switch (format) {
+      case 'mexicano':
+        return {
+          bg: 'bg-emerald-50',
+          text: 'text-emerald-700',
+          border: 'border-emerald-100',
+          accent: 'bg-emerald-500',
+          gradient: 'from-emerald-400 to-teal-500'
+        };
+      case 'americano':
+        return {
+          bg: 'bg-indigo-50',
+          text: 'text-indigo-700',
+          border: 'border-indigo-100',
+          accent: 'bg-indigo-500',
+          gradient: 'from-indigo-400 to-fuchsia-500'
+        };
+      case 'hybrid':
+        return {
+          bg: 'bg-blue-50',
+          text: 'text-blue-700',
+          border: 'border-blue-100',
+          accent: 'bg-blue-500',
+          gradient: 'from-blue-400 to-indigo-500'
+        };
+      case 'elimination':
+        return {
+          bg: 'bg-rose-50',
+          text: 'text-rose-700',
+          border: 'border-rose-100',
+          accent: 'bg-rose-500',
+          gradient: 'from-rose-400 to-pink-500'
+        };
+      case 'pozo':
+        return {
+          bg: 'bg-amber-50',
+          text: 'text-amber-700',
+          border: 'border-amber-100',
+          accent: 'bg-amber-500',
+          gradient: 'from-amber-400 to-orange-500'
+        };
+      default:
+        return {
+          bg: 'bg-slate-50',
+          text: 'text-slate-700',
+          border: 'border-slate-200',
+          accent: 'bg-primary',
+          gradient: 'from-primary to-primary-light'
+        };
+    }
+  };
+
+  const calculateProgress = (ranking: Ranking) => {
+    const totalMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.length, 0);
+    const completedMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'finalizado').length, 0);
+    const pendingMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'pendiente').length, 0);
+    const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
+    return { percentage, completedMatches, totalMatches, pendingMatches };
+  };
 
   // --- DERIVED STATE ---
   const isSuperAdmin = users && users.length > 0;
@@ -39,7 +122,13 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
       if (r.ownerId !== selectedClientId) return false;
     }
 
-    // 3. Search Filter
+    // 3. Format Filter
+    if (selectedFormat !== 'all') {
+      const format = r.format || 'classic';
+      if (format !== selectedFormat) return false;
+    }
+
+    // 4. Search Filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesName = r.nombre.toLowerCase().includes(query);
@@ -222,6 +311,27 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
             />
           </div>
 
+          <div className="relative w-full md:w-auto">
+            <select
+              value={selectedFormat}
+              onChange={(e) => setSelectedFormat(e.target.value as RankingFormat | 'all')}
+              className="w-full md:w-auto pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 outline-none focus:ring-2 focus:ring-primary shadow-sm appearance-none cursor-pointer"
+            >
+              <option value="all">Todos los formatos</option>
+              <option value="classic">Liga (Estándar)</option>
+              <option value="americano">Americano</option>
+              <option value="mexicano">Mexicano</option>
+              <option value="individual">Individual</option>
+              <option value="pairs">Parejas</option>
+              <option value="elimination">Eliminación</option>
+              <option value="hybrid">Híbrido</option>
+              <option value="pozo">Pozo</option>
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+              <ChevronRight size={14} className="rotate-90" />
+            </div>
+          </div>
+
           <div className="bg-gray-100 p-1 rounded-lg flex text-sm font-medium">
             <button
               onClick={() => setTab('activos')}
@@ -283,15 +393,19 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                 ? "grid gap-4 md:grid-cols-2 lg:grid-cols-3"
                 : "grid gap-3 grid-cols-1 md:grid-cols-2"
               }>
-                {groupRankings.map((ranking) => (
-                  viewMode === 'grid' ? (
+                {groupRankings.map((ranking) => {
+                  const { percentage, completedMatches, totalMatches, pendingMatches } = calculateProgress(ranking);
+                  const styles = getFormatStyles(ranking.format);
+
+                  return viewMode === 'grid' ? (
                     <div
                       key={ranking.id}
                       onClick={() => onSelect(ranking)}
-                      className="group bg-white p-6 rounded-2xl border border-gray-100 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 cursor-pointer transition-all relative overflow-hidden flex flex-col h-full"
+                      className={`group bg-white p-6 rounded-2xl border ${styles.border} hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 cursor-pointer transition-all relative overflow-hidden flex flex-col h-full`}
                     >
+                      {/* Background Decoration */}
                       <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all">
-                        <Trophy size={80} className="text-primary" />
+                        <Trophy size={80} className={styles.text} />
                       </div>
 
                       <div className="relative z-10 flex flex-col h-full">
@@ -303,11 +417,21 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                               }`}>
                               {ranking.status === 'activo' ? 'Activo' : ranking.status === 'pausado' ? 'Pausado' : 'Finalizado'}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/5 text-primary border border-primary/10">
-                              {ranking.format}
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${styles.bg} ${styles.text} ${styles.border}`}>
+                              {getFormatLabel(ranking.format)}
                             </span>
                           </div>
                           <div className="flex gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyLink(ranking.publicUrl);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                              title="Copiar link público"
+                            >
+                              <LinkIcon size={16} />
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -331,22 +455,46 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                           </div>
                         </div>
 
-                        <div className="mb-auto">
-                          <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-primary transition-colors">{ranking.nombre}</h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
-                            <span className="uppercase tracking-wide text-[11px] font-bold text-gray-400">{ranking.categoria}</span>
+                        <div className="mb-4">
+                          <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-primary transition-colors line-clamp-1">{ranking.nombre}</h3>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                            <span className="uppercase tracking-wide text-[10px] font-bold text-gray-400">{ranking.categoria}</span>
                             <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                             <span>{ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} JUGADORES</span>
                           </div>
                         </div>
 
-                        <div className="mt-6 flex items-center justify-between">
-                          <div className="flex items-center text-xs text-gray-400 font-bold gap-1 mt-1">
+                        {/* Progress Section */}
+                        <div className="space-y-2 mb-6">
+                          <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-gray-400 uppercase">
+                            <span>Progreso</span>
+                            <span className={percentage === 100 ? 'text-green-600' : 'text-primary'}>{percentage}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${styles.gradient}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-gray-400">
+                              {completedMatches} de {totalMatches} PARTIDOS
+                            </span>
+                            {ranking.status === 'activo' && pendingMatches > 0 && (
+                              <span className="flex items-center gap-1 text-[10px] font-black text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
+                                <Activity size={10} /> {pendingMatches} PENDIENTES
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-50">
+                          <div className="flex items-center text-xs text-gray-400 font-bold gap-1">
                             <Calendar size={14} className="opacity-50" />
                             <span>{ranking.fechaInicio}</span>
                           </div>
                           <div className="flex items-center text-primary text-xs font-black uppercase tracking-widest">
-                            Entrar <ChevronRight size={16} className="ml-0.5 group-hover:translate-x-1 transition-transform" />
+                            Gestionar <ChevronRight size={16} className="ml-0.5 group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
                       </div>
@@ -358,35 +506,46 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                       className="group bg-white p-4 rounded-xl border border-gray-200 hover:border-primary hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
                     >
                       <div className="flex items-center gap-4 flex-1">
-                        <div className={`w-2 h-12 rounded-full ${ranking.status === 'activo' ? 'bg-green-500' :
-                          ranking.status === 'pausado' ? 'bg-orange-400' : 'bg-gray-400'
-                          }`}></div>
+                        <div className={`w-1.5 h-12 rounded-full ${styles.accent}`}></div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-1">
                             <h3 className="text-base font-bold text-gray-900 truncate">{ranking.nombre}</h3>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200 uppercase font-semibold">
-                              {ranking.format === 'americano' ? 'Americano' :
-                                ranking.format === 'mexicano' ? 'Mexicano' :
-                                  ranking.format === 'individual' ? 'Individual' :
-                                    ranking.format === 'pairs' ? 'Parejas' :
-                                      ranking.format === 'elimination' ? 'Eliminación' :
-                                        ranking.format === 'hybrid' ? 'Híbrido' :
-                                          ranking.format === 'pozo' ? 'Pozo' : 'Liga'}
+                            <span className={`text-[10px] border px-2 py-0.5 rounded uppercase font-black tracking-wider ${styles.bg} ${styles.text} ${styles.border}`}>
+                              {getFormatLabel(ranking.format)}
                             </span>
+                            {percentage > 0 && (
+                              <span className="text-[10px] font-black text-gray-400">{percentage}% COMPLETADO</span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1"><Calendar size={14} /> {ranking.fechaInicio}</span>
-                            <span>•</span>
-                            <span>{ranking.categoria}</span>
-                            <span>•</span>
-                            <span>{ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} Jugadores</span>
+                          <div className="flex items-center gap-4 text-[11px] text-gray-500 font-medium">
+                            <span className="flex items-center gap-1 uppercase tracking-tight"><Calendar size={12} /> {ranking.fechaInicio}</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                            <span className="uppercase tracking-tight">{ranking.categoria}</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                            <span className="uppercase tracking-tight">{ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} Jugadores</span>
+                            {pendingMatches > 0 && ranking.status === 'activo' && (
+                              <>
+                                <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                <span className="text-orange-500 font-black uppercase tracking-tight">{pendingMatches} PENDIENTES</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-4">
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyLink(ranking.publicUrl);
+                            }}
+                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                            title="Copiar link"
+                          >
+                            <LinkIcon size={18} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -408,11 +567,11 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
                             <Trash2 size={18} />
                           </button>
                         </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-primary" />
+                        <ChevronRight size={20} className="text-gray-300 group-hover:text-primary transition-transform group-hover:translate-x-1" />
                       </div>
                     </div>
-                  )
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

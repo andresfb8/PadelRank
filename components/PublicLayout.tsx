@@ -18,9 +18,7 @@ export const PublicLayout = ({ rankingId }: Props) => {
 
     // Subscribe to Data
     useEffect(() => {
-        // 1. Subscribe to Rankings (Public view simply loads list to find the one, 
-        //    or ideally we would fetch just one, but existing logic uses subscribeToRankings)
-        //    We pass 'undefined' as ownerId to load globally (or rely on existing behavior)
+        // 1. Subscribe to Rankings
         const unsubscribeRankings = subscribeToRankings((data) => {
             setRankings(data);
         });
@@ -38,6 +36,21 @@ export const PublicLayout = ({ rankingId }: Props) => {
     }, []);
 
     const activeRanking = rankings.find(r => r.id === rankingId);
+    const [ownerLogo, setOwnerLogo] = useState<string | null>(null);
+
+    // 3. Fallback Branding: If ranking has no logo, fetch owner's organization logo
+    useEffect(() => {
+        if (activeRanking && !activeRanking.config?.branding?.logoUrl && activeRanking.ownerId) {
+            import('../services/db').then(({ subscribeToUserProfile }) => {
+                const unsubscribe = subscribeToUserProfile(activeRanking.ownerId!, (profile) => {
+                    if (profile?.branding?.logoUrl) {
+                        setOwnerLogo(profile.branding.logoUrl);
+                    }
+                });
+                return () => unsubscribe();
+            });
+        }
+    }, [activeRanking?.id, activeRanking?.ownerId, activeRanking?.config?.branding?.logoUrl]);
     const isPairSelection = selectedPlayerId?.includes('::');
     const selectedPlayer = selectedPlayerId && !isPairSelection ? players[selectedPlayerId] : null;
 
@@ -58,14 +71,14 @@ export const PublicLayout = ({ rankingId }: Props) => {
     }
 
     const branding = activeRanking.config?.branding;
-    const hasCustomLogo = !!branding?.logoUrl;
+    const displayLogo = branding?.logoUrl || ownerLogo;
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
             <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm">
                 <div className="flex items-center gap-2 font-bold text-primary text-xl">
-                    {hasCustomLogo ? (
-                        <img src={branding.logoUrl} alt="Logo" className="h-10 object-contain" />
+                    {displayLogo ? (
+                        <img src={displayLogo} alt="Logo" className="h-10 object-contain" />
                     ) : (
                         <>
                             <Trophy size={24} /> Racket Grid
@@ -104,7 +117,7 @@ export const PublicLayout = ({ rankingId }: Props) => {
                 )}
             </main>
 
-            {hasCustomLogo && (
+            {displayLogo && (
                 <footer className="py-6 text-center text-gray-400 text-sm border-t bg-gray-50">
                     <p className="flex items-center justify-center gap-2">
                         Powered by <strong className="text-gray-600 flex items-center gap-1"><Trophy size={14} /> Racket Grid</strong>

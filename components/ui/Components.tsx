@@ -22,7 +22,7 @@ export const Card = ({ children, className = '', noPadding = false }: any) => (
   </div>
 );
 
-export const Badge = ({ children, type = 'default', className = '' }: any) => {
+export const Badge = ({ children, type = 'default', className = '', ...props }: any) => {
   const styles = {
     default: "bg-gray-100 text-gray-700",
     success: "bg-green-100 text-green-700",
@@ -32,7 +32,7 @@ export const Badge = ({ children, type = 'default', className = '' }: any) => {
     incomplete: "bg-orange-100 text-orange-800"
   };
   return (
-    <span className={`px-3 py-1 rounded-lg text-xs font-bold tracking-wide flex items-center gap-1 ${styles[type as keyof typeof styles]} ${className}`}>
+    <span className={`px-3 py-1 rounded-lg text-xs font-bold tracking-wide flex items-center gap-1 ${styles[type as keyof typeof styles]} ${className}`} {...props}>
       {children}
     </span>
   );
