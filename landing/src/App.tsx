@@ -751,8 +751,14 @@ const App = () => {
             <section id="pricing" className="py-24 bg-slate-50">
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="text-center mb-16">
+                        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-6 animate-pulse">
+                            <Sparkles className="w-3 h-3" /> Fase de Desarrollo - Precios Promocionales
+                        </div>
                         <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Planes Adaptados a tu Club</h2>
-                        <p className="text-slate-600">IVA Incluido en todos nuestros modelos.</p>
+                        <p className="text-slate-600 mb-2">IVA Incluido en todos nuestros modelos.</p>
+                        <p className="text-xs text-amber-600 font-bold max-w-xl mx-auto uppercase tracking-tighter">
+                            Aviso: Los precios actuales son temporales por fase de desarrollo y están sujetos a cambios.
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">

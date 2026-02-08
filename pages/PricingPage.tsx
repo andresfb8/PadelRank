@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Star, Zap, Shield, Crown } from 'lucide-react';
+import { Check, Star, Zap, Shield, Crown, Sparkles } from 'lucide-react';
 import { createCheckoutSession } from '../services/stripeService';
 
 const PLANS = [
@@ -80,14 +80,19 @@ export default function PricingPage() {
 
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center mb-16">
+                        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-6 animate-pulse">
+                            <Sparkles className="w-3 h-3" /> Fase de Desarrollo - Precios Promocionales
+                        </div>
                         <h2 className="text-base font-semibold text-purple-400 uppercase tracking-wide">Planes y Precios</h2>
                         <p className="mt-2 text-4xl font-extrabold text-white sm:text-5xl">
                             Elige el nivel perfecto para tu club
                         </p>
-                        <p className="mt-4 max-w-2xl text-xl text-slate-400 mx-auto">
-                            Desde gestión básica hasta soluciones completas de marca blanca.
-                            Cancela cuando quieras.
-                        </p>
+                        <div className="mt-4 max-w-2xl text-xl text-slate-400 mx-auto space-y-2">
+                            <p>Desde gestión básica hasta soluciones completas de marca blanca.</p>
+                            <p className="text-sm text-amber-500/80 font-medium">
+                                Los precios actuales son temporales mientras estamos en fase de desarrollo y están sujetos a cambios futuros.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-8 lg:grid-cols-4 lg:gap-4">
