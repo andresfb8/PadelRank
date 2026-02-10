@@ -18,6 +18,8 @@ interface BracketViewProps {
 export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick, onUpdateRanking, bracketType = 'main', ranking }: BracketViewProps) => {
     // Merge all matches from all divisions (main + consolation)
     const allMatches = divisions.flatMap(d => d.matches);
+
+    // Local state for editing match participants
     const [isEditMode, setIsEditMode] = useState(false);
 
     // Filter matches based on bracket type
@@ -62,7 +64,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
     const handleParticipantClick = (matchId: string, pairIndex: 1 | 2, currentId: string) => {
         if (!isEditMode || !onUpdateRanking) return;
 
-        const newId = prompt("Editar Participante (Modo Dios)\n\nIntroduce el ID del jugador/pareja (o 'BYE').\nFormato Pareja: 'ID1::ID2'", currentId);
+        const newId = prompt("Editar Participante\n\nIntroduce el ID del jugador/pareja (o 'BYE').\nFormato Pareja: 'ID1::ID2'", currentId);
 
         if (newId !== null && newId !== currentId) {
             const newDivisions = updateMatchParticipant(ranking, matchId, pairIndex, newId);
@@ -84,7 +86,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                             p-2 rounded-full shadow-sm border transition-all
                             ${isEditMode ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-white text-gray-400 border-gray-200 hover:text-gray-600'}
                         `}
-                        title={isEditMode ? "Desactivar Modo Edición" : "Activar Modo Edición (Modo Dios)"}
+                        title={isEditMode ? "Desactivar Modo Edición" : "Activar Modo Edición"}
                     >
                         {isEditMode ? <Unlock size={16} /> : <Lock size={16} />}
                     </button>

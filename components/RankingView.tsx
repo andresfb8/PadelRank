@@ -81,7 +81,6 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     ranking.format === 'hybrid' && ranking.phase === 'playoff' ? 'playoff' : 'groups'
   );
   const [playoffBracketView, setPlayoffBracketView] = useState<'main' | 'consolation'>('main'); // Which playoff bracket to show
-  const [isGodMode, setIsGodMode] = useState(false);
 
   // Sorting State
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -1339,16 +1338,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               className: 'text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
               title: 'Exportar a PDF'
             },
-            // GOD MODE
+            // AVAILABILITY BUTTON (Restored)
             {
-              id: 'god-mode',
-              label: isGodMode ? 'Desactivar Modo Dios' : 'Activar Modo Dios',
-              icon: Trophy,
-              onClick: () => setIsGodMode(!isGodMode),
-              visible: isAdmin,
-              variant: isGodMode ? 'primary' : 'secondary',
-              className: isGodMode ? 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-200' : ''
+              id: 'availability',
+              label: 'Disponibilidad',
+              icon: Calendar,
+              onClick: () => setIsSchedulerConfigModalOpen(true),
+              visible: isAdmin && (ranking.format === 'elimination' || ranking.format === 'hybrid'),
+              variant: 'secondary'
             },
+
             {
               id: 'settings',
               icon: Settings,
@@ -1489,7 +1488,6 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 })}
                 players={players}
                 onMatchClick={handleMatchClick}
-                onScheduleClick={isAdmin ? (m) => setSchedulingMatch(m) : undefined}
                 ranking={ranking}
                 bracketType={bracketType}
               />
@@ -1945,30 +1943,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                   </div>
                                   <div className="flex flex-col items-end">
                                     <div className="flex items-center gap-1">
-                                      {isGodMode && isAdmin && onUpdateRanking && (
+                                      {isAdmin && onUpdateRanking && (
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            const currentAdj = ranking.manualPointsAdjustments?.[row.playerId] || 0;
-                                            const newPointsStr = prompt(`Puntos Totales Actuales: ${row.pts}\n\nIntroduce el AJUSTE de puntos (ej: +5 o -3):`, currentAdj > 0 ? `+${currentAdj}` : currentAdj.toString());
-
-                                            if (newPointsStr !== null) {
-                                              const newAdj = parseInt(newPointsStr.replace('+', ''));
-                                              if (!isNaN(newAdj)) {
-                                                const newAdjustments = {
-                                                  ...(ranking.manualPointsAdjustments || {}),
-                                                  [row.playerId]: newAdj
-                                                };
-                                                if (newAdj === 0) delete newAdjustments[row.playerId];
-
-                                                onUpdateRanking({
-                                                  ...ranking,
-                                                  manualPointsAdjustments: newAdjustments
-                                                });
-                                              }
-                                            }
+                                            // Open unified Stats Modal
+                                            setEditingPlayerId(row.playerId);
+                                            setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
+                                            setIsStatsModalOpen(true);
                                           }}
-                                          className="p-1.5 bg-amber-100 text-amber-700 rounded-lg mb-1"
+                                          className="p-1.5 bg-amber-100 text-amber-700 rounded-lg mb-1 hover:bg-amber-200 transition-colors"
                                         >
                                           <Edit2 size={14} />
                                         </button>

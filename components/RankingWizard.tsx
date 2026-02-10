@@ -130,13 +130,13 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 },
                 {
                     id: 'elimination',
-                    label: 'Eliminación Directa (Torneo)',
+                    label: 'Eliminación Directa (Torneo) (BETA)',
                     desc: 'Cuadro principal y de consolación. Cabezas de serie y avance por rondas.',
                     color: 'red'
                 },
                 {
                     id: 'hybrid',
-                    label: 'Híbrido (Liga + Playoff) (BETA)',
+                    label: 'Híbrido (Liga + Playoff)',
                     desc: 'Fase de Grupos (Liga) seguida de Fase Final (Eliminatoria). Ideal para "Mundialitos" o "Champions".',
                     color: 'pink'
                 },
@@ -660,6 +660,19 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                     Los perdedores de la primera ronda juegan un torneo paralelo.
                                 </p>
                             </div>
+                        </div>
+
+                        {/* Courts Configuration for Elimination */}
+                        <div className="mt-4 border-t pt-4">
+                            <Input
+                                type="number"
+                                label="Número de Pistas"
+                                value={config.courts || 2}
+                                onChange={(e: any) => setConfig({ ...config, courts: parseInt(e.target.value) || 2 })}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                Importante para la generación de horarios en el calendario.
+                            </p>
                         </div>
                     </div>
                 )
