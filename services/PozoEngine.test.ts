@@ -104,7 +104,7 @@ describe('PozoEngine', () => {
 
     describe('calculateNextRound - Pairs', () => {
         const config: RankingConfig = {
-            pozoConfig: { variant: 'pairs', numCourts: 2, scoringType: 'sets', goldenPoint: true }
+            pozoConfig: { variant: 'fixed-pairs', numCourts: 2, scoringMode: 'sets', goldenPoint: true }
         } as any;
 
         it('should keep pairs together', () => {
@@ -151,6 +151,41 @@ describe('PozoEngine', () => {
             expect(c2?.pair1.p2Id).toBe('p4');
             expect(c2?.pair2.p1Id).toBe('p7');
             expect(c2?.pair2.p2Id).toBe('p8');
+        });
+    });
+
+    describe('calculateNextRound - Manual Court Override', () => {
+        const config: RankingConfig = {
+            pozoConfig: { variant: 'pairs', numCourts: 2, scoringType: 'sets', goldenPoint: true }
+        } as any;
+
+        // Scenario: Config says 2 courts, but we actually have 3 courts active (e.g. user added one manually).
+        // Matches for Court 1, 2, and 3 are present.
+        it('should respect overrideNumCourts and generate matches for all 3 courts', () => {
+            const currentMatches: Match[] = [
+                { id: 'm1', court: 1, pair1: { p1Id: 'p1', p2Id: 'p2' }, pair2: { p1Id: 'p3', p2Id: 'p4' }, points: { p1: 1, p2: 0 }, status: 'finalizado', jornada: 1 } as any,
+                { id: 'm2', court: 2, pair1: { p1Id: 'p5', p2Id: 'p6' }, pair2: { p1Id: 'p7', p2Id: 'p8' }, points: { p1: 1, p2: 0 }, status: 'finalizado', jornada: 1 } as any,
+                { id: 'm3', court: 3, pair1: { p1Id: 'p9', p2Id: 'p10' }, pair2: { p1Id: 'p11', p2Id: 'p12' }, points: { p1: 1, p2: 0 }, status: 'finalizado', jornada: 1 } as any
+            ];
+
+            // Pass 3 as override
+            const nextMatches = calculateNextRound(currentMatches, 1, config, 3);
+
+            expect(nextMatches).toHaveLength(3);
+            expect(nextMatches.find(m => m.court === 1)).toBeDefined();
+            expect(nextMatches.find(m => m.court === 2)).toBeDefined();
+            expect(nextMatches.find(m => m.court === 3)).toBeDefined();
+
+            // Court 3 (Last): Winner C3 -> C2. Loser C3 -> C3.
+            // Winner C3 (p9/p10) should be in C2 match.
+            const c2Match = nextMatches.find(m => m.court === 2);
+            const c2Players = [c2Match?.pair1.p1Id, c2Match?.pair1.p2Id, c2Match?.pair2.p1Id, c2Match?.pair2.p2Id];
+            expect(c2Players).toContain('p9');
+
+            // Winner C2 (p5/p6) -> C1.
+            const c1Match = nextMatches.find(m => m.court === 1);
+            const c1Players = [c1Match?.pair1.p1Id, c1Match?.pair1.p2Id, c1Match?.pair2.p1Id, c1Match?.pair2.p2Id];
+            expect(c1Players).toContain('p5');
         });
     });
 });

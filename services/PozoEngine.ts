@@ -72,10 +72,14 @@ export function generateInitialRound(
 export function calculateNextRound(
     currentRoundMatches: Match[],
     currentRoundNumber: number,
-    config: RankingConfig
+    config: RankingConfig,
+    overrideNumCourts?: number // New optional parameter
 ): Match[] {
     if (!config.pozoConfig) throw new Error('Pozo config is missing');
-    const { variant, numCourts } = config.pozoConfig;
+
+    // Use override if provided (e.g. from actual divisions count), otherwise config
+    const numCourts = overrideNumCourts || config.pozoConfig.numCourts;
+    const { variant } = config.pozoConfig;
 
     // We need to determine who goes to which court.
     // Court buckets: index 0 = Court 1, index 1 = Court 2...
@@ -100,6 +104,10 @@ export function calculateNextRound(
 
     sortedMatches.forEach(match => {
         const courtIdx = (match.court || 1) - 1; // 0-based index
+
+        // Safety check: if match belongs to a court outside our current range (shouldn't happen if overrideNumCourts is correct)
+        if (courtIdx >= numCourts) return;
+
         const { winners, losers, p1Won } = getMatchOutcome(match);
         const actualWinners = p1Won ? [match.pair1.p1Id, match.pair1.p2Id] : [match.pair2.p1Id, match.pair2.p2Id];
         const actualLosers = p1Won ? [match.pair2.p1Id, match.pair2.p2Id] : [match.pair1.p1Id, match.pair1.p2Id];
@@ -134,8 +142,16 @@ export function calculateNextRound(
     for (let i = 0; i < numCourts; i++) {
         const courtPlayers = nextRoundBuckets[i];
 
-        // In Pairs variant, teams are fixed. 
-        // In Individual variant, we need to shuffle.
+        // START FIX: Handle undefined players if a bucket is empty or incomplete
+        // This can happen if courts were added/removed or calculation is off.
+        if (!courtPlayers || courtPlayers.length < 4) {
+            // Continue with safety fill
+        }
+
+        // Ensure we have 4 slots (fill with 'BYE' if missing to prevent crash)
+        const safePlayers = [...(courtPlayers || [])];
+        while (safePlayers.length < 4) safePlayers.push('BYE');
+        // END FIX
 
         let pair1: MatchPair;
         let pair2: MatchPair;
@@ -145,8 +161,8 @@ export function calculateNextRound(
             // We keep them as is. 
             // Ideally we should track who is partner with whom. Since we just pushed IDs, 
             // we pushed [Winner1, Winner2] together. So 0 and 1 are partners.
-            pair1 = { p1Id: courtPlayers[0], p2Id: courtPlayers[1] };
-            pair2 = { p1Id: courtPlayers[2], p2Id: courtPlayers[3] };
+            pair1 = { p1Id: safePlayers[0], p2Id: safePlayers[1] };
+            pair2 = { p1Id: safePlayers[2], p2Id: safePlayers[3] };
         } else {
             // Individual: SHUFFLE
             // To establish fairness, we shouldn't just pair 0-1 and 2-3 again if they came from same place.
@@ -154,7 +170,7 @@ export function calculateNextRound(
             // We have A,B,C,D in Court 1. A,B were partners. C,D were partners.
             // We MUST split them. A-C vs B-D or A-D vs B-C.
 
-            const shuffled = shufflePartners(courtPlayers);
+            const shuffled = shufflePartners(safePlayers);
             pair1 = { p1Id: shuffled[0], p2Id: shuffled[1] };
             pair2 = { p1Id: shuffled[2], p2Id: shuffled[3] };
         }

@@ -847,10 +847,13 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
       if (!allFinished && currentRound > 0) return alert("Debes finalizar todos los partidos de TODAS las pistas de la ronda actual.");
 
+      // Calculate number of courts based on active divisions (authoritative source)
+      const currentNumCourts = ranking.divisions.length;
+
       // Calculate next round (which returns matches with assigned 'court' property)
       let pozoMatches: Match[] = [];
       try {
-        pozoMatches = PozoEngine.calculateNextRound(roundMatches, currentRound, ranking.config || {} as any);
+        pozoMatches = PozoEngine.calculateNextRound(roundMatches, currentRound, ranking.config || {} as any, currentNumCourts);
       } catch (e: any) {
         return alert("Error generando ronda: " + e.message);
       }
@@ -867,8 +870,22 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         };
       });
 
-      const updatedRanking = { ...ranking, divisions: updatedDivisions };
-      onUpdateRanking(updatedRanking);
+      // Update config if courts count changed
+      let finalRanking = { ...ranking, divisions: updatedDivisions };
+      if (ranking.config?.pozoConfig && ranking.config.pozoConfig.numCourts !== currentNumCourts) {
+        finalRanking = {
+          ...finalRanking,
+          config: {
+            ...finalRanking.config,
+            pozoConfig: {
+              ...finalRanking.config.pozoConfig,
+              numCourts: currentNumCourts
+            }
+          }
+        };
+      }
+
+      onUpdateRanking(finalRanking);
       // alert(`✅ Ronda ${currentRound + 1} generada.`);
       return;
     }
@@ -885,7 +902,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       if (currentRound > 0 && activeDivision.matches.some(m => m.status === 'pendiente')) {
         return alert("Debes finalizar todos los partidos de la ronda actual antes de generar la siguiente en modo Mexicano.");
       }
-      const variant = ranking.format === 'americano' ? ranking.americanoConfig?.variant : ranking.mexicanoConfig?.variant;
+      const variant = ranking.format === 'americano' ? ranking.config?.americanoConfig?.variant : ranking.config?.mexicanoConfig?.variant;
       newMatches = MatchGenerator.generateMexicanoRound(
         activeDivision.players.map(id => {
           const guest = ranking.guestPlayers?.find(g => g.id === id);
@@ -941,7 +958,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     });
 
     const nextRound = currentRound + 1;
-    const variant = ranking.format === 'americano' ? ranking.americanoConfig?.variant : ranking.mexicanoConfig?.variant;
+    const variant = ranking.format === 'americano' ? ranking.config?.americanoConfig?.variant : ranking.config?.mexicanoConfig?.variant;
     const newMatches = MatchGenerator.generateMexicanoRoundRandom(pObjs, nextRound, ranking.config?.courts, variant || 'individual');
 
     if (newMatches.length === 0) return alert("No se pudieron generar partidos. Verifica el número de jugadores.");
