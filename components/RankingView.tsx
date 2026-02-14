@@ -359,7 +359,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             {/* Header: Position & Name */}
             <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-50">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black ${positionClass}`}>
-                {row.position || index + 1}
+                {row.pos || index + 1}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -372,7 +372,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 </div>
               </div>
               <div className="flex flex-col items-end">
-                <span className="text-2xl font-black text-primary leading-none">{row.points}</span>
+                <span className="text-2xl font-black text-gray-900 leading-none">{row.pts}</span>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Puntos</span>
               </div>
             </div>
@@ -381,7 +381,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             <div className="grid grid-cols-4 gap-2 text-center">
               {/* Wins - Always verify if PG is standard */}
               <div className="bg-green-50 rounded-lg p-2 flex flex-col items-center justify-center">
-                <span className="text-lg font-black text-green-600 leading-tight">{row.matchesWon}</span>
+                <span className="text-lg font-black text-green-600 leading-tight">{row.pg}</span>
                 <span className="text-[10px] font-bold text-green-800/60 uppercase">PG</span>
               </div>
 
@@ -394,8 +394,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               {/* Sets Diff - Conditional */}
               {isColumnVisible('setsDiff') && (
                 <div className="bg-gray-50 rounded-lg p-2 flex flex-col items-center justify-center">
-                  <span className={`text-lg font-black leading-tight ${row.setsWon - row.setsLost > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
-                    {row.setsWon - row.setsLost > 0 ? '+' : ''}{row.setsWon - row.setsLost}
+                  <span className={`text-lg font-black leading-tight ${row.setsDiff > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
+                    {row.setsDiff > 0 ? '+' : ''}{row.setsDiff}
                   </span>
                   <span className="text-[10px] font-bold text-gray-400 uppercase">Dif Sets</span>
                 </div>
@@ -404,8 +404,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               {/* Games Diff - Conditional */}
               {isColumnVisible('gamesDiff') && (
                 <div className="bg-gray-50 rounded-lg p-2 flex flex-col items-center justify-center">
-                  <span className={`text-lg font-black leading-tight ${row.gamesWon - row.gamesLost > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
-                    {row.gamesWon - row.gamesLost > 0 ? '+' : ''}{row.gamesWon - row.gamesLost}
+                  <span className={`text-lg font-black leading-tight ${row.gamesDiff > 0 ? 'text-gray-800' : 'text-gray-500'}`}>
+                    {row.gamesDiff > 0 ? '+' : ''}{row.gamesDiff}
                   </span>
                   <span className="text-[10px] font-bold text-gray-400 uppercase">Dif Jue</span>
                 </div>
@@ -417,12 +417,12 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               <div className="flex items-center gap-4">
                 <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-gray-300"></span>
-                  PJ: <span className="font-bold text-gray-700">{row.matchesPlayed}</span>
+                  PJ: <span className="font-bold text-gray-700">{row.pj}</span>
                 </span>
                 {isColumnVisible('pp') && (
                   <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-red-300"></span>
-                    PP: <span className="font-bold text-gray-700">{row.matchesLost}</span>
+                    PP: <span className="font-bold text-gray-700">{row.pp}</span>
                   </span>
                 )}
               </div>
