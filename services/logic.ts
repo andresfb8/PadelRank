@@ -442,24 +442,6 @@ export function generateStandings(
         if (adj.gamesDiff) map[id].gamesDiff += adj.gamesDiff;
 
         if (adj.pts) map[id].manualAdjustment = (map[id].manualAdjustment || 0) + adj.pts;
-      } else if (format !== ('pairs' as any) && format !== ('hybrid' as any)) {
-        // For individual, if player not in matches yet but has adjustment, add them
-        map[id] = {
-          playerId: id,
-          pos: 0,
-          pj: adj.pj || 0,
-          pg: adj.pg || 0,
-          pp: adj.pp || 0,
-          pts: adj.pts || 0,
-          setsDiff: adj.setsDiff || 0,
-          gamesDiff: adj.gamesDiff || 0,
-          setsWon: adj.setsWon || 0,
-          setsLost: adj.setsLost || 0,
-          gamesWon: adj.gamesWon || 0,
-          gamesLost: adj.gamesLost || 0,
-          winRate: 0,
-          manualAdjustment: adj.pts
-        };
       }
     });
   }
@@ -563,7 +545,15 @@ export function calculatePromotions(
   sortedDivisions.forEach(div => {
     const retiredSet = new Set(div.retiredPlayers || []);
 
-    const standings = generateStandings(div.id, div.matches, div.players, undefined, undefined, undefined, ranking.config?.tieBreakCriteria);
+    const standings = generateStandings(
+      div.id,
+      div.matches,
+      div.players,
+      undefined,
+      ranking.manualPointsAdjustments,
+      ranking.manualStatsAdjustments,
+      ranking.config?.tieBreakCriteria
+    );
     const cands: Candidate[] = [];
 
     standings.forEach((row, idx) => {
@@ -770,7 +760,15 @@ export function getQualifiedPlayersBuckets(ranking: Ranking): { main: string[], 
 
   // Get Standings for all divisions
   // Use 'hybrid' format logic for the groups as they are pairs-based in hybrid mode
-  const allStandings = divisions.map(div => generateStandings(div.id, div.matches, div.players, 'hybrid', undefined, undefined, ranking.config?.tieBreakCriteria));
+  const allStandings = divisions.map(div => generateStandings(
+    div.id,
+    div.matches,
+    div.players,
+    'hybrid',
+    ranking.manualPointsAdjustments,
+    ranking.manualStatsAdjustments,
+    ranking.config?.tieBreakCriteria
+  ));
 
   const mainQualifiedIds: string[] = [];
   const consolationQualifiedIds: string[] = [];
