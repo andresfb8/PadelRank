@@ -148,6 +148,7 @@ export interface Ranking {
   tvConfig?: TVConfig;
   rules?: string; // Markdown or text rules
   history?: Match[]; // Historical matches from previous phases (for global stats)
+  phaseHistory?: PhaseSnapshot[]; // NEW: Snapshots of each completed phase for historical view & analytics
   overrides?: { playerId: string, forceDiv: number }[]; // Manual division overrides for next phase
   isOfficial?: boolean; // If false, matches do not affect global player stats (default: true for Classic, false for Quick)
   guestPlayers?: { id: string; nombre: string; apellidos?: string }[]; // Temporary players for this tournament only
@@ -161,6 +162,17 @@ export interface Ranking {
   // Key: playerId or pairKey ("p1::p2")
   manualPointsAdjustments?: Record<string, number>; // DEPRECATED: Use manualStatsAdjustments
   manualStatsAdjustments?: Record<string, ManualStatsAdjustment>; // Key: playerId
+}
+
+/**
+ * A snapshot of the ranking state at the end of a completed phase.
+ * Used for historical navigation and advanced statistics.
+ */
+export interface PhaseSnapshot {
+  id: string;
+  name: string;        // e.g. "Fase 1", "Fase 2"
+  timestamp: number;   // Unix ms timestamp when phase was finalized
+  divisions: Division[]; // Deep copy of divisions at the time of finalization
 }
 
 export interface ManualStatsAdjustment {

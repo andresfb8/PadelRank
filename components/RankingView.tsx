@@ -6,8 +6,8 @@ import { exportRankingToPDF } from '../services/export';
 import { StandingsTable } from './shared/StandingsTable';
 import { FORMAT_COLUMN_PRESETS } from '../types/StandingsColumn';
 
-import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers, getQualifiedPlayersBuckets } from '../services/logic';
-import { Match, Player, Ranking, Division } from '../types';
+import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers, getQualifiedPlayersBuckets, calculatePlayerHistoryStats, reconstructPhaseHistory } from '../services/logic';
+import { Match, Player, Ranking, Division, PhaseSnapshot } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
 import { AddDivisionModal } from './AddDivisionModal';
 import { PromotionModal } from './PromotionModal';
@@ -66,7 +66,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const isPlayerClickEnabled = ranking.format !== 'americano' && ranking.format !== 'mexicano';
 
   const [activeDivisionId, setActiveDivisionId] = useState<string>(ranking.divisions[0]?.id || '');
-  const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules'>('standings');
+  const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'global' | 'rules' | 'history' | 'advstats'>('standings');
   const [bracketType, setBracketType] = useState<'main' | 'consolation'>('main');
   const [copied, setCopied] = useState(false);
   const [isAddDivModalOpen, setIsAddDivModalOpen] = useState(false);
@@ -205,6 +205,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
   const [isSchedulerConfigModalOpen, setIsSchedulerConfigModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  // History and stats tab
+  const [historyPhaseIndex, setHistoryPhaseIndex] = useState<number | null>(null); // null = current phase
 
   // --- RENDERING HELPERS FOR MOBILE REDESIGN ---
   const renderMobileHeader = () => (
@@ -262,15 +264,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               key={div.id}
               onClick={() => {
                 setActiveDivisionId(div.id);
-                if (activeTab === 'global' || activeTab === 'rules') setActiveTab('standings');
+                if (activeTab === 'global' || activeTab === 'rules' || activeTab === 'history' || activeTab === 'advstats') setActiveTab('standings');
               }}
-              className={`pb-3 text-sm font-bold transition-all relative ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
+              className={`pb-3 text-sm font-bold transition-all relative ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules' && activeTab !== 'history' && activeTab !== 'advstats'
                 ? 'text-primary'
                 : 'text-gray-400 hover:text-gray-600'
                 }`}
             >
               {div.category || div.name || `Pista ${div.numero}`}
-              {activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules' && (
+              {activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules' && activeTab !== 'history' && activeTab !== 'advstats' && (
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
               )}
             </button>
@@ -295,6 +297,29 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
           )}
         </button>
+        {/* Historial and AdvStats for Mobile */}
+        {((ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0)) && (
+          <>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`pb-3 text-sm font-bold transition-all relative ${activeTab === 'history' ? 'text-violet-600' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              HISTORIAL
+              {activeTab === 'history' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-violet-600 rounded-t-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('advstats')}
+              className={`pb-3 text-sm font-bold transition-all relative ${activeTab === 'advstats' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              ESTADÍSTICAS
+              {activeTab === 'advstats' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-600 rounded-t-full" />
+              )}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -732,29 +757,54 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     setPromotionData(result);
   };
 
+  // --- Handle phase finalization: create a PhaseSnapshot and apply promotions ---
   const handleConfirmPromotion = () => {
     if (!promotionData || !onUpdateRanking) return;
-    const updatedRanking = {
+
+    const newDivisions = promotionData.newDivisions;
+
+    // 1. Build a snapshot of the CURRENT divisions BEFORE applying changes
+    const currentPhaseHistory = ranking.phaseHistory || [];
+    const phaseNumber = currentPhaseHistory.length + 1;
+
+    // Merge reconstructed history only if phaseHistory is still empty
+    let mergedPhaseHistory = currentPhaseHistory;
+    if (currentPhaseHistory.length === 0 && (ranking.history || []).length > 0) {
+      const reconstructed = reconstructPhaseHistory(ranking);
+      mergedPhaseHistory = reconstructed;
+    }
+
+    const newSnapshot: PhaseSnapshot = {
+      id: `phase-snapshot-${Date.now()}`,
+      name: `Fase ${phaseNumber}`,
+      timestamp: Date.now(),
+      // Deep copy of the current divisions before promotion
+      divisions: JSON.parse(JSON.stringify(ranking.divisions))
+    };
+
+    // 2. Collect matches from current divisions into history
+    const newHistoryMatches: Match[] = [
+      ...(ranking.history || []),
+      ...ranking.divisions.flatMap(d => d.matches)
+    ];
+
+    // 3. Apply new divisions, history, snapshot; clear overrides for next phase
+    const updatedRanking: Ranking = {
       ...ranking,
-      divisions: promotionData.newDivisions,
-      // Archive History
-      history: [
-        ...(ranking.history || []),
-        ...ranking.divisions.flatMap(d => d.matches.filter(m => m.status === 'finalizado'))
-      ],
-      // Clear overrides for the next phase, as they are one-time use for this transition
+      divisions: newDivisions,
+      history: newHistoryMatches,
+      phaseHistory: [...mergedPhaseHistory, newSnapshot],
       overrides: []
     };
+
     onUpdateRanking(updatedRanking);
     setIsPromotionModalOpen(false);
-    setActiveTab('matches'); // Reset view to matches of new phase
-    // Reset active division to first one
-    if (updatedRanking.divisions.length > 0) {
-      setActiveDivisionId(updatedRanking.divisions[0].id);
+    setActiveTab('matches');
+    if (newDivisions.length > 0) {
+      setActiveDivisionId(newDivisions[0].id);
     }
   };
 
-  if (!ranking) return <div className="p-8 text-center text-gray-500">Torneo no encontrado</div>;
 
   const handleSubstitutePlayer = (data: { oldPlayerId: string, newPlayerId: string, nextPhaseDiv?: string }) => {
     if (!activeDivision || !onUpdateRanking || !data.oldPlayerId || !data.newPlayerId) return;
@@ -1303,11 +1353,31 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               title: 'Generar cuadros eliminatorios'
             },
             {
+              id: 'add-pair',
+              icon: UserPlus,
+              label: 'Añadir Pareja',
+              onClick: handleAddPairAndRegenerate,
+              visible: isAdmin && !!onUpdateRanking && (ranking.format === 'pairs' || ranking.format === 'hybrid'),
+              variant: 'secondary' as const,
+              className: 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100',
+              title: 'Añadir una nueva pareja a la división actual y regenerar el calendario'
+            },
+            {
+              id: 'substitute-player',
+              icon: RefreshCw,
+              label: 'Sustituir Jugador',
+              onClick: () => setIsSubstituteModalOpen(true),
+              visible: isAdmin && !!onUpdateRanking,
+              variant: 'secondary' as const,
+              className: 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100',
+              title: 'Reemplazar un jugador lesionado o que cause baja'
+            },
+            {
               id: 'new-round',
               icon: Plus,
               label: 'Nueva Ronda',
               onClick: handleGenerateNextRound,
-              visible: ranking.format !== 'pairs' && ranking.format !== 'elimination' && ranking.format !== 'pozo',
+              visible: ranking.format === 'americano' || ranking.format === 'mexicano',
               variant: 'primary'
             },
             {
@@ -1554,6 +1624,30 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       )}
                     </div>
                   )}
+                  {/* Historial de Fases tab */}
+                  {((ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0)) && (
+                    <button
+                      onClick={() => setActiveTab('history')}
+                      className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'history'
+                        ? 'bg-white border-b-2 border-violet-500 text-violet-700 shadow-sm'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                    >
+                      <Clock size={16} /> Historial
+                    </button>
+                  )}
+                  {/* Estadísticas Avanzadas tab */}
+                  {((ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0)) && (
+                    <button
+                      onClick={() => setActiveTab('advstats')}
+                      className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'advstats'
+                        ? 'bg-white border-b-2 border-emerald-500 text-emerald-700 shadow-sm'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                    >
+                      <BarChart size={16} /> Estadísticas
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1656,8 +1750,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 </div>
               )}
 
-              {/* Division/Global Content-Hidden for elimination format */}
-              {activeTab !== 'rules' && ranking.format !== 'elimination' && (
+              {/* Division/Global Content-Hidden for elimination format and new analytical tabs */}
+              {activeTab !== 'rules' && activeTab !== 'history' && activeTab !== 'advstats' && ranking.format !== 'elimination' && (
                 <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-4">
                   <h3 className="font-bold text-gray-700 px-2 lg:text-lg">
                     {activeTab === 'global' ? 'Estadísticas Globales' :
@@ -1720,6 +1814,193 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   </Card >
                 </div>
               )}
+
+              {/* HISTORIAL DE FASES */}
+              {activeTab === 'history' && (() => {
+                let snapshots = (ranking.phaseHistory || []).slice();
+                if (snapshots.length === 0 && ranking.history && ranking.history.length > 0) {
+                  snapshots = reconstructPhaseHistory(ranking);
+                }
+                snapshots.sort((a, b) => a.timestamp - b.timestamp);
+                
+                const selectedIdx = historyPhaseIndex !== null ? historyPhaseIndex : snapshots.length - 1;
+                const snap = snapshots[selectedIdx];
+
+                return (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Phase selector */}
+                    <div className="flex items-center gap-2 flex-wrap bg-white p-3 rounded-xl border border-violet-100 shadow-sm">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mr-1">Fase:</span>
+                      {snapshots.map((s, idx) => (
+                        <button
+                          key={s.id}
+                          onClick={() => setHistoryPhaseIndex(idx)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedIdx === idx
+                            ? 'bg-violet-600 text-white shadow'
+                            : 'bg-gray-100 text-gray-600 hover:bg-violet-100 hover:text-violet-700'
+                            }`}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+
+                    {snap && snap.divisions.map((div) => {
+                      const snapStandings = generateStandings(
+                        div.id, div.matches, div.players,
+                        ranking.format as any,
+                        undefined, undefined, ranking.config?.tieBreakCriteria
+                      );
+                      return (
+                        <Card key={div.id} className="overflow-hidden !p-0">
+                          <div className="p-4 border-b bg-violet-50 flex items-center gap-2">
+                            <Trophy size={16} className="text-violet-600" />
+                            <h3 className="font-bold text-violet-800">
+                              {div.name || `División ${div.numero}`}
+                            </h3>
+                            <span className="ml-auto text-xs text-violet-500">
+                              {new Date(snap.timestamp).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <div className="p-4">
+                            <StandingsTable
+                              standings={snapStandings}
+                              players={players}
+                              columns={getVisibleColumns(['americano', 'mexicano', 'pozo'].includes(ranking.format) ? FORMAT_COLUMN_PRESETS.pointBasedFormat : FORMAT_COLUMN_PRESETS.setBasedFormat)}
+                              isAmericanoOrMexicano={['americano', 'mexicano', 'pozo'].includes(ranking.format)}
+                              isHybrid={ranking.format === 'hybrid'}
+                              isAdmin={false}
+                            />
+                          </div>
+                        </Card>
+                      );
+                    })}
+
+                    {!snap && (
+                      <div className="text-center py-12 text-gray-400 italic bg-gray-50 rounded-xl">
+                        No hay fase seleccionada.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ESTADÍSTICAS AVANZADAS */}
+              {activeTab === 'advstats' && (() => {
+                let virtualRanking = ranking;
+                if ((!ranking.phaseHistory || ranking.phaseHistory.length === 0) && ranking.history && ranking.history.length > 0) {
+                  virtualRanking = { ...ranking, phaseHistory: reconstructPhaseHistory(ranking) };
+                }
+                
+                const histStats = calculatePlayerHistoryStats(virtualRanking);
+                const rows = Object.values(histStats).sort((a, b) => {
+                  // Sort by total promotions desc, then best division asc
+                  if (b.totalPromotions !== a.totalPromotions) return b.totalPromotions - a.totalPromotions;
+                  return a.bestDivision - b.bestDivision;
+                });
+
+                const snapshots = (virtualRanking.phaseHistory || []).slice().sort((a, b) => a.timestamp - b.timestamp);
+
+                return (
+                  <div className="space-y-6 animate-fade-in">
+                    <Card className="overflow-hidden !p-0">
+                      <div className="p-4 border-b bg-emerald-50 flex items-center gap-2">
+                        <BarChart size={18} className="text-emerald-600" />
+                        <h3 className="font-bold text-emerald-800">Estadísticas Avanzadas por Jugador</h3>
+                        <span className="ml-auto text-xs text-emerald-600 font-medium">
+                          {snapshots.length} fase{snapshots.length !== 1 ? 's' : ''} registrada{snapshots.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      {rows.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 italic">
+                          No hay datos históricos suficientes para calcular estadísticas.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50 border-b text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                <th className="text-left px-4 py-3">Jugador</th>
+                                <th className="px-3 py-3 text-center">Mejor Div.</th>
+                                <th className="px-3 py-3 text-center">Fases</th>
+                                <th className="px-3 py-3 text-center text-green-700">Ascensos</th>
+                                <th className="px-3 py-3 text-center text-red-600">Descensos</th>
+                                <th className="px-3 py-3 text-center">Racha Mejor Div.</th>
+                                <th className="px-3 py-3 text-left">Trayectoria</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((stat, idx) => {
+                                const player = players[stat.playerId];
+                                const name = player
+                                  ? `${player.nombre} ${player.apellidos}`
+                                  : stat.playerId;
+
+                                return (
+                                  <tr key={stat.playerId} className={`border-b last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} hover:bg-emerald-50/40 transition-colors`}>
+                                    <td className="px-4 py-3 font-semibold text-gray-900">{name}</td>
+                                    <td className="px-3 py-3 text-center">
+                                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 text-yellow-800 font-black text-sm">
+                                        {stat.bestDivision === Infinity ? '–' : stat.bestDivision}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-3 text-center text-gray-600 font-medium">{stat.totalPhasesPlayed}</td>
+                                    <td className="px-3 py-3 text-center">
+                                      {stat.totalPromotions > 0 ? (
+                                        <span className="inline-flex items-center gap-1 text-green-700 font-bold">
+                                          <ArrowUp size={14} /> {stat.totalPromotions}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-300">–</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-3 text-center">
+                                      {stat.totalRelegations > 0 ? (
+                                        <span className="inline-flex items-center gap-1 text-red-600 font-bold">
+                                          <ArrowDown size={14} /> {stat.totalRelegations}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-300">–</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-3 text-center">
+                                      {stat.consecutiveInBestDiv > 1 ? (
+                                        <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-bold border border-yellow-200">
+                                          🔥 {stat.consecutiveInBestDiv} fases
+                                        </span>
+                                      ) : stat.consecutiveInBestDiv === 1 ? (
+                                        <span className="text-gray-500 text-xs">1 fase</span>
+                                      ) : (
+                                        <span className="text-gray-300">–</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-3">
+                                      <div className="flex items-center gap-1 flex-wrap">
+                                        {stat.divisionsByPhase.map((entry, i) => (
+                                          <span
+                                            key={i}
+                                            className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-bold border ${entry.divisionNumber === stat.bestDivision
+                                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                              : 'bg-gray-100 text-gray-600 border-gray-200'
+                                              }`}
+                                            title={`${entry.phaseName}: ${entry.divisionName}`}
+                                          >
+                                            {entry.phaseName.replace('Fase ', 'F')}: Div{entry.divisionNumber}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+                );
+              })()}
 
               {/* Category Header for Elimination-shows category name */}
               {

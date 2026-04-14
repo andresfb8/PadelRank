@@ -863,3 +863,263 @@ export function updateManualAdjustment(
 
   return currentAdjustments;
 }
+
+// =============================================================================
+// HISTORICAL ANALYTICS
+// =============================================================================
+
+export interface PlayerPhaseStats {
+  playerId: string;
+  divisionsByPhase: { phaseName: string; divisionName: string; divisionNumber: number }[];
+  totalPromotions: number;
+  totalRelegations: number;
+  totalPhasesPlayed: number;
+  bestDivision: number; // Lowest division number (1 = best)
+  consecutiveInBestDiv: number; // Phases in a row at their best division
+}
+
+/**
+ * Calculates historical statistics for each player based on phase snapshots.
+ * Returns a map of playerId -> PlayerPhaseStats.
+ */
+export function calculatePlayerHistoryStats(ranking: Ranking): Record<string, PlayerPhaseStats> {
+  const snapshots = ranking.phaseHistory || [];
+  if (snapshots.length === 0) return {};
+
+  const statsMap: Record<string, PlayerPhaseStats> = {};
+
+  const getOrCreate = (pid: string): PlayerPhaseStats => {
+    if (!statsMap[pid]) {
+      statsMap[pid] = {
+        playerId: pid,
+        divisionsByPhase: [],
+        totalPromotions: 0,
+        totalRelegations: 0,
+        totalPhasesPlayed: 0,
+        bestDivision: Infinity,
+        consecutiveInBestDiv: 0
+      };
+    }
+    return statsMap[pid];
+  };
+
+  // Sort snapshots by timestamp (chronological)
+  const sorted = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+
+  sorted.forEach((snapshot) => {
+    const divsByPlayerInPhase: Record<string, number> = {};
+
+    snapshot.divisions.forEach((div) => {
+      const divName = div.name || `División ${div.numero}`;
+      // For pairs format, handle composite IDs
+      div.players.forEach((pid) => {
+        const stat = getOrCreate(pid);
+        stat.divisionsByPhase.push({
+          phaseName: snapshot.name,
+          divisionName: divName,
+          divisionNumber: div.numero
+        });
+        stat.totalPhasesPlayed += 1;
+        divsByPlayerInPhase[pid] = div.numero;
+        if (div.numero < stat.bestDivision) {
+          stat.bestDivision = div.numero;
+        }
+      });
+    });
+
+    // Count promotions/relegations relative to previous phase
+    if (sorted.indexOf(snapshot) > 0) {
+      const prevSnap = sorted[sorted.indexOf(snapshot) - 1];
+      const prevDivsByPlayer: Record<string, number> = {};
+      prevSnap.divisions.forEach((div) => {
+        div.players.forEach((pid) => {
+          prevDivsByPlayer[pid] = div.numero;
+        });
+      });
+
+      Object.entries(divsByPlayerInPhase).forEach(([pid, currentDiv]) => {
+        const prevDiv = prevDivsByPlayer[pid];
+        if (prevDiv === undefined) return; // New player
+
+        const stat = getOrCreate(pid);
+        if (currentDiv < prevDiv) stat.totalPromotions += 1;
+        if (currentDiv > prevDiv) stat.totalRelegations += 1;
+      });
+    }
+  });
+
+  // Calculate consecutiveInBestDiv
+  Object.values(statsMap).forEach((stat) => {
+    if (stat.bestDivision === Infinity) return;
+    let streak = 0;
+    // Traverse from last to first
+    for (let i = stat.divisionsByPhase.length - 1; i >= 0; i--) {
+      if (stat.divisionsByPhase[i].divisionNumber === stat.bestDivision) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    stat.consecutiveInBestDiv = streak;
+  });
+
+  return statsMap;
+}
+
+/**
+ * Attempts to reconstruct partial phase history from the flat `history` match array
+ * for rankings that predate the phaseHistory feature.
+ * Groups matches by a rough heuristic: batches with shared "jornada 0" or by match ID timestamp.
+ * Returns synthesized PhaseSnapshot[] that can be merged into ranking.phaseHistory.
+ */
+export function reconstructPhaseHistory(ranking: Ranking): import('../types').PhaseSnapshot[] {
+  const historyMatches = ranking.history || [];
+  if (historyMatches.length === 0) return [];
+
+  const isPairFormat = ranking.format === 'pairs' || ranking.format === 'hybrid';
+  const getMatchEntities = (m: Match): string[] => {
+    if (isPairFormat) {
+      const p1 = m.pair1.p1Id && m.pair1.p2Id ? `${m.pair1.p1Id}::${m.pair1.p2Id}` : null;
+      const p2 = m.pair2.p1Id && m.pair2.p2Id ? `${m.pair2.p1Id}::${m.pair2.p2Id}` : null;
+      return [p1, p2].filter(Boolean) as string[];
+    }
+    return [m.pair1.p1Id, m.pair1.p2Id, m.pair2.p1Id, m.pair2.p2Id].filter(id => id && id !== 'BYE');
+  };
+
+  // 1. Slice history into logical Division Blocks using `jornada` drops.
+  // Within a division, `jornada` increases. A drop indicates a new division block.
+  const blocks: Match[][] = [];
+  let currentBlock: Match[] = [];
+
+  for (let i = 0; i < historyMatches.length; i++) {
+    const m = historyMatches[i];
+    const prev = i > 0 ? historyMatches[i - 1] : null;
+
+    if (currentBlock.length > 0 && prev && m.jornada < prev.jornada) {
+      // Jornada drop -> guaranteed division boundary
+      blocks.push(currentBlock);
+      currentBlock = [m];
+    } else {
+      currentBlock.push(m);
+    }
+  }
+  if (currentBlock.length > 0) blocks.push(currentBlock);
+
+  // 2. Group Blocks into Phases
+  // A player can only appear ONCE in a phase. If a block introduces returning players, it's a new phase.
+  const phasesMatches: Match[][] = [];
+  let currentPhaseMatches: Match[] = [];
+  let currentPhasePlayers = new Set<string>();
+
+  for (const block of blocks) {
+    const blockPlayers = new Set<string>();
+    block.forEach(m => getMatchEntities(m).forEach(p => blockPlayers.add(p)));
+
+    // Check intersection
+    let hasIntersection = false;
+    for (const p of blockPlayers) {
+      if (currentPhasePlayers.has(p)) {
+        hasIntersection = true;
+        break;
+      }
+    }
+
+    if (hasIntersection) {
+      // Seal current phase
+      phasesMatches.push(currentPhaseMatches);
+      currentPhaseMatches = [...block];
+      currentPhasePlayers = new Set(blockPlayers);
+    } else {
+      // Add to current phase
+      currentPhaseMatches.push(...block);
+      blockPlayers.forEach(p => currentPhasePlayers.add(p));
+    }
+  }
+  if (currentPhaseMatches.length > 0) phasesMatches.push(currentPhaseMatches);
+
+  // 3. To maintain proper historical ordering, we map each player to their real current division
+  const entityToCurrentDiv: Record<string, number> = {};
+  if (ranking.divisions) {
+    ranking.divisions.forEach(d => {
+      d.players.forEach(pId => {
+        entityToCurrentDiv[pId] = d.numero;
+      });
+    });
+  }
+
+  // 4. Construct PhaseSnapshots using Connected Components on each Phase
+  const snapshots: import('../types').PhaseSnapshot[] = phasesMatches.map((phaseBatch, idx) => {
+    
+    const entitiesInBatch = Array.from(new Set(phaseBatch.flatMap(getMatchEntities)));
+
+    // Form connection graph within the phase to isolate distinct divisions
+    const adj: Record<string, Set<string>> = {};
+    entitiesInBatch.forEach(e => adj[e] = new Set());
+    
+    phaseBatch.forEach(m => {
+      const matchEntities = getMatchEntities(m);
+      for (let i = 0; i < matchEntities.length; i++) {
+        for (let j = i + 1; j < matchEntities.length; j++) {
+          adj[matchEntities[i]].add(matchEntities[j]);
+          adj[matchEntities[j]].add(matchEntities[i]);
+        }
+      }
+    });
+
+    // Find connected components
+    const visited = new Set<string>();
+    const components: string[][] = [];
+    
+    entitiesInBatch.forEach(entity => {
+      if (!visited.has(entity)) {
+        const comp: string[] = [];
+        const queue = [entity];
+        visited.add(entity);
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          comp.push(curr);
+          adj[curr].forEach(neighbor => {
+            if (!visited.has(neighbor)) {
+              visited.add(neighbor);
+              queue.push(neighbor);
+            }
+          });
+        }
+        components.push(comp);
+      }
+    });
+
+    // Sort valid components to assume Division 1, 2, 3 based on current placement
+    components.sort((c1, c2) => {
+      const avg1 = c1.reduce((sum, e) => sum + (entityToCurrentDiv[e] ?? 99), 0) / c1.length;
+      const avg2 = c2.reduce((sum, e) => sum + (entityToCurrentDiv[e] ?? 99), 0) / c2.length;
+      return avg1 - avg2;
+    });
+
+    const reconstructedDivisions: Division[] = components.map((comp, compIdx) => {
+      const divNum = compIdx + 1;
+      const divMatches = phaseBatch.filter(m => {
+         const entities = getMatchEntities(m);
+         return entities.some(e => comp.includes(e));
+      });
+      return {
+        id: `reconstructed-p${idx + 1}-d${divNum}`,
+        numero: divNum,
+        name: `División ${divNum}`,
+        status: 'finalizada',
+        players: comp,
+        matches: divMatches
+      };
+    });
+
+    return {
+      id: `reconstructed-phase-${idx + 1}`,
+      name: `Fase ${idx + 1} (Recu.)`,
+      timestamp: Date.now() + idx, // Fake timestamp to preserve absolute chronological order
+      divisions: reconstructedDivisions
+    };
+  });
+
+  return snapshots;
+}
+
