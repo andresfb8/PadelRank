@@ -94,20 +94,31 @@ export const RankingCreator = ({ players, onCancel, onSave }: Props) => {
         onSave(newRanking);
     };
 
-    const availablePlayers = Object.values(players);
+    const availablePlayers = React.useMemo(() => Object.values(players), [players]);
 
-    // Helper to get used players across ALL divisions
-    const getUsedPlayerIds = () => {
+    // Memoized: set of ALL currently assigned player IDs – re-runs only when assignments change
+    const usedIds = React.useMemo(() => {
         const used = new Set<string>();
         (Object.values(assignments) as string[][]).forEach(divPlayers => {
-            divPlayers.forEach(pid => {
-                if (pid) used.add(pid);
-            });
+            divPlayers.forEach(pid => { if (pid) used.add(pid); });
         });
         return used;
-    };
+    }, [assignments]);
 
-    const usedIds = getUsedPlayerIds();
+    // Memoized: per-slot option arrays keyed by `divIdx-playerIdx`
+    // This avoids rebuilding filter arrays for EVERY slot on EVERY render.
+    const slotOptions = React.useMemo(() => {
+        const map: Record<string, { id: string; label: string }[]> = {};
+        for (let divIdx = 0; divIdx < numDivisions; divIdx++) {
+            for (let playerIdx = 0; playerIdx < 4; playerIdx++) {
+                const currentValue = assignments[divIdx]?.[playerIdx] || '';
+                map[`${divIdx}-${playerIdx}`] = availablePlayers
+                    .filter(p => !usedIds.has(p.id) || p.id === currentValue)
+                    .map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+            }
+        }
+        return map;
+    }, [availablePlayers, usedIds, assignments, numDivisions]);
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-12">
@@ -173,14 +184,8 @@ export const RankingCreator = ({ players, onCancel, onSave }: Props) => {
                             <div className="grid md:grid-cols-2 gap-3">
                                 {[0, 1, 2, 3].map((playerIdx) => {
                                     const currentValue = assignments[divIdx]?.[playerIdx] || '';
-
-                                    // Calculate Valid Options for this slot
-                                    const options = availablePlayers
-                                        .filter(p => !usedIds.has(p.id) || p.id === currentValue) // Logic: Unused OR Current
-                                        .map(p => ({
-                                            id: p.id,
-                                            label: `${p.nombre} ${p.apellidos}`
-                                        }));
+                                    // Use pre-computed memoized options — no per-render O(N) filtering
+                                    const options = slotOptions[`${divIdx}-${playerIdx}`] ?? [];
 
                                     return (
                                         <div key={playerIdx}>

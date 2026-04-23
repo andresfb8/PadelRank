@@ -1,14 +1,15 @@
 
 import { Trophy, Users, ShieldCheck, Activity, Plus, Calendar, ArrowRight, LayoutGrid, List } from 'lucide-react';
 import { useState } from 'react';
-import { Ranking, Player } from '../types';
 import { Button } from './ui/Components';
+import { SubscriptionCard } from './profile/SubscriptionCard';
+import { User, Ranking, Player } from '../types';
 
 interface AdminDashboardProps {
     activeRankings: Ranking[];
     allRankings: Ranking[]; // Needed for pending matches calculation
     players: Record<string, Player>;
-    userName?: string;
+    currentUser?: User;
     onNavigate: (view: any) => void;
     onCreateTournament: () => void;
     onCreatePlayer: () => void;
@@ -18,7 +19,7 @@ export const AdminDashboard = ({
     activeRankings,
     allRankings,
     players,
-    userName,
+    currentUser,
     onNavigate,
     onCreateTournament,
     onCreatePlayer
@@ -45,7 +46,7 @@ export const AdminDashboard = ({
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                        {userName ? `Hola, ${userName}` : 'Panel de Control'}
+                        {currentUser?.name ? `Hola, ${currentUser.name}` : 'Panel de Control'}
                         <span className="text-2xl ml-2">👋</span>
                     </h1>
                     <p className="text-gray-500 mt-1 capitalize">{dateString}</p>
@@ -249,6 +250,16 @@ export const AdminDashboard = ({
 
                 {/* Right Column: Top Players & Quick Actions */}
                 <div className="space-y-6">
+                    {currentUser && (
+                        <div className="mb-6">
+                            <SubscriptionCard
+                                user={currentUser}
+                                totalPlayers={totalPlayers}
+                                activeTournaments={activeTournamentsCount}
+                            />
+                        </div>
+                    )}
+
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
                             <Users className="text-green-600" size={20} />

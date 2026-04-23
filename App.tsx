@@ -6,6 +6,8 @@ import { AdminMigrationPage } from './pages/AdminMigrationPage';
 
 import { PaymentSuccess, PaymentCancel } from './pages/PaymentStatus';
 
+import { RegistrationFinalizer } from './components/RegistrationFinalizer';
+
 const App = () => {
   const [publicRankingId, setPublicRankingId] = useState<string | null>(null);
   const [tvRankingId, setTvRankingId] = useState<string | null>(null);
@@ -30,6 +32,7 @@ const App = () => {
 
   // Simple Routing
   const path = window.location.pathname;
+  if (path === '/onboarding/complete') return <RegistrationFinalizer />;
   if (path === '/payment/success') return <PaymentSuccess />;
   if (path === '/payment/cancel') return <PaymentCancel />;
 

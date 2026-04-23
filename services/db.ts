@@ -191,14 +191,24 @@ export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
 // --- RANKINGS (TOURNAMENTS) ---
 
 export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
-    // Always fetch all, filter on client (like players) to support Legacy/Mixed views
-    const q = query(collection(db, "rankings"), orderBy("nombre"));
+    let q;
+    if (ownerId) {
+        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId));
+    } else {
+        q = query(collection(db, "rankings"), orderBy("nombre"));
+    }
 
     return onSnapshot(q, (snapshot) => {
         const rankingsList: Ranking[] = [];
         snapshot.forEach((doc) => {
             rankingsList.push({ id: doc.id, ...doc.data() } as Ranking);
         });
+        
+        // Sort on client if we couldn't orderBy due to missing composite index
+        if (ownerId) {
+            rankingsList.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        }
+        
         callback(rankingsList);
     }, (error) => {
         console.error("Error subscribing to rankings:", error);
@@ -237,6 +247,108 @@ export const updateRanking = async (ranking: Ranking) => {
     const sanitizedData = sanitizeForFirestore(data);
     return await updateDoc(rankingRef, sanitizedData);
 };
+
+/**
+ * Phase 3 write: Writes a ranking update while extracting all matches into
+ * the `rankings/{rankingId}/matches` subcollection. Keeps `divisions[].matches`
+ * as empty arrays in the root document, breaking the 1MB limit problem.
+ *
+ * UI components continue to receive the full Ranking object (with matches populated)
+ * because reads go through `subscribeToRankingWithMatches` which merges them back.
+ *
+ * Use this instead of `updateRanking` once migration is complete.
+ */
+export const updateRankingWithMatches = async (ranking: Ranking) => {
+    const { id, ...data } = ranking;
+    const rankingRef = doc(db, "rankings", id);
+    const batch = writeBatch(db);
+
+    // Extract matches into subcollection, clear from root divisions
+    const divisionsWithoutMatches = (data.divisions || []).map((division) => {
+        const matches = division.matches || [];
+        
+        // Write each match as its own document in the subcollection
+        matches.forEach((match) => {
+            const matchRef = doc(collection(db, "rankings", id, "matches"), match.id);
+            batch.set(matchRef, sanitizeForFirestore({
+                ...match,
+                divisionId: division.id,
+                rankingId: id,
+            }));
+        });
+
+        // Return division with empty matches array
+        return { ...division, matches: [] };
+    });
+
+    // Update root ranking document (no matches embedded)
+    const sanitizedData = sanitizeForFirestore({
+        ...data,
+        divisions: divisionsWithoutMatches,
+        _matchesMigrated: true,
+    });
+    batch.update(rankingRef, sanitizedData);
+
+    return await batch.commit();
+};
+
+/**
+ * Phase 3 read: Subscribes to a single ranking and its matches subcollection,
+ * then merges matches back into `division.matches[]` before calling the callback.
+ * The UI receives a complete Ranking object with matches populated as usual.
+ */
+export const subscribeToRankingWithMatches = (
+    rankingId: string,
+    callback: (ranking: Ranking | null) => void
+) => {
+    let currentRanking: Ranking | null = null;
+    let currentMatchDocs: any[] = [];
+
+    const mergeAndEmit = () => {
+        if (!currentRanking) return callback(null);
+
+        // Group matches by divisionId
+        const matchesByDiv: Record<string, any[]> = {};
+        currentMatchDocs.forEach((m) => {
+            if (!matchesByDiv[m.divisionId]) matchesByDiv[m.divisionId] = [];
+            matchesByDiv[m.divisionId].push(m);
+        });
+
+        // Merge matches back into divisions
+        const mergedDivisions = (currentRanking.divisions || []).map((div) => ({
+            ...div,
+            matches: matchesByDiv[div.id] || [],
+        }));
+
+        callback({ ...currentRanking, divisions: mergedDivisions });
+    };
+
+    // Subscribe to the root ranking document
+    const unsubRanking = onSnapshot(doc(db, "rankings", rankingId), (snap) => {
+        if (snap.exists()) {
+            currentRanking = { id: snap.id, ...snap.data() } as Ranking;
+        } else {
+            currentRanking = null;
+        }
+        mergeAndEmit();
+    }, (error) => console.error("Error subscribing to ranking:", error));
+
+    // Subscribe to the matches subcollection
+    const unsubMatches = onSnapshot(
+        collection(db, "rankings", rankingId, "matches"),
+        (snap) => {
+            currentMatchDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            mergeAndEmit();
+        },
+        (error) => console.error("Error subscribing to matches subcollection:", error)
+    );
+
+    return () => {
+        unsubRanking();
+        unsubMatches();
+    };
+};
+
 
 export const deleteRanking = async (id: string) => {
     return await deleteDoc(doc(db, "rankings", id));

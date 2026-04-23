@@ -1,4 +1,4 @@
-export type Role = 'superadmin' | 'admin' | 'public';
+export type Role = 'superadmin' | 'admin' | 'staff' | 'public';
 
 export interface User {
   id: string;
@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: Role;
   clubName?: string;
+  parentAdminId?: string; // ID of the Admin who owns the club this staff member belongs to
   status: 'active' | 'pending' | 'rejected' | 'blocked';
 
   // SaaS Subscription fields

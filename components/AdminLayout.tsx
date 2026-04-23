@@ -12,7 +12,7 @@ import {
 } from 'firebase/auth';
 import { auth, db, secondaryAuth, functions } from '../services/firebase';
 import { Player, Ranking, Match, Division, User } from '../types';
-import { onSnapshot, collection, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { onSnapshot, collection, query, orderBy, doc, setDoc, where, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { RankingView } from './RankingView';
 import { RankingList } from './RankingList';
@@ -28,6 +28,7 @@ import { AdminAccountView } from './profile/AdminAccountView';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { SuperAdminAnalytics } from './SuperAdminAnalytics';
 import { AdminDashboard } from './AdminDashboard';
+import { StaffManagement } from './admin/StaffManagement';
 import { HelpCenter } from './HelpCenter';
 import { PlanBadge } from './PlanBadge';
 import { PlayerModal } from './PlayerModal';
@@ -56,7 +57,7 @@ import { MobileBottomNav } from './MobileBottomNav';
 
 
 export const AdminLayout = () => {
-    const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management' | 'player_detail' | 'pair_detail'>('login');
+    const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management' | 'player_detail' | 'pair_detail' | 'staff'>('login');
     const [isRegistering, setIsRegistering] = useState(false);
 
     // Auth
@@ -67,6 +68,8 @@ export const AdminLayout = () => {
     const [players, setPlayers] = useState<Record<string, Player>>({});
     const [rankings, setRankings] = useState<Ranking[]>([]);
     const [activeRankingId, setActiveRankingId] = useState<string | null>(null);
+    const [staffMembers, setStaffMembers] = useState<User[]>([]);
+    const [feedback, setFeedback] = useState<any[]>([]);
 
     // Derived User
     // Impersonation State
@@ -139,8 +142,37 @@ export const AdminLayout = () => {
         const unsubscribeUsers = subscribeToUsers((data) => {
             setUsers(data);
         });
-        return () => unsubscribeUsers();
+
+        const qFeedback = query(collection(db, 'feedback'), orderBy('createdAt', 'desc'), limit(50));
+        const unsubFeedback = onSnapshot(qFeedback, (snapshot) => {
+            setFeedback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+
+        return () => {
+            unsubscribeUsers();
+            unsubFeedback();
+        };
     }, [currentUser?.role]);
+
+    // Subscribe to Staff Members (If Admin)
+    useEffect(() => {
+        if (currentUser?.role !== 'admin') {
+            setStaffMembers([]);
+            return;
+        }
+
+        const q = query(
+            collection(db, "users"),
+            where("parentAdminId", "==", currentUser.id)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+            setStaffMembers(members);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
 
     // Auth Listener
     useEffect(() => {
@@ -548,6 +580,10 @@ export const AdminLayout = () => {
                             <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'players' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
                         )}
 
+                        {currentUser?.role === 'admin' && (
+                            <button onClick={() => handleNavClick('staff')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'staff' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Shield size={20} /> Staff</button>
+                        )}
+
                         {currentUser?.role === 'superadmin' && !impersonatedUserId && (
                             <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'admin_management' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
                         )}
@@ -645,6 +681,7 @@ export const AdminLayout = () => {
                                 users={users}
                                 rankings={rankings}
                                 players={players}
+                                feedback={feedback}
                                 onNavigate={setView}
                                 onCreateClient={async () => {
                                     // Open the admin management view which has the create modal
@@ -660,7 +697,7 @@ export const AdminLayout = () => {
                                 activeRankings={activeRankings}
                                 allRankings={rankings}
                                 players={players}
-                                userName={effectiveUser?.name}
+                                currentUser={effectiveUser}
                                 onNavigate={setView}
                                 onCreateTournament={() => setView('ranking_create')}
                                 onCreatePlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
@@ -778,6 +815,13 @@ export const AdminLayout = () => {
                             onBack={() => setView('dashboard')}
                             totalPlayers={Object.keys(players).length}
                             activeTournaments={activeRankings.length}
+                        />
+                    )}
+
+                    {view === 'staff' && (
+                        <StaffManagement
+                            staffMembers={staffMembers}
+                            onDelete={handleDeleteUser}
                         />
                     )}
 

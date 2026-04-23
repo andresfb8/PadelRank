@@ -101,7 +101,6 @@ export function canAddPlayer(
 export function canUseFormat(
     format: string,
     plan: SubscriptionPlan,
-    userEmail?: string,
     isSuperAdmin?: boolean
 ): { allowed: boolean; message?: string } {
     // SuperAdmins bypass all format restrictions
@@ -109,21 +108,15 @@ export function canUseFormat(
         return { allowed: true };
     }
 
-    // Special restriction for CPSJ Classic format
-    if (format === 'classic') {
-        const isAuthorizedEmail = userEmail?.toLowerCase().includes('info@clubdepadelsanjavier');
-        if (isAuthorizedEmail) {
-            return { allowed: true };
-        }
-        return {
-            allowed: false,
-            message: 'Este es un formato exclusivo personalizado. Si deseas un formato a medida, contacta con soporte.'
-        };
-    }
-
     const allowedFormats = SUBSCRIPTION_PLANS[plan].allowedFormats;
 
     if (!allowedFormats.includes(format as any)) {
+        if (format === 'classic') {
+             return {
+                 allowed: false,
+                 message: 'Este es un formato exclusivo personalizado. Si deseas un formato a medida, contacta con soporte o adquiere un plan especial.'
+             };
+        }
         return {
             allowed: false,
             message: `El formato "${format}" no está disponible en tu plan ${SUBSCRIPTION_PLANS[plan].name}. Mejora a un plan superior para acceder a este formato.`

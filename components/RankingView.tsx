@@ -1822,7 +1822,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   snapshots = reconstructPhaseHistory(ranking);
                 }
                 snapshots.sort((a, b) => a.timestamp - b.timestamp);
-                
+
                 const selectedIdx = historyPhaseIndex !== null ? historyPhaseIndex : snapshots.length - 1;
                 const snap = snapshots[selectedIdx];
 
@@ -1891,7 +1891,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 if ((!ranking.phaseHistory || ranking.phaseHistory.length === 0) && ranking.history && ranking.history.length > 0) {
                   virtualRanking = { ...ranking, phaseHistory: reconstructPhaseHistory(ranking) };
                 }
-                
+
                 const histStats = calculatePlayerHistoryStats(virtualRanking);
                 const rows = Object.values(histStats).sort((a, b) => {
                   // Sort by total promotions desc, then best division asc

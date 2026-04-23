@@ -146,9 +146,9 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     desc: 'Sube y baja de pista. Ganadores suben, Perdedores bajan. Individual o Parejas.',
                     color: 'yellow'
                 }
-            ].filter(f => f.id !== 'classic' || currentUser?.email?.toLowerCase().includes('info@clubdepadelsanjavier') || currentUser?.role === 'superadmin')
+            ]
                 .map((f) => {
-                    const formatCheck = canUseFormat(f.id, userPlan, currentUser?.email, currentUser?.role === 'superadmin');
+                    const formatCheck = canUseFormat(f.id, userPlan, currentUser?.role === 'superadmin');
                     const isDisabled = !formatCheck.allowed;
 
                     return (
