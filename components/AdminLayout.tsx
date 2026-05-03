@@ -27,6 +27,8 @@ import { AdminManagement } from './AdminManagement';
 import { AdminAccountView } from './profile/AdminAccountView';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { SuperAdminAnalytics } from './SuperAdminAnalytics';
+import { ClientSidePanel } from './superadmin/ClientSidePanel';
+import { ClientDetailView } from './superadmin/ClientDetailView';
 import { AdminDashboard } from './AdminDashboard';
 import { StaffManagement } from './admin/StaffManagement';
 import { HelpCenter } from './HelpCenter';
@@ -93,6 +95,7 @@ export const AdminLayout = () => {
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
     const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState<Player | null>(null); // New state
     const [selectedPairIdForDetail, setSelectedPairIdForDetail] = useState<string | null>(null);
+    const [selectedClientForDetail, setSelectedClientForDetail] = useState<User | null>(null);
     const [credentialsModal, setCredentialsModal] = useState<{ isOpen: boolean, email: string, pass: string } | null>(null);
     const [isClubSettingsOpen, setIsClubSettingsOpen] = useState(false);
 
@@ -440,9 +443,15 @@ export const AdminLayout = () => {
             const deleteUserFunc = httpsCallable(functions, 'deleteUser');
             await deleteUserFunc({ userId });
             alert('✅ Usuario eliminado correctamente de Auth y Firestore');
+            
+            // If the user was selected in the side panel, close it
+            if (selectedClientForDetail?.id === userId) {
+                setSelectedClientForDetail(null);
+            }
         } catch (error: any) {
             console.error("Error deleting user:", error);
-            alert(`Error al eliminar usuario: ${error.message}`);
+            const detail = error.details || error.message;
+            alert(`Error al eliminar usuario: ${detail}. Verifica que las Cloud Functions estén desplegadas.`);
         }
     };
 
@@ -501,6 +510,34 @@ export const AdminLayout = () => {
 
 
     // Render Login if no User
+    if (currentUser?.isSuspended && currentUser.role !== 'superadmin') {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+                <div className="max-w-md w-full bg-white rounded-[40px] p-10 shadow-2xl shadow-red-100 border border-red-50 text-center space-y-6">
+                    <div className="w-20 h-20 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <Shield size={40} />
+                    </div>
+                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Cuenta Suspendida</h1>
+                    <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
+                        <p className="text-sm text-red-800 leading-relaxed font-medium">
+                            {currentUser.suspensionReason || "Tu cuenta ha sido suspendida temporalmente. Por favor, contacta con soporte para más información."}
+                        </p>
+                    </div>
+                    <button 
+                        onClick={() => signOut(auth)}
+                        className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
+                    >
+                        <LogOut size={20} />
+                        Cerrar Sesión
+                    </button>
+                    <p className="text-xs text-gray-400 font-medium">
+                        Si crees que esto es un error, contacta con soporte técnico.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     if (!firebaseUser) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -688,8 +725,10 @@ export const AdminLayout = () => {
                                     setView('admin_management');
                                 }}
                                 onViewClient={(userId) => {
-                                    setImpersonatedUserId(userId);
-                                    setView('dashboard');
+                                    const user = users.find(u => u.id === userId);
+                                    if (user) {
+                                        setSelectedClientForDetail(user);
+                                    }
                                 }}
                             />
                         ) : (
@@ -744,7 +783,8 @@ export const AdminLayout = () => {
                         onDeletePlayers={handleDeletePlayers}
                         onImportPlayers={handleImportPlayers}
                     />}
-                    {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDuplicateRanking} />}
+
+                    {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDeleteRanking} />}
                     {view === 'ranking_create' && <RankingWizard
                         players={players}
                         currentUser={effectiveUser}
@@ -829,6 +869,27 @@ export const AdminLayout = () => {
                     {/* {view === 'profile' && <AdminProfile user={currentUser} onClose={() => setView('dashboard')} onLogout={handleLogout} />} */}
                 </main>
             </div>
+
+            {/* SuperAdmin Side Panel */}
+            {selectedClientForDetail && (
+                <ClientSidePanel 
+                    isOpen={!!selectedClientForDetail}
+                    onClose={() => setSelectedClientForDetail(null)}
+                    user={selectedClientForDetail}
+                    rankings={rankings}
+                    players={players}
+                    onUpdate={async (userId, data) => {
+                        await updateUser({ id: userId, ...data });
+                    }}
+                    onDelete={handleDeleteUser}
+                    onImpersonate={(userId) => {
+                        setImpersonatedUserId(userId);
+                        setSelectedClientForDetail(null);
+                        setView('dashboard');
+                    }}
+                    currentUser={currentUser}
+                />
+            )}
 
             {/* Mobile Bottom Nav */}
             <MobileBottomNav

@@ -22,9 +22,11 @@ import {
     Star,
     ShieldCheck,
     Instagram,
-    MessageCircle
+    MessageCircle,
+    FileSpreadsheet,
+    Download
 } from 'lucide-react';
-import { CookieBanner } from './components/CookieBanner';
+import { ConsentManager } from './components/ConsentManager';
 import { LegalModal } from './components/LegalModal';
 
 const App = () => {
@@ -37,6 +39,14 @@ const App = () => {
         setLegalModal({ isOpen: true, type });
     };
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [leadForm, setLeadForm] = useState({ name: '', email: '', club: '', submitted: false });
+
+    const handleLeadSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        // In the future, this will connect to a DB or CRM
+        console.log('Lead Captured:', leadForm);
+        setLeadForm({ ...leadForm, submitted: true });
+    };
 
     const subscriptionPlans = [
         {
@@ -747,6 +757,113 @@ const App = () => {
                 </div>
             </section>
 
+            {/* Lead Magnet Section */}
+            <section className="py-24 bg-indigo-900 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full opacity-10">
+                    <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[80%] bg-indigo-400 rounded-full blur-[120px]"></div>
+                    <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[80%] bg-green-400 rounded-full blur-[120px]"></div>
+                </div>
+                
+                <div className="max-w-7xl mx-auto px-6 relative z-10">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                        <div>
+                            <div className="inline-flex items-center gap-2 bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold uppercase mb-6">
+                                <Gift className="w-3 h-3" /> Recurso Gratuito para Clubes
+                            </div>
+                            <h2 className="text-4xl md:text-5xl font-black text-white mb-6 leading-tight">
+                                ¿Aún usas Excels caóticos? Descarga nuestro <span className="text-green-400">Kit de Gestión Pro</span>.
+                            </h2>
+                            <p className="text-indigo-100 text-lg mb-8 leading-relaxed opacity-80">
+                                Hemos empaquetado las herramientas que usan los clubes más eficientes. Consigue gratis la plantilla de ranking automatizada y el checklist de organización de torneos.
+                            </p>
+                            
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "Plantilla de Ranking con fórmulas de puntos",
+                                    "Checklist: 20 pasos para un torneo perfecto",
+                                    "Guía de niveles y categorías de juego",
+                                    "Manual de bienvenida para nuevos socios"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-white font-medium">
+                                        <ShieldCheck className="w-5 h-5 text-green-400" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 w-fit">
+                                <div className="bg-indigo-500/20 p-3 rounded-xl">
+                                    <FileSpreadsheet className="text-indigo-400 w-8 h-8" />
+                                </div>
+                                <div>
+                                    <p className="text-white font-bold text-sm">Kit de Gestión 2026.zip</p>
+                                    <p className="text-indigo-300 text-xs">Incluye 4 archivos • 2.4 MB</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white p-8 md:p-10 rounded-[3.5rem] shadow-2xl relative">
+                            {leadForm.submitted ? (
+                                <div className="text-center py-10 animate-in fade-in zoom-in duration-500">
+                                    <div className="bg-green-100 text-green-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <Check className="w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-slate-900 mb-2">¡Kit Enviado!</h3>
+                                    <p className="text-slate-500">Revisa tu bandeja de entrada en unos minutos. ¡A por ello!</p>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleLeadSubmit} className="space-y-4">
+                                    <h3 className="text-xl font-bold text-slate-900 mb-6">Recibe el kit en tu email</h3>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Tu Nombre</label>
+                                        <input 
+                                            required
+                                            type="text" 
+                                            placeholder="Ej. Carlos García" 
+                                            className="w-full px-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                            value={leadForm.name}
+                                            onChange={(e) => setLeadForm({...leadForm, name: e.target.value})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Email del Club</label>
+                                        <input 
+                                            required
+                                            type="email" 
+                                            placeholder="ejemplo@clubpadel.com" 
+                                            className="w-full px-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                            value={leadForm.email}
+                                            onChange={(e) => setLeadForm({...leadForm, email: e.target.value})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Nombre del Club</label>
+                                        <input 
+                                            required
+                                            type="text" 
+                                            placeholder="Ej. Padel Indoor Madrid" 
+                                            className="w-full px-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                            value={leadForm.club}
+                                            onChange={(e) => setLeadForm({...leadForm, club: e.target.value})}
+                                        />
+                                    </div>
+                                    <button 
+                                        type="submit" 
+                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 group mt-4"
+                                    >
+                                        Enviar Kit Gratuito
+                                        <Download className="w-5 h-5 group-hover:translate-y-1 transition-transform" />
+                                    </button>
+                                    <p className="text-[10px] text-slate-400 text-center mt-4 font-medium italic">
+                                        No hacemos spam. Solo te enviaremos el kit y algún consejo útil para tu club.
+                                    </p>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Pricing */}
             <section id="pricing" className="py-24 bg-slate-50">
                 <div className="max-w-7xl mx-auto px-6">
@@ -843,8 +960,8 @@ const App = () => {
                 </div>
             </section>
 
-            {/* Cookie Banner */}
-            <CookieBanner />
+            {/* Consent Manager (renamed to avoid ad blockers) */}
+            <ConsentManager />
 
             {/* Legal Modals */}
             <LegalModal

@@ -60,6 +60,23 @@ export const deleteUser = async (id: string) => {
     return await deleteDoc(doc(db, "users", id));
 };
 
+export const logActivity = async (userId: string, content: string, author: string = 'SISTEMA') => {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+
+    const userData = userSnap.data() as User;
+    const note = {
+        id: Date.now().toString(),
+        content,
+        author,
+        date: new Date().toISOString()
+    };
+
+    const internalNotes = [...(userData.internalNotes || []), note];
+    return await updateDoc(userRef, { internalNotes });
+};
+
 // --- PLAYERS ---
 
 export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void, ownerId?: string) => {
@@ -218,7 +235,14 @@ export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, own
 export const addRanking = async (ranking: Omit<Ranking, "id">) => {
     // Sanitize data to remove undefined values before adding
     const sanitizedData = sanitizeForFirestore(ranking);
-    return await addDoc(collection(db, "rankings"), sanitizedData);
+    const result = await addDoc(collection(db, "rankings"), sanitizedData);
+    
+    // Log activity
+    if (ranking.ownerId) {
+        await logActivity(ranking.ownerId, `Creó el torneo: ${ranking.nombre}`);
+    }
+    
+    return result;
 };
 
 // Helper function to remove undefined values from objects (Firestore doesn't accept undefined)

@@ -216,8 +216,7 @@ export const checkoutRedirect = onRequest({
     const isPro = priceId === STRIPE_CONFIG.products.pro.priceId;
 
     // Determine the origin for redirects. 
-    // Usually we want to go back to the app, not the landing.
-    const origin = 'https://racketgrid-web.web.app';
+    const origin = 'https://app.racketgrid.com';
 
     try {
         const session = await stripe.checkout.sessions.create({

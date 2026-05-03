@@ -99,10 +99,21 @@ export const SuperAdminDashboard = ({
         const totalTournaments = userRankings.length;
         const userPlayers = Object.values(players).filter(p => p.ownerId === userId).length;
 
+        const totalMatches = userRankings.reduce((acc, r) => 
+            acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.length, 0), 0
+        );
+        const completedMatches = userRankings.reduce((acc, r) => 
+            acc + r.divisions.reduce((dAcc, d) => 
+                dAcc + d.matches.filter(m => m.status === 'finalizado').length, 0
+            ), 0
+        );
+        const occupationRate = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
+
         return {
             activeTournaments,
             totalTournaments,
-            totalPlayers: userPlayers
+            totalPlayers: userPlayers,
+            occupationRate
         };
     };
 
@@ -255,6 +266,7 @@ export const SuperAdminDashboard = ({
                                 <th className="px-6 py-4">Plan</th>
                                 <th className="px-6 py-4 text-center">Facturación</th>
                                 <th className="px-6 py-4 text-center">Torneos</th>
+                                <th className="px-6 py-4 text-center">Ocupación</th>
                                 <th className="px-6 py-4 text-center">Jugadores</th>
                                 <th className="px-6 py-4 text-center">Actividad</th>
                                 <th className="px-6 py-4 text-center">Estado</th>
@@ -309,6 +321,15 @@ export const SuperAdminDashboard = ({
                                             <div className="text-xs text-gray-400">activos / total</div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
+                                            <div className={`text-sm font-bold ${
+                                                stats.occupationRate > 70 ? 'text-green-600' :
+                                                stats.occupationRate > 40 ? 'text-yellow-600' :
+                                                'text-red-600'
+                                            }`}>
+                                                {stats.occupationRate}%
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
                                             <div className="text-sm font-bold text-gray-900">{stats.totalPlayers}</div>
                                             <div className="text-xs text-gray-400">
                                                 {planInfo.maxPlayers === Infinity ? '∞' : `/ ${planInfo.maxPlayers}`}
@@ -349,7 +370,7 @@ export const SuperAdminDashboard = ({
                                                 <button
                                                     onClick={() => onViewClient(user.id)}
                                                     className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                    title="Ver Dashboard"
+                                                    title="Ver Salud y Detalles"
                                                 >
                                                     <ChevronRight size={18} />
                                                 </button>

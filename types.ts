@@ -20,11 +20,22 @@ export interface User {
   lastPaymentError?: string;
 
   createdAt?: string; // ISO timestamp for when the user was created
-  internalNotes?: string; // Private notes for SuperAdmin use
+  internalNotes?: {
+    id: string;
+    content: string;
+    author: string;
+    date: string;
+  }[];
+  isSuspended?: boolean;
+  suspensionReason?: string;
+  customMaxPlayers?: number;
+  customMaxRankings?: number;
   lastLogin?: string; // ISO timestamp of the last time the user logged in
   branding?: {
     logoUrl?: string;
   };
+  stripeCouponId?: string;
+  trialDays?: number;
 }
 
 export interface Player {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
 
-export const CookieBanner = () => {
+export const ConsentManager = () => {
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {

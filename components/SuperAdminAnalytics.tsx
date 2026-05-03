@@ -118,9 +118,31 @@ export const SuperAdminAnalytics = ({
     const clubsInTrouble = useMemo(() => {
         return activeAdmins.filter(user => {
             const userRankings = rankings.filter(r => r.ownerId === user.id);
-            const pausedTournaments = userRankings.filter(r => r.status === 'pausado').length;
+            if (userRankings.length === 0) return false;
+
             const activeTournaments = userRankings.filter(r => r.status === 'activo').length;
-            return pausedTournaments > 0 || (activeTournaments === 0 && userRankings.length > 0);
+            
+            // Calculation: Occupation Rate for this club
+            const totalMatches = userRankings.reduce((acc, r) => 
+                acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.length, 0), 0
+            );
+            const completedMatches = userRankings.reduce((acc, r) => 
+                acc + r.divisions.reduce((dAcc, d) => 
+                    dAcc + d.matches.filter(m => m.status === 'finalizado').length, 0
+                ), 0
+            );
+            const occupationRate = totalMatches > 0 ? (completedMatches / totalMatches) : 1;
+
+            // Inactivity: Last created tournament date
+            const lastTournament = userRankings.sort((a, b) => 
+                new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()
+            )[0];
+            const daysSinceLastTournament = lastTournament 
+                ? (new Date().getTime() - new Date(lastTournament.fechaInicio).getTime()) / (1000 * 3600 * 24)
+                : 999;
+
+            // Flag if: No active tournaments OR low occupation (<30%) OR inactive (>20 days)
+            return activeTournaments === 0 || (occupationRate < 0.3 && totalMatches > 10) || daysSinceLastTournament > 20;
         }).slice(0, 5);
     }, [activeAdmins, rankings]);
 
@@ -130,7 +152,19 @@ export const SuperAdminAnalytics = ({
                 const userRankings = rankings.filter(r => r.ownerId === user.id);
                 const activeTournaments = userRankings.filter(r => r.status === 'activo').length;
                 const totalPlayers = Object.values(players).filter(p => p.ownerId === user.id).length;
-                return { user, activeTournaments, totalPlayers };
+                
+                // Calculate occupation for top clubs
+                const totalMatches = userRankings.reduce((acc, r) => 
+                    acc + r.divisions.reduce((dAcc, d) => dAcc + d.matches.length, 0), 0
+                );
+                const completedMatches = userRankings.reduce((acc, r) => 
+                    acc + r.divisions.reduce((dAcc, d) => 
+                        dAcc + d.matches.filter(m => m.status === 'finalizado').length, 0
+                    ), 0
+                );
+                const occupationRate = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
+
+                return { user, activeTournaments, totalPlayers, occupationRate };
             })
             .sort((a, b) => b.activeTournaments - a.activeTournaments)
             .slice(0, 5);
@@ -324,9 +358,20 @@ export const SuperAdminAnalytics = ({
                                         <div className="text-xs text-gray-400">{item.activeTournaments} torneos activos</div>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-sm font-black text-indigo-600">{item.totalPlayers}</div>
-                                    <div className="text-[10px] font-bold text-gray-400 uppercase">Jugadores</div>
+                                <div className="text-right flex flex-col items-end gap-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-sm font-black text-indigo-600">{item.totalPlayers}</div>
+                                        <div className="text-[10px] font-bold text-gray-400 uppercase">Jugadores</div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                            item.occupationRate > 70 ? 'bg-green-100 text-green-700' :
+                                            item.occupationRate > 40 ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-red-100 text-red-700'
+                                        }`}>
+                                            {item.occupationRate}% Ocupación
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))}
