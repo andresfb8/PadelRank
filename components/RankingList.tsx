@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
-import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon, Copy, LayoutGrid, List, Building, ArrowLeft, Search, Share2, Link as LinkIcon, Activity } from 'lucide-react';
+import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon, Copy, LayoutGrid, List, Building, ArrowLeft, Search, Share2, Link as LinkIcon, Activity, RotateCcw } from 'lucide-react';
 import { Button } from './ui/Components';
 import { Ranking, User, RankingFormat } from '../types';
 
 interface Props {
   rankings: Ranking[];
+  deletedRankings?: Ranking[];
   users?: User[]; // Optional, mostly for Superadmin to map names
   onSelect: (ranking: Ranking) => void;
   onCreateClick: () => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onRestore?: (id: string) => void;
+  onPermanentDelete?: (id: string) => void;
 }
 
-export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete, onDuplicate }: Props) => {
+export const RankingList = ({ rankings, deletedRankings = [], users, onSelect, onCreateClick, onDelete, onDuplicate, onRestore, onPermanentDelete }: Props) => {
 
-  const [tab, setTab] = React.useState<'activos' | 'historial'>('activos');
+  const [tab, setTab] = React.useState<'activos' | 'historial' | 'papelera'>('activos');
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string>('all');
@@ -114,7 +117,9 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
     // 1. Tab Filter
     const matchesTab = tab === 'activos'
       ? (r.status === 'activo' || r.status === 'pausado')
-      : r.status === 'finalizado';
+      : tab === 'historial'
+        ? r.status === 'finalizado'
+        : false;
     if (!matchesTab) return false;
 
     // 2. Client Filter (SuperAdmin)
@@ -345,6 +350,18 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
             >
               Historial
             </button>
+            <button
+              onClick={() => setTab('papelera')}
+              className={`px-4 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${tab === 'papelera' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Trash2 size={13} />
+              Papelera
+              {deletedRankings.length > 0 && (
+                <span className="bg-red-100 text-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  {deletedRankings.length}
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="bg-gray-100 p-1 rounded-lg flex items-center">
@@ -370,13 +387,87 @@ export const RankingList = ({ rankings, users, onSelect, onCreateClick, onDelete
         </div>
       </div>
 
-      {filteredRankings.length === 0 ? (
+      {/* Papelera View */}
+      {tab === 'papelera' && (
+        <div className="space-y-4">
+          {deletedRankings.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+              <Trash2 size={48} className="mx-auto text-gray-300 mb-3" />
+              <h3 className="text-lg font-medium text-gray-900">La papelera está vacía</h3>
+              <p className="text-gray-500">Los torneos eliminados aparecerán aquí durante 30 días.</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-800">
+                <Trash2 size={16} className="shrink-0" />
+                Los torneos en la papelera se eliminan definitivamente pasados 30 días. Puedes restaurarlos antes de que expire el plazo.
+              </div>
+              <div className="grid gap-3">
+                {deletedRankings.map(ranking => {
+                  const deletedDate = ranking.deletedAt ? new Date(ranking.deletedAt) : new Date();
+                  const expiresDate = new Date(deletedDate);
+                  expiresDate.setDate(expiresDate.getDate() + 30);
+                  const daysLeft = Math.ceil((expiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const styles = getFormatStyles(ranking.format);
+
+                  return (
+                    <div key={ranking.id} className="bg-white p-4 rounded-xl border border-red-100 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className={`w-1.5 h-12 rounded-full bg-gray-300`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-base font-bold text-gray-500 truncate">{ranking.nombre}</h3>
+                            <span className={`text-[10px] border px-2 py-0.5 rounded uppercase font-black tracking-wider ${styles.bg} ${styles.text} ${styles.border} opacity-60`}>
+                              {getFormatLabel(ranking.format)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                            <span className="flex items-center gap-1"><Calendar size={11} /> {ranking.fechaInicio}</span>
+                            <span>•</span>
+                            <span className={`font-bold ${daysLeft <= 5 ? 'text-red-500' : 'text-gray-400'}`}>
+                              Expira en {daysLeft} día{daysLeft !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {onRestore && (
+                          <button
+                            onClick={() => onRestore(ranking.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                            title="Restaurar torneo"
+                          >
+                            <RotateCcw size={14} /> Restaurar
+                          </button>
+                        )}
+                        {onPermanentDelete && (
+                          <button
+                            onClick={() => onPermanentDelete(ranking.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                            title="Eliminar definitivamente"
+                          >
+                            <Trash2 size={14} /> Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab !== 'papelera' && filteredRankings.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
           <Trophy size={48} className="mx-auto text-gray-300 mb-3" />
           <h3 className="text-lg font-medium text-gray-900">No hay torneos en esta sección</h3>
           <p className="text-gray-500 mb-4">{tab === 'activos' ? 'Crea un nuevo torneo para comenzar' : 'Los torneos finalizados aparecerán aquí'}</p>
         </div>
-      ) : (
+      )}
+
+      {tab !== 'papelera' && filteredRankings.length > 0 && (
         <div className="space-y-8">
           {Object.entries(groups).map(([groupName, groupRankings]) => (
             <div key={groupName} className="space-y-4">

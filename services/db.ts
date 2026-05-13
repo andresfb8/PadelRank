@@ -60,6 +60,23 @@ export const deleteUser = async (id: string) => {
     return await deleteDoc(doc(db, "users", id));
 };
 
+export const logActivity = async (userId: string, content: string, author: string = 'SISTEMA') => {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+
+    const userData = userSnap.data() as User;
+    const note = {
+        id: Date.now().toString(),
+        content,
+        author,
+        date: new Date().toISOString()
+    };
+
+    const internalNotes = [...(userData.internalNotes || []), note];
+    return await updateDoc(userRef, { internalNotes });
+};
+
 // --- PLAYERS ---
 
 export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void, ownerId?: string) => {
@@ -191,24 +208,78 @@ export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
 // --- RANKINGS (TOURNAMENTS) ---
 
 export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
-    // Always fetch all, filter on client (like players) to support Legacy/Mixed views
-    const q = query(collection(db, "rankings"), orderBy("nombre"));
+    let q;
+    if (ownerId) {
+        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId));
+    } else {
+        q = query(collection(db, "rankings"), orderBy("nombre"));
+    }
 
     return onSnapshot(q, (snapshot) => {
         const rankingsList: Ranking[] = [];
         snapshot.forEach((doc) => {
-            rankingsList.push({ id: doc.id, ...doc.data() } as Ranking);
+            const data = doc.data() as Ranking;
+            // Exclude soft-deleted rankings from the main list
+            if (!data.deletedAt) {
+                rankingsList.push({ id: doc.id, ...data });
+            }
         });
+
+        // Sort on client if we couldn't orderBy due to missing composite index
+        if (ownerId) {
+            rankingsList.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        }
+
         callback(rankingsList);
     }, (error) => {
         console.error("Error subscribing to rankings:", error);
     });
 };
 
+export const subscribeToDeletedRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
+    let q;
+    if (ownerId) {
+        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId));
+    } else {
+        q = query(collection(db, "rankings"), orderBy("nombre"));
+    }
+
+    return onSnapshot(q, (snapshot) => {
+        const deleted: Ranking[] = [];
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        snapshot.forEach((doc) => {
+            const data = doc.data() as Ranking;
+            if (data.deletedAt) {
+                const deletedDate = new Date(data.deletedAt);
+                if (deletedDate > thirtyDaysAgo) {
+                    deleted.push({ id: doc.id, ...data });
+                } else {
+                    // Auto-purge after 30 days
+                    deleteDoc(doc.ref).catch(() => {});
+                }
+            }
+        });
+
+        deleted.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+        callback(deleted);
+    }, (error) => {
+        console.error("Error subscribing to deleted rankings:", error);
+    });
+};
+
 export const addRanking = async (ranking: Omit<Ranking, "id">) => {
     // Sanitize data to remove undefined values before adding
     const sanitizedData = sanitizeForFirestore(ranking);
-    return await addDoc(collection(db, "rankings"), sanitizedData);
+    const result = await addDoc(collection(db, "rankings"), sanitizedData);
+    
+    // Log activity
+    if (ranking.ownerId) {
+        await logActivity(ranking.ownerId, `Creó el torneo: ${ranking.nombre}`);
+    }
+    
+    return result;
 };
 
 // Helper function to remove undefined values from objects (Firestore doesn't accept undefined)
@@ -236,6 +307,119 @@ export const updateRanking = async (ranking: Ranking) => {
     // Sanitize data to remove undefined values
     const sanitizedData = sanitizeForFirestore(data);
     return await updateDoc(rankingRef, sanitizedData);
+};
+
+/**
+ * Phase 3 write: Writes a ranking update while extracting all matches into
+ * the `rankings/{rankingId}/matches` subcollection. Keeps `divisions[].matches`
+ * as empty arrays in the root document, breaking the 1MB limit problem.
+ *
+ * UI components continue to receive the full Ranking object (with matches populated)
+ * because reads go through `subscribeToRankingWithMatches` which merges them back.
+ *
+ * Use this instead of `updateRanking` once migration is complete.
+ */
+export const updateRankingWithMatches = async (ranking: Ranking) => {
+    const { id, ...data } = ranking;
+    const rankingRef = doc(db, "rankings", id);
+    const batch = writeBatch(db);
+
+    // Extract matches into subcollection, clear from root divisions
+    const divisionsWithoutMatches = (data.divisions || []).map((division) => {
+        const matches = division.matches || [];
+        
+        // Write each match as its own document in the subcollection
+        matches.forEach((match) => {
+            const matchRef = doc(collection(db, "rankings", id, "matches"), match.id);
+            batch.set(matchRef, sanitizeForFirestore({
+                ...match,
+                divisionId: division.id,
+                rankingId: id,
+            }));
+        });
+
+        // Return division with empty matches array
+        return { ...division, matches: [] };
+    });
+
+    // Update root ranking document (no matches embedded)
+    const sanitizedData = sanitizeForFirestore({
+        ...data,
+        divisions: divisionsWithoutMatches,
+        _matchesMigrated: true,
+    });
+    batch.update(rankingRef, sanitizedData);
+
+    return await batch.commit();
+};
+
+/**
+ * Phase 3 read: Subscribes to a single ranking and its matches subcollection,
+ * then merges matches back into `division.matches[]` before calling the callback.
+ * The UI receives a complete Ranking object with matches populated as usual.
+ */
+export const subscribeToRankingWithMatches = (
+    rankingId: string,
+    callback: (ranking: Ranking | null) => void
+) => {
+    let currentRanking: Ranking | null = null;
+    let currentMatchDocs: any[] = [];
+
+    const mergeAndEmit = () => {
+        if (!currentRanking) return callback(null);
+
+        // Group matches by divisionId
+        const matchesByDiv: Record<string, any[]> = {};
+        currentMatchDocs.forEach((m) => {
+            if (!matchesByDiv[m.divisionId]) matchesByDiv[m.divisionId] = [];
+            matchesByDiv[m.divisionId].push(m);
+        });
+
+        // Merge matches back into divisions
+        const mergedDivisions = (currentRanking.divisions || []).map((div) => ({
+            ...div,
+            matches: matchesByDiv[div.id] || [],
+        }));
+
+        callback({ ...currentRanking, divisions: mergedDivisions });
+    };
+
+    // Subscribe to the root ranking document
+    const unsubRanking = onSnapshot(doc(db, "rankings", rankingId), (snap) => {
+        if (snap.exists()) {
+            currentRanking = { id: snap.id, ...snap.data() } as Ranking;
+        } else {
+            currentRanking = null;
+        }
+        mergeAndEmit();
+    }, (error) => console.error("Error subscribing to ranking:", error));
+
+    // Subscribe to the matches subcollection
+    const unsubMatches = onSnapshot(
+        collection(db, "rankings", rankingId, "matches"),
+        (snap) => {
+            currentMatchDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            mergeAndEmit();
+        },
+        (error) => console.error("Error subscribing to matches subcollection:", error)
+    );
+
+    return () => {
+        unsubRanking();
+        unsubMatches();
+    };
+};
+
+
+export const softDeleteRanking = async (id: string) => {
+    const rankingRef = doc(db, "rankings", id);
+    return await updateDoc(rankingRef, { deletedAt: new Date().toISOString() });
+};
+
+export const restoreRanking = async (id: string) => {
+    const rankingRef = doc(db, "rankings", id);
+    const { deleteField } = await import("firebase/firestore");
+    return await updateDoc(rankingRef, { deletedAt: deleteField() });
 };
 
 export const deleteRanking = async (id: string) => {

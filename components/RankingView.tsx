@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight } from 'lucide-react';
+import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
 import { exportRankingToPDF } from '../services/export';
@@ -217,9 +217,18 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         </button>
         <div className="flex gap-2">
           {isAdmin && (
-            <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500">
-              <Settings size={20} />
-            </button>
+            <>
+              <button
+                onClick={() => window.open(`${window.location.origin}${window.location.pathname}?tv=${ranking.id}`, '_blank')}
+                className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500"
+                title="Modo TV"
+              >
+                <Monitor size={20} />
+              </button>
+              <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500">
+                <Settings size={20} />
+              </button>
+            </>
           )}
           <button onClick={copyToClipboard} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500">
             <Share2 size={20} />
@@ -806,6 +815,38 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   };
 
 
+  const handleRollbackPhase = () => {
+    if (!ranking.phaseHistory?.length || !onUpdateRanking) return;
+
+    const lastSnapshot = ranking.phaseHistory[ranking.phaseHistory.length - 1];
+
+    if (!confirm(`¿Revertir a "${lastSnapshot.name}"? Los partidos de la fase actual se perderán y se restaurarán las divisiones y resultados de ${lastSnapshot.name}.`)) return;
+
+    // Identify match IDs that were added to history during this finalization
+    const snapshotMatchIds = new Set(
+      lastSnapshot.divisions.flatMap(d => d.matches.map(m => m.id))
+    );
+
+    // Remove those matches from history to restore the previous state
+    const restoredHistory = (ranking.history || []).filter(m => !snapshotMatchIds.has(m.id));
+
+    const updatedRanking: Ranking = {
+      ...ranking,
+      divisions: lastSnapshot.divisions,
+      history: restoredHistory,
+      phaseHistory: ranking.phaseHistory.slice(0, -1),
+      overrides: []
+    };
+
+    onUpdateRanking(updatedRanking);
+
+    // Navigate to first division of restored phase
+    if (lastSnapshot.divisions.length > 0) {
+      setActiveDivisionId(lastSnapshot.divisions[0].id);
+      setActiveTab('standings');
+    }
+  };
+
   const handleSubstitutePlayer = (data: { oldPlayerId: string, newPlayerId: string, nextPhaseDiv?: string }) => {
     if (!activeDivision || !onUpdateRanking || !data.oldPlayerId || !data.newPlayerId) return;
 
@@ -1361,6 +1402,17 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               title: 'Gestionar ascensos y descensos'
             },
             {
+              id: 'rollback-phase',
+              icon: RotateCcw,
+              label: 'Revertir Fase',
+              onClick: handleRollbackPhase,
+              visible: isAdmin && !!onUpdateRanking && !!(ranking.phaseHistory?.length) &&
+                (ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs'),
+              variant: 'secondary',
+              className: 'text-orange-600 bg-orange-50 border-orange-100 hover:bg-orange-100',
+              title: `Revertir a la fase anterior (${ranking.phaseHistory?.length ? ranking.phaseHistory[ranking.phaseHistory.length - 1].name : ''})`
+            },
+            {
               id: 'start-playoffs',
               icon: Play,
               label: 'Iniciar Playoff',
@@ -1435,6 +1487,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'secondary'
             },
 
+            {
+              id: 'tv-mode',
+              icon: Monitor,
+              label: 'Modo TV',
+              onClick: () => window.open(`${window.location.origin}${window.location.pathname}?tv=${ranking.id}`, '_blank'),
+              visible: isAdmin,
+              variant: 'secondary',
+              title: 'Abrir Modo TV en nueva pestaña'
+            },
             {
               id: 'settings',
               icon: Settings,
@@ -1839,7 +1900,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   snapshots = reconstructPhaseHistory(ranking);
                 }
                 snapshots.sort((a, b) => a.timestamp - b.timestamp);
-                
+
                 const selectedIdx = historyPhaseIndex !== null ? historyPhaseIndex : snapshots.length - 1;
                 const snap = snapshots[selectedIdx];
 
@@ -1908,7 +1969,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 if ((!ranking.phaseHistory || ranking.phaseHistory.length === 0) && ranking.history && ranking.history.length > 0) {
                   virtualRanking = { ...ranking, phaseHistory: reconstructPhaseHistory(ranking) };
                 }
-                
+
                 const histStats = calculatePlayerHistoryStats(virtualRanking);
                 const rows = Object.values(histStats).sort((a, b) => {
                   // Sort by total promotions desc, then best division asc

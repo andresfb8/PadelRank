@@ -16,63 +16,86 @@ service cloud.firestore {
     }
 
     // Check if user is SuperAdmin
-    // (We look up their user document to see if role == 'superadmin')
     function isSuperAdmin() {
       return isSignedIn() && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
     }
 
-    // Check if user OWNS the resource (e.g. Ranking or Player)
-    // Warning: On CREATE, we must check request.resource.data.ownerId
-    // On UPDATE/DELETE, we must check resource.data.ownerId
-    function isOwnerOfResource() {
-      return isSignedIn() && (
-        (resource == null && request.resource.data.ownerId == request.auth.uid) || 
-        (resource != null && resource.data.ownerId == request.auth.uid)
-      );
+    // NEW: Check if user is Staff and belongs to a specific owner
+    function isStaffOf(ownerId) {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isSignedIn() && 
+             userData.role == 'staff' && 
+             userData.parentAdminId == ownerId;
+    }
+
+    // Check if user OWNS the resource OR is STAFF of the owner
+    function hasClubAccess() {
+      if (!isSignedIn()) return false;
+      let uid = request.auth.uid;
+      let ownerId = resource != null ? resource.data.ownerId : request.resource.data.ownerId;
+      
+      // Case 1: Is Owner
+      if (ownerId == uid) return true;
+      
+      // Case 2: Is Staff of that Owner
+      return isStaffOf(ownerId);
     }
     
     // --- Collection Rules ---
 
     // 1. Users Collection
-    // - SuperAdmins can read/write all.
-    // - Users can read their own profile.
-    // - Users CANNOT modify their own profile (status/role managed by SuperAdmin), 
-    //   BUT we might allow them to edit name/clubName? 
-    //   For simplicity in strict mode: Only SuperAdmin edits users, or 'status' is protected.
-    //   Let's allow users to Read themselves.
     match /users/{userId} {
-      allow read: if isUser(userId) || isSuperAdmin();
-      // Allow create only if it's the user themselves (initial signup) OR SuperAdmin
+      allow read: if isUser(userId) || isSuperAdmin() || isStaffOf(userId);
       allow create: if isUser(userId) || isSuperAdmin();
-      // Update/Delete only by SuperAdmin (status management) or maybe Name editing?
-      // Let's restrict to SuperAdmin for management critical fields. 
-      // Safe generic rule: SuperAdmin does everything. Self can Update non-critical?
       allow write: if isUser(userId) || isSuperAdmin();
     }
 
     // 2. Rankings (Torneos)
     match /rankings/{rankingId} {
-      // Public Read (Anyone can view rankings via link)
-      allow read: if true;
+      allow get: if true;
       
-      // Create: Must be signed in and set ownerId to self
+      allow list: if (isSignedIn() && (resource.data.ownerId == request.auth.uid || isStaffOf(resource.data.ownerId))) || isSuperAdmin();
+      
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       
-      // Update/Delete: Owner (check existing resource) or SuperAdmin
       allow update, delete: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid || 
+        isStaffOf(resource.data.ownerId) ||
         isSuperAdmin()
       );
+
+      match /matches/{matchId} {
+        allow get: if true;
+        
+        allow list: if isSignedIn() && (
+          get(/databases/$(database)/documents/rankings/$(rankingId)).data.ownerId == request.auth.uid ||
+          isStaffOf(get(/databases/$(database)/documents/rankings/$(rankingId)).data.ownerId) ||
+          isSuperAdmin()
+        );
+        
+        allow write: if isSignedIn() && (
+          get(/databases/$(database)/documents/rankings/$(rankingId)).data.ownerId == request.auth.uid ||
+          isStaffOf(get(/databases/$(database)/documents/rankings/$(rankingId)).data.ownerId) ||
+          isSuperAdmin()
+        );
+      }
     }
 
     // 3. Players
     match /players/{playerId} {
-      // Public Read (Anyone can see players in a tournament)
-      allow read: if true;
-      
-      // Write: Strictly Owners or SuperAdmins
-      allow write: if isOwnerOfResource() || isSuperAdmin();
+      allow get: if true;
+      allow list: if (isSignedIn() && (resource.data.ownerId == request.auth.uid || isStaffOf(resource.data.ownerId))) || isSuperAdmin();
+      allow write: if (isSignedIn() && (
+        (resource == null && request.resource.data.ownerId == request.auth.uid) || 
+        (resource != null && (resource.data.ownerId == request.auth.uid || isStaffOf(resource.data.ownerId)))
+      )) || isSuperAdmin();
+    }
+    
+    // 4. Feedback
+    match /feedback/{id} {
+      allow create: if isSignedIn();
+      allow read: if isSuperAdmin();
     }
     
     // Default Deny

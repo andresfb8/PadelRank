@@ -1,4 +1,4 @@
-export type Role = 'superadmin' | 'admin' | 'public';
+export type Role = 'superadmin' | 'admin' | 'staff' | 'public';
 
 export interface User {
   id: string;
@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: Role;
   clubName?: string;
+  parentAdminId?: string; // ID of the Admin who owns the club this staff member belongs to
   status: 'active' | 'pending' | 'rejected' | 'blocked';
 
   // SaaS Subscription fields
@@ -19,11 +20,22 @@ export interface User {
   lastPaymentError?: string;
 
   createdAt?: string; // ISO timestamp for when the user was created
-  internalNotes?: string; // Private notes for SuperAdmin use
+  internalNotes?: {
+    id: string;
+    content: string;
+    author: string;
+    date: string;
+  }[];
+  isSuspended?: boolean;
+  suspensionReason?: string;
+  customMaxPlayers?: number;
+  customMaxRankings?: number;
   lastLogin?: string; // ISO timestamp of the last time the user logged in
   branding?: {
     logoUrl?: string;
   };
+  stripeCouponId?: string;
+  trialDays?: number;
 }
 
 export interface Player {
@@ -162,6 +174,9 @@ export interface Ranking {
   // Key: playerId or pairKey ("p1::p2")
   manualPointsAdjustments?: Record<string, number>; // DEPRECATED: Use manualStatsAdjustments
   manualStatsAdjustments?: Record<string, ManualStatsAdjustment>; // Key: playerId
+
+  // Soft delete: set when ranking is moved to trash; permanently deleted after 30 days
+  deletedAt?: string; // ISO date string
 }
 
 /**

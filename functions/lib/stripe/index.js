@@ -104,6 +104,12 @@ exports.stripeWebhook = (0, https_1.onRequest)({
             case 'customer.subscription.deleted':
                 await webhookHandlers.handleSubscriptionDeleted(event.data.object);
                 break;
+            case 'invoice.payment_failed':
+                await webhookHandlers.handleInvoicePaymentFailed(event.data.object);
+                break;
+            case 'invoice.payment_succeeded':
+                await webhookHandlers.handleInvoicePaymentSucceeded(event.data.object);
+                break;
             default:
                 console.log(`Unhandled event type ${event.type}`);
         }
@@ -193,7 +199,7 @@ exports.checkoutRedirect = (0, https_1.onRequest)({
     const isPro = priceId === config_1.STRIPE_CONFIG.products.pro.priceId;
     // Determine the origin for redirects. 
     // Usually we want to go back to the app, not the landing.
-    const origin = 'https://app.racketgrid.com';
+    const origin = 'https://racketgrid-web.web.app';
     try {
         const session = await stripe.checkout.sessions.create({
             mode: mode,

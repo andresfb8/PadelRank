@@ -14,13 +14,74 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.sendActivationEmail = exports.sendWelcomeEmail = void 0;
+exports.deleteUser = exports.sendActivationEmail = exports.sendWelcomeEmail = exports.migrateMatchesToSubcollection = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const resend_1 = require("resend");
 const params_1 = require("firebase-functions/params");
 const admin = require("firebase-admin");
 // Initialize Firebase Admin
 admin.initializeApp();
+/**
+ * PHASE 3 MIGRATION: Move matches from the root Ranking document into a subcollection.
+ */
+exports.migrateMatchesToSubcollection = (0, https_1.onCall)({ cors: true }, async (request) => {
+    var _a, _b, _c;
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+    const db = admin.firestore();
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    if (((_a = callerDoc.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'superadmin') {
+        throw new https_1.HttpsError('permission-denied', 'Only superadmins can run migrations.');
+    }
+    const dryRun = (_c = (_b = request.data) === null || _b === void 0 ? void 0 : _b.dryRun) !== null && _c !== void 0 ? _c : true;
+    const rankingsSnapshot = await db.collection('rankings').get();
+    const result = { total: rankingsSnapshot.size, migrated: 0, skipped: 0, errors: [] };
+    for (const rankingDoc of rankingsSnapshot.docs) {
+        const rankingId = rankingDoc.id;
+        const data = rankingDoc.data();
+        const divisions = data.divisions || [];
+        // Check if already migrated
+        const existingMatchesSnap = await db.collection('rankings').doc(rankingId).collection('matches').limit(1).get();
+        const allDivisionsEmpty = divisions.every(d => !d.matches || d.matches.length === 0);
+        if (allDivisionsEmpty && !existingMatchesSnap.empty) {
+            result.skipped++;
+            continue;
+        }
+        let totalMatchesInDoc = 0;
+        divisions.forEach(d => { totalMatchesInDoc += (d.matches || []).length; });
+        if (totalMatchesInDoc === 0) {
+            result.skipped++;
+            continue;
+        }
+        if (!dryRun) {
+            try {
+                const batch = db.batch();
+                const newDivisions = divisions.map((division) => {
+                    const matches = division.matches || [];
+                    matches.forEach((match) => {
+                        const matchRef = db.collection('rankings').doc(rankingId).collection('matches').doc(match.id);
+                        batch.set(matchRef, Object.assign(Object.assign({}, match), { divisionId: division.id, rankingId: rankingId, _migrated: true }));
+                    });
+                    return Object.assign(Object.assign({}, division), { matches: [] });
+                });
+                await batch.commit();
+                await db.collection('rankings').doc(rankingId).update({
+                    divisions: newDivisions,
+                    _matchesMigrated: true,
+                    _matchesMigratedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                result.migrated++;
+            }
+            catch (err) {
+                result.errors.push(`${rankingId}: ${err.message}`);
+            }
+        }
+        else {
+            result.migrated++;
+        }
+    }
+    return result;
+});
 // Define secret for secure access
 // Run: firebase functions:secrets:set RESEND_API_KEY
 const resendApiKey = (0, params_1.defineSecret)("RESEND_API_KEY");

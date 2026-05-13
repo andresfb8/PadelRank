@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleSubscriptionDeleted = exports.handleSubscriptionUpdated = exports.handleCheckoutSessionCompleted = void 0;
+exports.handleInvoicePaymentSucceeded = exports.handleInvoicePaymentFailed = exports.handleSubscriptionDeleted = exports.handleSubscriptionUpdated = exports.handleCheckoutSessionCompleted = void 0;
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const config_1 = require("./config");
@@ -88,4 +88,35 @@ const handleSubscriptionDeleted = async (subscription) => {
     });
 };
 exports.handleSubscriptionDeleted = handleSubscriptionDeleted;
+const handleInvoicePaymentFailed = async (invoice) => {
+    var _a;
+    const customerId = invoice.customer;
+    // Find user by stripeCustomerId
+    const usersSnapshot = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+    if (usersSnapshot.empty) {
+        console.error(`User not found for Stripe Customer: ${customerId}`);
+        return;
+    }
+    const userDoc = usersSnapshot.docs[0];
+    await userDoc.ref.update({
+        hasFailedPayment: true,
+        lastPaymentError: ((_a = invoice.last_finalization_error) === null || _a === void 0 ? void 0 : _a.message) || 'Error de pago'
+    });
+};
+exports.handleInvoicePaymentFailed = handleInvoicePaymentFailed;
+const handleInvoicePaymentSucceeded = async (invoice) => {
+    const customerId = invoice.customer;
+    // Find user by stripeCustomerId
+    const usersSnapshot = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+    if (usersSnapshot.empty) {
+        console.error(`User not found for Stripe Customer: ${customerId}`);
+        return;
+    }
+    const userDoc = usersSnapshot.docs[0];
+    await userDoc.ref.update({
+        hasFailedPayment: false,
+        lastPaymentError: admin.firestore.FieldValue.delete()
+    });
+};
+exports.handleInvoicePaymentSucceeded = handleInvoicePaymentSucceeded;
 //# sourceMappingURL=webhookHandlers.js.map
