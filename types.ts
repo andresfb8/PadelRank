@@ -174,6 +174,9 @@ export interface Ranking {
   // Key: playerId or pairKey ("p1::p2")
   manualPointsAdjustments?: Record<string, number>; // DEPRECATED: Use manualStatsAdjustments
   manualStatsAdjustments?: Record<string, ManualStatsAdjustment>; // Key: playerId
+
+  // Soft delete: set when ranking is moved to trash; permanently deleted after 30 days
+  deletedAt?: string; // ISO date string
 }
 
 /**

@@ -4,21 +4,28 @@ import { FormatAssignmentsProps } from './types';
 
 interface EliminationAssignmentsProps extends FormatAssignmentsProps {
     categories: string[];
-    categorySizes: Record<number, number>;
-    setCategorySizes: (sizes: Record<number, number>) => void;
-    handleAssignment: (catIdx: number, pairIdx: number, val: string, slotsCount: number) => void;
 }
 
 export const EliminationAssignments = ({
     config,
     assignments,
+    setAssignments,
     selectedPlayerIds,
     availablePlayers,
     categories,
-    categorySizes,
+    categorySizes = {},
     setCategorySizes,
-    handleAssignment,
 }: EliminationAssignmentsProps) => {
+    // Internal: self-contained assignment handler for pair slots
+    const handleAssignment = (catIdx: number, pairIdx: number, val: string, slotsCount: number) => {
+        const newA = { ...assignments };
+        if (!newA[catIdx]) newA[catIdx] = Array(slotsCount).fill('');
+        if (newA[catIdx].length < slotsCount) {
+            newA[catIdx] = [...newA[catIdx], ...Array(slotsCount - newA[catIdx].length).fill('')];
+        }
+        newA[catIdx][pairIdx] = val;
+        setAssignments(newA);
+    };
     // Only pairs type is fully implemented for categories
     if (config.eliminationConfig?.type !== 'pairs') {
         return (

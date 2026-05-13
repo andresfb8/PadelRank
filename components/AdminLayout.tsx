@@ -39,6 +39,7 @@ import { ClubSettingsModal } from './ClubSettingsModal';
 import {
     subscribeToPlayers,
     subscribeToRankings,
+    subscribeToDeletedRankings,
     subscribeToUsers,
     addPlayer,
     updatePlayer,
@@ -46,6 +47,8 @@ import {
     importPlayersBatch,
     addRanking,
     updateRanking,
+    softDeleteRanking,
+    restoreRanking,
     deleteRanking,
     clearDatabase,
     addUser, // We still use this even though it might differ from Auth ID
@@ -69,6 +72,7 @@ export const AdminLayout = () => {
     // Data
     const [players, setPlayers] = useState<Record<string, Player>>({});
     const [rankings, setRankings] = useState<Ranking[]>([]);
+    const [deletedRankings, setDeletedRankings] = useState<Ranking[]>([]);
     const [activeRankingId, setActiveRankingId] = useState<string | null>(null);
     const [staffMembers, setStaffMembers] = useState<User[]>([]);
     const [feedback, setFeedback] = useState<any[]>([]);
@@ -242,9 +246,19 @@ export const AdminLayout = () => {
             setRankings(visibleData);
         }, ownerIdFilter);
 
+        // Sub Deleted Rankings (Trash)
+        const unsubscribeDeleted = subscribeToDeletedRankings((data) => {
+            let visibleData = data;
+            if (ownerIdFilter) {
+                visibleData = data.filter(r => !r.ownerId || r.ownerId === ownerIdFilter);
+            }
+            setDeletedRankings(visibleData);
+        }, ownerIdFilter);
+
         return () => {
             unsubscribePlayers();
             unsubscribeRankings();
+            unsubscribeDeleted();
         };
     }, [effectiveUser, impersonatedUserId, currentUser]); // Re-run if effectiveUser changes
 
@@ -306,7 +320,19 @@ export const AdminLayout = () => {
         }
     };
     const handleDeleteRanking = async (id: string) => {
-        if (confirm('¿Borrar torneo?')) await deleteRanking(id);
+        if (confirm('¿Mover torneo a la papelera? Podrás recuperarlo durante 30 días.')) {
+            await softDeleteRanking(id);
+        }
+    };
+
+    const handleRestoreRanking = async (id: string) => {
+        await restoreRanking(id);
+    };
+
+    const handlePermanentDeleteRanking = async (id: string) => {
+        if (confirm('¿Eliminar definitivamente? Esta acción no se puede deshacer.')) {
+            await deleteRanking(id);
+        }
     };
     const handleDuplicateRanking = async (id: string) => {
         if (!effectiveUser?.id) return;
@@ -784,7 +810,7 @@ export const AdminLayout = () => {
                         onImportPlayers={handleImportPlayers}
                     />}
 
-                    {view === 'ranking_list' && <RankingList rankings={rankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDeleteRanking} />}
+                    {view === 'ranking_list' && <RankingList rankings={rankings} deletedRankings={deletedRankings} users={users} onSelect={handleRankingSelect} onCreateClick={() => setView('ranking_create')} onDelete={handleDeleteRanking} onDuplicate={handleDuplicateRanking} onRestore={handleRestoreRanking} onPermanentDelete={handlePermanentDeleteRanking} />}
                     {view === 'ranking_create' && <RankingWizard
                         players={players}
                         currentUser={effectiveUser}

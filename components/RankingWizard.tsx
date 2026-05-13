@@ -175,9 +175,11 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                     return;
                                 }
                                 setFormat(f.id as RankingFormat);
-                                // Reset assignments when changing format
+                                // Reset all step-3 state when changing format to prevent cross-format contamination
                                 setAssignments({});
                                 setNumDivisions(1);
+                                setCategories([]);
+                                setCategorySizes({});
 
                                 // Pairs Defaults
                                 if (f.id === 'pairs') {
@@ -356,27 +358,17 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         </div>
     );
 
-    const handleAssignment = (divIdx, pIdx, pId, maxP) => {
-        const newA = { ...assignments };
-        if (!newA[divIdx]) newA[divIdx] = Array(maxP).fill('');
-        if (newA[divIdx].length < maxP) {
-            newA[divIdx] = [...newA[divIdx], ...Array(maxP - newA[divIdx].length).fill('')];
-        }
-        newA[divIdx][pIdx] = pId;
-        setAssignments(newA);
-    };
-
     const renderStep3 = () => (
         <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-800">Jugadores y Asignaciones</h3>
-            {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} handleAssignment={handleAssignment} />}
-            {format === 'elimination' && <EliminationAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} handleAssignment={handleAssignment} categories={categories} categorySizes={{}} setCategorySizes={()=>{}} />}
-            {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} handleAssignment={handleAssignment} />}
+            {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
+            {format === 'elimination' && <EliminationAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} />}
+            {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
         </div>
     );
 
     const handleSaveRanking = () => {
-        const userPlan = currentUser?.subscription?.plan || 'free';
+        const userPlan = currentUser?.plan || 'free';
         const tournamentCheck = canCreateTournament(activeRankingsCount, userPlan, currentUser?.role === 'superadmin');
         if (!tournamentCheck.allowed) return alert(tournamentCheck.message);
         if (!name) return alert('Falta el nombre del torneo');

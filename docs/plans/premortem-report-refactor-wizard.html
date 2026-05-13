@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reporte de Premortem: Refactorización Ranking Wizard</title>
+<style>
+  body { background-color: #0a0e1a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1, h2, h3, h4 { color: #f8fafc; }
+  h1 { font-size: 2.5rem; border-bottom: 1px solid #334155; padding-bottom: 1rem; margin-bottom: 2rem; }
+  .synthesis { background-color: #1e293b; padding: 2rem; border-radius: 8px; margin-bottom: 3rem; border-left: 5px solid #3b82f6; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+  .synthesis h2 { margin-top: 0; color: #60a5fa; }
+  .synthesis-item { margin-bottom: 1.5rem; }
+  .synthesis-item:last-child { margin-bottom: 0; }
+  .synthesis-item strong { display: block; color: #93c5fd; margin-bottom: 0.25rem; font-size: 1.1rem; }
+  .checklist { background-color: #0f172a; padding: 1.5rem; border-radius: 6px; border: 1px dashed #475569; margin-top: 1rem; }
+  .checklist ul { margin: 0; padding-left: 1.5rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+  .card { background-color: #0f172a; padding: 1.5rem; border-radius: 8px; border: 1px solid #334155; display: flex; flex-direction: column; }
+  .card h3 { margin-top: 0; margin-bottom: 0.5rem; font-size: 1.25rem; }
+  .c-red h3 { color: #ef4444; } .c-red { border-top: 4px solid #ef4444; }
+  .c-orange h3 { color: #f97316; } .c-orange { border-top: 4px solid #f97316; }
+  .c-yellow h3 { color: #eab308; } .c-yellow { border-top: 4px solid #eab308; }
+  .c-purple h3 { color: #a855f7; } .c-purple { border-top: 4px solid #a855f7; }
+  .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: bold; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .bg-red { background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+  .bg-orange { background-color: rgba(249, 115, 22, 0.15); color: #fdba74; }
+  .bg-yellow { background-color: rgba(234, 179, 8, 0.15); color: #fde047; }
+  .bg-purple { background-color: rgba(168, 85, 247, 0.15); color: #d8b4fe; }
+  .section-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: bold; }
+  .footer { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid #334155; text-align: center; color: #64748b; font-size: 0.875rem; }
+</style>
+</head>
+<body>
+
+  <h1>Reporte de Premortem</h1>
+  
+  <div class="synthesis">
+    <h2>Síntesis Ejecutiva</h2>
+    <p style="color: #cbd5e1; margin-bottom: 2rem; font-style: italic;">"Han pasado 6 meses. La refactorización del Ranking Wizard ha fallado. Está hecho. Miramos hacia atrás para entender qué salió mal."</p>
+    
+    <div class="synthesis-item">
+      <strong>1. El Fallo Más Probable</strong>
+      Desincronización del estado y "Prop Drilling". Al dividir el monolito, el paso del estado (config, assignments) a través de props complejas generó re-renderizados excesivos y pérdida de datos al navegar entre los pasos del Wizard.
+    </div>
+    
+    <div class="synthesis-item">
+      <strong>2. El Fallo Más Peligroso</strong>
+      Casos límite de lógica de negocio destruidos. Los masivos bloques if-else originales escondían reglas críticas (ej. formatos híbridos o lógica de cuadros de consolación) que se perdieron en la extracción a `wizardGenerators.ts`, causando que se generaran torneos corruptos en producción.
+    </div>
+    
+    <div class="synthesis-item">
+      <strong>3. El Supuesto Oculto</strong>
+      Asumes que el estado del RankingWizard actual es estático y fácilmente divisible por componentes, olvidando que en el monolito existen dependencias implícitas donde cambiar un campo en el Paso 2 resetea silenciosamente datos del Paso 3.
+    </div>
+    
+    <div class="synthesis-item">
+      <strong>4. El Plan Revisado</strong>
+      Antes de mover un solo archivo de UI, extrae primero todo el estado a un <code>useRankingWizardStore</code> (Zustand). Luego, escribe tests unitarios para las lógicas de generación de cada formato antes de moverlas a <code>wizardGenerators.ts</code>.
+    </div>
+    
+    <div class="checklist">
+      <strong>5. Lista de Verificación Pre-Refactor</strong>
+      <ul>
+        <li>Implementar un store de Zustand dedicado al Wizard para evitar el infierno de props.</li>
+        <li>Escribir 1 test E2E/unitario de generación exitosa para cada uno de los 5 formatos principales sobre el código viejo.</li>
+        <li>Auditar el código viejo buscando "efectos secundarios" ocultos entre pasos antes de aislarlos.</li>
+        <li>Verificar el rendimiento de re-renderizado con una carga simulada de +100 jugadores en las cuadrículas.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Análisis Profundo de Escenarios de Fallo (4 Agentes)</h2>
+  
+  <div class="grid">
+    <!-- Card 1 -->
+    <div class="card c-red">
+      <div class="badge bg-red">Alta Probabilidad / Alto Impacto</div>
+      <h3>Infierno de Props y Desincronización de Estado</h3>
+      <p><strong>La Historia:</strong> La refactorización extrajo visualmente los componentes, pero se mantuvieron las interfaces <code>FormatConfigProps</code> y <code>FormatAssignmentsProps</code> inyectadas desde el componente padre. Cuando los administradores intentaban crear un torneo Americano grande, modificar la configuración en el paso 2 causaba que el estado no se propagara correctamente al paso 3, o los masivos objetos de asignación provocaban bloqueos en la UI por re-renderizados continuos.</p>
+      <div class="section-title">El Supuesto Subyacente</div>
+      <p>Asumiste que la gestión de estado local en el componente contenedor sería suficiente y escalable al pasarla por props a subcomponentes complejos.</p>
+      <div class="section-title">Señales de Advertencia Tempranas</div>
+      <p>- Notar que tienes que pasar más de 4-5 props de estado y setters a cada componente <code>*Config</code>.<br>- Lentitud perceptible al teclear en los inputs de configuración en torneos con muchos inscritos.</p>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="card c-orange">
+      <div class="badge bg-orange">Impacto Crítico</div>
+      <h3>Pérdida de Reglas de Negocio en la Extracción</h3>
+      <p><strong>La Historia:</strong> Al mover los enormes bloques <code>if-else</code> de la función de guardado a los nuevos <code>wizardGenerators.ts</code>, los desarrolladores "limpiaron" el código. Sin darse cuenta, eliminaron las lógicas parches que prevenían inscripciones impares en modalidades específicas o los "pull-backs" del cuadro de consolación. Semanas después, torneos enteros comenzaron a corromperse al guardar, generando cruces imposibles de jugadores.</p>
+      <div class="section-title">El Supuesto Subyacente</div>
+      <p>Asumiste que la lógica monolítica era simplemente "código feo" y no una acumulación de reglas de negocio vitales y casos límite descubiertos en producción.</p>
+      <div class="section-title">Señales de Advertencia Tempranas</div>
+      <p>- Extracción de la lógica "a ojo" sin que un test de regresión falle.<br>- Múltiples errores de tipado de TypeScript que se resolvieron con <code>as any</code> o ignorando propiedades en <code>wizardGenerators.ts</code>.</p>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="card c-yellow">
+      <div class="badge bg-yellow">Probabilidad Media</div>
+      <h3>Ruptura de Dependencias de Ciclo de Vida</h3>
+      <p><strong>La Historia:</strong> En el monolito, cuando el usuario cambiaba el "Modo de Puntuación", un <code>useEffect</code> oculto reseteaba silenciosamente las cuadrículas de asignación. Al separar esto en <code>AmericanoConfig</code> y <code>AmericanoAssignments</code>, ese ciclo de vida se rompió. Los organizadores empezaron a enviar torneos con configuraciones incongruentes porque el paso 3 mantenía datos en caché del formato anterior.</p>
+      <div class="section-title">El Supuesto Subyacente</div>
+      <p>Asumiste que los "pasos" del Wizard eran mutuamente excluyentes e independientes en su lógica, ignorando los efectos secundarios entrelazados.</p>
+      <div class="section-title">Señales de Advertencia Tempranas</div>
+      <p>- Tener que usar <code>useEffect</code> en el componente padre <code>RankingWizard</code> para sincronizar datos entre los subcomponentes.<br>- El usuario navega atrás al Paso 2, cambia un valor, vuelve al Paso 3, y los datos no se recalculan.</p>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="card c-purple">
+      <div class="badge bg-purple">Baja Probabilidad / Alto Esfuerzo</div>
+      <h3>Parálisis por Sobre-Abstracción (Interfaces Inflexibles)</h3>
+      <p><strong>La Historia:</strong> La creación de interfaces rígidamente compartidas como <code>FormatConfigProps</code> forzó a todos los torneos a encajar en la misma estructura de datos (ej. <code>numDivisions</code>, <code>individualMaxPlayers</code>). Cuando un mes después intentaron añadir un formato radicalmente distinto (ej. Rey de Pista), se dieron cuenta de que la interfaz compartida era un cuello de botella, obligándolos a reescribir la refactorización.</p>
+      <div class="section-title">El Supuesto Subyacente</div>
+      <p>Asumiste que todos los formatos actuales y futuros compartirán el 90% de las necesidades de configuración, por lo que una interfaz común estricta era el mejor enfoque.</p>
+      <div class="section-title">Señales de Advertencia Tempranas</div>
+      <p>- Comenzar a añadir campos opcionales específicos (ej. <code>pozoMultiplier?</code>) a la interfaz global <code>FormatConfigProps</code>.<br>- Componentes que reciben props que nunca utilizan.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Generado por la Skill Premortem de Claude • Proyecto: PadelRank (Refactorización Ranking Wizard) • Fecha: 2026-05-10</p>
+  </div>
+
+</body>
+</html>

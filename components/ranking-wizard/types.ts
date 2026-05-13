@@ -16,5 +16,9 @@ export interface FormatAssignmentsProps {
     availablePlayers: Player[];
     numDivisions: number;
     config: RankingConfig;
+    setConfig: (config: RankingConfig) => void;
     individualMaxPlayers: number;
+    // Optional: used by EliminationAssignments to manage per-category bracket sizes
+    categorySizes?: Record<number, number>;
+    setCategorySizes?: (sizes: Record<number, number>) => void;
 }

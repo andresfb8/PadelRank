@@ -34,8 +34,8 @@ export const AmericanoConfig = ({
                     <button
                         onClick={() => setVariant('individual')}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${variant === 'individual' || !variant
-                                ? 'bg-white shadow-sm text-primary'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-white shadow-sm text-primary'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Individual (Rotatorio)
@@ -43,8 +43,8 @@ export const AmericanoConfig = ({
                     <button
                         onClick={() => setVariant('pairs')}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${variant === 'pairs'
-                                ? 'bg-white shadow-sm text-primary'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-white shadow-sm text-primary'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Parejas Fijas

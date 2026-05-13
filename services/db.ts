@@ -218,17 +218,54 @@ export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, own
     return onSnapshot(q, (snapshot) => {
         const rankingsList: Ranking[] = [];
         snapshot.forEach((doc) => {
-            rankingsList.push({ id: doc.id, ...doc.data() } as Ranking);
+            const data = doc.data() as Ranking;
+            // Exclude soft-deleted rankings from the main list
+            if (!data.deletedAt) {
+                rankingsList.push({ id: doc.id, ...data });
+            }
         });
-        
+
         // Sort on client if we couldn't orderBy due to missing composite index
         if (ownerId) {
             rankingsList.sort((a, b) => a.nombre.localeCompare(b.nombre));
         }
-        
+
         callback(rankingsList);
     }, (error) => {
         console.error("Error subscribing to rankings:", error);
+    });
+};
+
+export const subscribeToDeletedRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
+    let q;
+    if (ownerId) {
+        q = query(collection(db, "rankings"), where("ownerId", "==", ownerId));
+    } else {
+        q = query(collection(db, "rankings"), orderBy("nombre"));
+    }
+
+    return onSnapshot(q, (snapshot) => {
+        const deleted: Ranking[] = [];
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        snapshot.forEach((doc) => {
+            const data = doc.data() as Ranking;
+            if (data.deletedAt) {
+                const deletedDate = new Date(data.deletedAt);
+                if (deletedDate > thirtyDaysAgo) {
+                    deleted.push({ id: doc.id, ...data });
+                } else {
+                    // Auto-purge after 30 days
+                    deleteDoc(doc.ref).catch(() => {});
+                }
+            }
+        });
+
+        deleted.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+        callback(deleted);
+    }, (error) => {
+        console.error("Error subscribing to deleted rankings:", error);
     });
 };
 
@@ -373,6 +410,17 @@ export const subscribeToRankingWithMatches = (
     };
 };
 
+
+export const softDeleteRanking = async (id: string) => {
+    const rankingRef = doc(db, "rankings", id);
+    return await updateDoc(rankingRef, { deletedAt: new Date().toISOString() });
+};
+
+export const restoreRanking = async (id: string) => {
+    const rankingRef = doc(db, "rankings", id);
+    const { deleteField } = await import("firebase/firestore");
+    return await updateDoc(rankingRef, { deletedAt: deleteField() });
+};
 
 export const deleteRanking = async (id: string) => {
     return await deleteDoc(doc(db, "rankings", id));

@@ -8,7 +8,6 @@ interface AmericanoAssignmentsProps extends FormatAssignmentsProps {
     format: 'americano' | 'mexicano';
     setNumDivisions: (num: number) => void;
     setIndividualMaxPlayers: (num: number) => void;
-    handleAssignment: (divIdx: number, pIdx: number, val: string, slotsCount: number) => void;
 }
 
 export const AmericanoAssignments = ({
@@ -23,10 +22,20 @@ export const AmericanoAssignments = ({
     setNumDivisions,
     individualMaxPlayers,
     setIndividualMaxPlayers,
-    handleAssignment,
 }: AmericanoAssignmentsProps) => {
     const variant = format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant;
     const isPairs = variant === 'pairs';
+
+    // Internal: mirrors the parent's handleAssignment logic, self-contained
+    const handleAssignment = (divIdx: number, pIdx: number, pId: string, maxP: number) => {
+        const newA = { ...assignments };
+        if (!newA[divIdx]) newA[divIdx] = Array(maxP).fill('');
+        if (newA[divIdx].length < maxP) {
+            newA[divIdx] = [...newA[divIdx], ...Array(maxP - newA[divIdx].length).fill('')];
+        }
+        newA[divIdx][pIdx] = pId;
+        setAssignments(newA);
+    };
 
     const handleAutoDistributeIndividual = () => {
         const assignedPlayers = Object.values(assignments).flat().map((p: string) =>

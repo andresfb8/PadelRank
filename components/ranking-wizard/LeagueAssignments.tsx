@@ -10,7 +10,6 @@ interface LeagueAssignmentsProps extends FormatAssignmentsProps {
     format: LeagueFormat;
     setNumDivisions: (num: number) => void;
     setIndividualMaxPlayers: (num: number) => void;
-    handleAssignment: (divIdx: number, pIdx: number, val: string, slotsCount: number) => void;
 }
 
 export const LeagueAssignments = ({
@@ -24,10 +23,20 @@ export const LeagueAssignments = ({
     setNumDivisions,
     individualMaxPlayers,
     setIndividualMaxPlayers,
-    handleAssignment,
 }: LeagueAssignmentsProps) => {
     const isPozoFixedPairs = format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs';
     const isPairsMode = format === 'pairs' || format === 'hybrid' || isPozoFixedPairs;
+
+    // Internal: self-contained assignment handler, no longer injected from parent
+    const handleAssignment = (divIdx: number, pIdx: number, pId: string, maxP: number) => {
+        const newA = { ...assignments };
+        if (!newA[divIdx]) newA[divIdx] = Array(maxP).fill('');
+        if (newA[divIdx].length < maxP) {
+            newA[divIdx] = [...newA[divIdx], ...Array(maxP - newA[divIdx].length).fill('')];
+        }
+        newA[divIdx][pIdx] = pId;
+        setAssignments(newA);
+    };
 
     // ─── Auto-distribute: Individual ────────────────────────────────────────────
     const handleAutoDistributeIndividual = () => {
