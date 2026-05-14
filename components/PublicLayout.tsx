@@ -105,7 +105,7 @@ export const PublicLayout = ({ rankingId }: Props) => {
                 </div>
             </header>
 
-            <main className="p-4 md:p-8 max-w-7xl mx-auto flex-1 w-full">
+            <main className="p-4 md:p-8 flex-1 w-full">
                 {selectedPlayerId && isPairSelection ? (
                     <PairDetailView
                         pairId={selectedPlayerId}
