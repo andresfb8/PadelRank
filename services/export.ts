@@ -1106,7 +1106,6 @@ export const exportRankingAndMatchesToPDF = (
     doc.text('Clasificación', 15, currentY);
     currentY += 10;
 
-    const standings = standingsCallback();
     const formatName = (id: string): string => {
         if (!id) return "Desconocido";
         if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
@@ -1137,48 +1136,77 @@ export const exportRankingAndMatchesToPDF = (
         );
     }
 
-    const tableData = standings.map(row => ({
-        pos: row.pos,
-        name: formatName(row.playerId),
-        matchCount: row.pj,
-        pts: row.pts,
-        matchesWon: row.pg,
-        matchesLost: row.pj - row.pg,
-        setsDiff: row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff,
-        gamesDiff: row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff
-    }));
+    // Generate standings for each division
+    const { generateStandings } = require('../services/logic');
+    divisions.forEach(division => {
+        // Add division title
+        doc.setFontSize(12);
+        doc.setTextColor(63, 81, 181);
+        doc.text(division.category || `División ${division.numero}`, 15, currentY);
+        currentY += 7;
 
-    const finalBody = tableData.map(row => tableColumns.map(c => (row as any)[c.dataKey]));
+        // Get standings for this division
+        const divisionStandings = generateStandings(
+            division.id,
+            division.matches,
+            division.players,
+            ranking.format as any,
+            ranking.manualPointsAdjustments,
+            ranking.manualStatsAdjustments,
+            ranking.config?.tieBreakCriteria
+        );
 
-    autoTable(doc, {
-        startY: currentY,
-        head: [tableColumns.map(c => c.header)],
-        body: finalBody,
-        styles: {
-            fontSize: 9,
-            cellPadding: 2,
-            valign: 'middle'
-        },
-        headStyles: {
-            fillColor: [63, 81, 181],
-            textColor: 255,
-            fontStyle: 'bold',
-            halign: 'center'
-        },
-        columnStyles: tableColumns.reduce((acc, col, index) => {
-            if (col.key === 'pos') acc[index] = { halign: 'center', fontStyle: 'bold', cellWidth: 12 };
-            else if (col.key === 'player') acc[index] = { halign: 'left', cellWidth: 40 };
-            else if (col.key === 'pts') acc[index] = { halign: 'center', fontStyle: 'bold' };
-            else acc[index] = { halign: 'center' };
-            return acc;
-        }, {} as any),
-        alternateRowStyles: {
-            fillColor: [245, 245, 245]
-        },
-        margin: { bottom: 20 }
+        const tableData = divisionStandings.map(row => ({
+            pos: row.pos,
+            name: formatName(row.playerId),
+            matchCount: row.pj,
+            pts: row.pts,
+            matchesWon: row.pg,
+            matchesLost: row.pj - row.pg,
+            setsDiff: row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff,
+            gamesDiff: row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff
+        }));
+
+        const finalBody = tableData.map(row => tableColumns.map(c => (row as any)[c.dataKey]));
+
+        if (finalBody.length > 0) {
+            autoTable(doc, {
+                startY: currentY,
+                head: [tableColumns.map(c => c.header)],
+                body: finalBody,
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 1.5,
+                    valign: 'middle'
+                },
+                headStyles: {
+                    fillColor: [63, 81, 181],
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                columnStyles: tableColumns.reduce((acc, col, index) => {
+                    if (col.key === 'pos') acc[index] = { halign: 'center', fontStyle: 'bold', cellWidth: 10 };
+                    else if (col.key === 'player') acc[index] = { halign: 'left', cellWidth: 35 };
+                    else if (col.key === 'pts') acc[index] = { halign: 'center', fontStyle: 'bold' };
+                    else acc[index] = { halign: 'center' };
+                    return acc;
+                }, {} as any),
+                alternateRowStyles: {
+                    fillColor: [245, 245, 245]
+                },
+                margin: { bottom: 10 }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 8;
+        }
+
+        // Add page break if needed
+        if (currentY > 250) {
+            doc.addPage();
+            currentY = 20;
+        }
     });
-
-    currentY = (doc as any).lastAutoTable.finalY + 10;
 
     // --- PAGE BREAK ---
     doc.addPage();
