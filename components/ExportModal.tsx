@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, FileText, Download, Sheet, Code } from 'lucide-react';
 import { Button, Card, Modal } from './ui/Components';
 import { Division, Ranking, StandingRow, Player } from '../types';
-import { generateStandings } from '../services/logic';
 import {
   exportRankingToPDF,
   exportRankingToCSV,
@@ -61,104 +60,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     selectedDivisions.includes(d.id)
   );
 
-  // Generate combined standings for selected divisions
-  const getCombinedStandings = (): StandingRow[] => {
-    if (filteredDivisions.length === 0) return [];
-
-    const allStandings: StandingRow[] = [];
-    const playerStatsMap: Record<string, StandingRow> = {};
-
-    // Aggregate standings from all selected divisions
-    filteredDivisions.forEach(division => {
-      const divisionStandings = generateStandings(
-        division.id,
-        division.matches,
-        division.players,
-        ranking.format as any,
-        ranking.manualPointsAdjustments,
-        ranking.manualStatsAdjustments,
-        ranking.config?.tieBreakCriteria
-      );
-
-      divisionStandings.forEach(row => {
-        if (playerStatsMap[row.playerId]) {
-          // Combine stats
-          const existing = playerStatsMap[row.playerId];
-          playerStatsMap[row.playerId] = {
-            ...existing,
-            pj: existing.pj + row.pj,
-            pg: existing.pg + row.pg,
-            pp: existing.pp + row.pp,
-            pts: existing.pts + row.pts,
-            setsWon: existing.setsWon + row.setsWon,
-            setsLost: existing.setsLost + row.setsLost,
-            setsDiff: existing.setsDiff + row.setsDiff,
-            gamesWon: existing.gamesWon + row.gamesWon,
-            gamesLost: existing.gamesLost + row.gamesLost,
-            gamesDiff: existing.gamesDiff + row.gamesDiff,
-            winRate: existing.pj > 0 ? (existing.pg / existing.pj) * 100 : 0
-          };
-        } else {
-          playerStatsMap[row.playerId] = row;
-        }
-      });
-    });
-
-    // Convert to array and sort by points
-    allStandings.push(...Object.values(playerStatsMap));
-    allStandings.sort((a, b) => {
-      if (b.pts !== a.pts) return b.pts - a.pts;
-      if (ranking.config?.tieBreakCriteria) {
-        for (const criterion of ranking.config.tieBreakCriteria) {
-          let aVal = 0, bVal = 0;
-          switch (criterion) {
-            case 'setsDiff':
-              aVal = a.setsDiff;
-              bVal = b.setsDiff;
-              break;
-            case 'gamesDiff':
-              aVal = a.gamesDiff;
-              bVal = b.gamesDiff;
-              break;
-            case 'pg':
-              aVal = a.pg;
-              bVal = b.pg;
-              break;
-            case 'setsWon':
-              aVal = a.setsWon;
-              bVal = b.setsWon;
-              break;
-            case 'gamesWon':
-              aVal = a.gamesWon;
-              bVal = b.gamesWon;
-              break;
-          }
-          if (aVal !== bVal) return bVal - aVal;
-        }
-      }
-      return 0;
-    });
-
-    // Recalculate positions
-    return allStandings.map((row, idx) => ({
-      ...row,
-      pos: idx + 1
-    }));
-  };
-
   const handleExport = () => {
     const config = {
       rankingName: ranking.nombre,
-      categoryName: filteredDivisions.length === ranking.divisions.length ? 'Todas las divisiones' : `${filteredDivisions.length} divisiones`,
+      categoryName: 'Todas las divisiones',
       clubName: 'Racket Grid'
     };
 
-    // Use combined standings from selected divisions
-    const combinedStandingsCallback = () => getCombinedStandings();
-
     // Special case: Both standings and matches as PDF
     if (exportType === 'both' && exportFormat === 'pdf') {
-      exportRankingAndMatchesToPDF(ranking, combinedStandingsCallback, filteredDivisions, players, config);
+      exportRankingAndMatchesToPDF(ranking, standingsCallback, filteredDivisions, players, config);
       onClose();
       return;
     }
@@ -166,16 +77,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     if (exportType === 'standings' || exportType === 'both') {
       switch (exportFormat) {
         case 'pdf':
-          exportRankingToPDF(ranking, combinedStandingsCallback, players, config);
+          exportRankingToPDF(ranking, standingsCallback, players, config);
           break;
         case 'csv':
-          exportRankingToCSV(ranking, combinedStandingsCallback, players, config);
+          exportRankingToCSV(ranking, standingsCallback, players, config);
           break;
         case 'excel':
-          exportRankingToExcel(ranking, combinedStandingsCallback, players, config);
+          exportRankingToExcel(ranking, standingsCallback, players, config);
           break;
         case 'json':
-          exportRankingToJSON(ranking, combinedStandingsCallback, players, config);
+          exportRankingToJSON(ranking, standingsCallback, players, config);
           break;
       }
     }
