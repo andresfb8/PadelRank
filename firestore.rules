@@ -23,23 +23,9 @@ service cloud.firestore {
 
     // NEW: Check if user is Staff and belongs to a specific owner
     function isStaffOf(ownerId) {
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isSignedIn() && 
-             userData.role == 'staff' && 
-             userData.parentAdminId == ownerId;
-    }
-
-    // Check if user OWNS the resource OR is STAFF of the owner
-    function hasClubAccess() {
-      if (!isSignedIn()) return false;
-      let uid = request.auth.uid;
-      let ownerId = resource != null ? resource.data.ownerId : request.resource.data.ownerId;
-      
-      // Case 1: Is Owner
-      if (ownerId == uid) return true;
-      
-      // Case 2: Is Staff of that Owner
-      return isStaffOf(ownerId);
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff' && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.parentAdminId == ownerId;
     }
     
     // --- Collection Rules ---
