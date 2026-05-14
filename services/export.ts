@@ -9,6 +9,19 @@ interface ExportConfig {
     clubName?: string;
 }
 
+// Helper: Download file
+const downloadFile = (content: string, fileName: string, mimeType: string = 'text/plain') => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+};
+
 // Helper: Get player name
 const getPlayerName = (id: string, players: Record<string, Player>): string => {
     if (!id) return 'TBD';
@@ -365,4 +378,240 @@ export const exportRankingToPDF = (
 
     const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
+};
+
+/**
+ * Exporta la clasificación a CSV
+ */
+export const exportRankingToCSV = (
+    ranking: Ranking,
+    standingsCallback: () => StandingRow[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const standings = standingsCallback();
+
+    const formatName = (id: string): string => {
+        if (!id) return "Desconocido";
+        if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+            const separator = id.includes('::') ? '::' : '-';
+            const [p1Id, p2Id] = id.split(separator);
+            const p1 = players[p1Id];
+            const p2 = players[p2Id];
+            return `${p1?.nombre || '?'} ${p1?.apellidos?.charAt(0) || ''}. / ${p2?.nombre || '?'} ${p2?.apellidos?.charAt(0) || ''}.`;
+        } else {
+            const p = players[id];
+            return p ? `${p.nombre} ${p.apellidos}` : "Jugador Eliminado";
+        }
+    };
+
+    // CSV Header
+    let csvContent = `Clasificación: ${config.rankingName}\n`;
+    if (config.categoryName) csvContent += `Categoría: ${config.categoryName}\n`;
+    if (config.clubName) csvContent += `Club: ${config.clubName}\n`;
+    csvContent += `Fecha: ${new Date().toLocaleDateString('es-ES')}\n\n`;
+
+    // Table Header
+    const headers = [
+        'Posición',
+        ranking.format === 'pairs' || ranking.format === 'hybrid' ? 'Pareja' : 'Jugador',
+        'PJ',
+        'PTS',
+        'PG',
+        'PP',
+        '% Victorias'
+    ];
+
+    if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+        headers.push('Dif Sets', 'Dif Juegos');
+    }
+
+    csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+
+    // Table Data
+    standings.forEach(row => {
+        const rowData = [
+            row.pos,
+            formatName(row.playerId),
+            row.pj,
+            row.pts,
+            row.pg,
+            row.pj - row.pg,
+            `${Math.round(row.winRate)}%`
+        ];
+
+        if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+            rowData.push(
+                row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff,
+                row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff
+            );
+        }
+
+        csvContent += rowData.map(cell => `"${cell}"`).join(',') + '\n';
+    });
+
+    const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
+};
+
+/**
+ * Exporta la clasificación a Excel
+ */
+export const exportRankingToExcel = (
+    ranking: Ranking,
+    standingsCallback: () => StandingRow[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const standings = standingsCallback();
+
+    const formatName = (id: string): string => {
+        if (!id) return "Desconocido";
+        if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+            const separator = id.includes('::') ? '::' : '-';
+            const [p1Id, p2Id] = id.split(separator);
+            const p1 = players[p1Id];
+            const p2 = players[p2Id];
+            return `${p1?.nombre || '?'} ${p1?.apellidos?.charAt(0) || ''}. / ${p2?.nombre || '?'} ${p2?.apellidos?.charAt(0) || ''}.`;
+        } else {
+            const p = players[id];
+            return p ? `${p.nombre} ${p.apellidos}` : "Jugador Eliminado";
+        }
+    };
+
+    // Prepare data for Excel
+    const headers = [
+        'Posición',
+        ranking.format === 'pairs' || ranking.format === 'hybrid' ? 'Pareja' : 'Jugador',
+        'PJ',
+        'PTS',
+        'PG',
+        'PP',
+        '% Victorias'
+    ];
+
+    if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+        headers.push('Dif Sets', 'Dif Juegos');
+    }
+
+    const data = standings.map(row => {
+        const rowData = [
+            row.pos,
+            formatName(row.playerId),
+            row.pj,
+            row.pts,
+            row.pg,
+            row.pj - row.pg,
+            Math.round(row.winRate)
+        ];
+
+        if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+            rowData.push(
+                row.setsDiff,
+                row.gamesDiff
+            );
+        }
+
+        return rowData;
+    });
+
+    // Create workbook XML
+    const wsData = [headers, ...data];
+    let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xmlContent += '<?mso-application progid="Excel.Sheet"?>\n';
+    xmlContent += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+    xmlContent += '<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office"><Title>' + config.rankingName + '</Title></DocumentProperties>\n';
+    xmlContent += '<Styles>\n';
+    xmlContent += '<Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="3F51B5" ss:Pattern="Solid"/><Font ss:Color="FFFFFF"/></Style>\n';
+    xmlContent += '<Style ss:ID="Center"><Alignment ss:Horizontal="Center"/></Style>\n';
+    xmlContent += '</Styles>\n';
+    xmlContent += '<Worksheet ss:Name="Clasificación">\n';
+    xmlContent += '<Table>\n';
+
+    // Add header row with info
+    xmlContent += '<Row><Cell ss:StyleID="Header"><Data ss:Type="String">Clasificación: ' + config.rankingName + '</Data></Cell></Row>\n';
+    if (config.categoryName) xmlContent += '<Row><Cell><Data ss:Type="String">Categoría: ' + config.categoryName + '</Data></Cell></Row>\n';
+    if (config.clubName) xmlContent += '<Row><Cell><Data ss:Type="String">Club: ' + config.clubName + '</Data></Cell></Row>\n';
+    xmlContent += '<Row><Cell><Data ss:Type="String">Fecha: ' + new Date().toLocaleDateString('es-ES') + '</Data></Cell></Row>\n';
+    xmlContent += '<Row></Row>\n'; // Empty row for spacing
+
+    // Add table headers
+    xmlContent += '<Row>\n';
+    headers.forEach(header => {
+        xmlContent += '<Cell ss:StyleID="Header"><Data ss:Type="String">' + header + '</Data></Cell>\n';
+    });
+    xmlContent += '</Row>\n';
+
+    // Add data rows
+    data.forEach(row => {
+        xmlContent += '<Row>\n';
+        row.forEach((cell, idx) => {
+            const isNumeric = typeof cell === 'number' && idx > 1; // Skip pos and name
+            const dataType = isNumeric ? 'Number' : 'String';
+            xmlContent += '<Cell ss:StyleID="Center"><Data ss:Type="' + dataType + '">' + cell + '</Data></Cell>\n';
+        });
+        xmlContent += '</Row>\n';
+    });
+
+    xmlContent += '</Table>\n';
+    xmlContent += '</Worksheet>\n';
+    xmlContent += '</Workbook>';
+
+    const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.xls`;
+    downloadFile(xmlContent, fileName, 'application/vnd.ms-excel');
+};
+
+/**
+ * Exporta la clasificación a JSON
+ */
+export const exportRankingToJSON = (
+    ranking: Ranking,
+    standingsCallback: () => StandingRow[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const standings = standingsCallback();
+
+    const formatName = (id: string): string => {
+        if (!id) return "Desconocido";
+        if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+            const separator = id.includes('::') ? '::' : '-';
+            const [p1Id, p2Id] = id.split(separator);
+            const p1 = players[p1Id];
+            const p2 = players[p2Id];
+            return `${p1?.nombre || '?'} ${p1?.apellidos?.charAt(0) || ''}. / ${p2?.nombre || '?'} ${p2?.apellidos?.charAt(0) || ''}.`;
+        } else {
+            const p = players[id];
+            return p ? `${p.nombre} ${p.apellidos}` : "Jugador Eliminado";
+        }
+    };
+
+    const exportData = {
+        metadata: {
+            rankingName: config.rankingName,
+            categoryName: config.categoryName,
+            clubName: config.clubName,
+            format: ranking.format,
+            exportDate: new Date().toISOString(),
+            totalPlayers: standings.length
+        },
+        standings: standings.map(row => ({
+            position: row.pos,
+            player: formatName(row.playerId),
+            playerId: row.playerId,
+            matchesPlayed: row.pj,
+            points: row.pts,
+            matchesWon: row.pg,
+            matchesLost: row.pj - row.pg,
+            winRate: `${Math.round(row.winRate)}%`,
+            ...(ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo' && {
+                setsDifference: row.setsDiff,
+                gamesDifference: row.gamesDiff
+            })
+        }))
+    };
+
+    const jsonContent = JSON.stringify(exportData, null, 2);
+    const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
+    downloadFile(jsonContent, fileName, 'application/json');
 };

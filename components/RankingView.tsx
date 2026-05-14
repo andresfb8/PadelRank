@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw } from 'lucide-react';
+import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw, Download, Sheet, Code } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
-import { exportRankingToPDF } from '../services/export';
+import { exportRankingToPDF, exportRankingToCSV, exportRankingToExcel, exportRankingToJSON } from '../services/export';
 import { StandingsTable } from './shared/StandingsTable';
 import { FORMAT_COLUMN_PRESETS } from '../types/StandingsColumn';
 
@@ -1476,6 +1476,60 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'secondary',
               className: 'text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
               title: 'Exportar a PDF'
+            },
+            {
+              id: 'export-csv',
+              label: 'CSV',
+              icon: Download,
+              onClick: () => {
+                const currentStandings = activeTab === 'global' ? globalStandings : standings;
+                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
+                exportRankingToCSV(ranking, () => currentStandings, players, {
+                  rankingName: ranking.nombre,
+                  categoryName: catName,
+                  clubName: 'Racket Grid'
+                });
+              },
+              visible: true,
+              variant: 'secondary',
+              className: 'text-green-600 bg-green-50 border-green-100 hover:bg-green-100',
+              title: 'Exportar a CSV'
+            },
+            {
+              id: 'export-excel',
+              label: 'Excel',
+              icon: Sheet,
+              onClick: () => {
+                const currentStandings = activeTab === 'global' ? globalStandings : standings;
+                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
+                exportRankingToExcel(ranking, () => currentStandings, players, {
+                  rankingName: ranking.nombre,
+                  categoryName: catName,
+                  clubName: 'Racket Grid'
+                });
+              },
+              visible: true,
+              variant: 'secondary',
+              className: 'text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100',
+              title: 'Exportar a Excel'
+            },
+            {
+              id: 'export-json',
+              label: 'JSON',
+              icon: Code,
+              onClick: () => {
+                const currentStandings = activeTab === 'global' ? globalStandings : standings;
+                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
+                exportRankingToJSON(ranking, () => currentStandings, players, {
+                  rankingName: ranking.nombre,
+                  categoryName: catName,
+                  clubName: 'Racket Grid'
+                });
+              },
+              visible: true,
+              variant: 'secondary',
+              className: 'text-purple-600 bg-purple-50 border-purple-100 hover:bg-purple-100',
+              title: 'Exportar a JSON'
             },
             // AVAILABILITY BUTTON (Restored)
             {
