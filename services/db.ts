@@ -207,6 +207,29 @@ export const importPlayersBatch = async (players: Omit<Player, "id">[]) => {
 
 // --- RANKINGS (TOURNAMENTS) ---
 
+/**
+ * Subscribe to a single ranking by ID (for public access)
+ * This is safer than subscribing to all rankings as it requires specific ID
+ */
+export const subscribeToPublicRanking = (rankingId: string, callback: (ranking: Ranking | null) => void) => {
+    return onSnapshot(doc(db, "rankings", rankingId), (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data() as Ranking;
+            // Only return if not soft-deleted
+            if (!data.deletedAt) {
+                callback({ id: docSnap.id, ...data });
+            } else {
+                callback(null);
+            }
+        } else {
+            callback(null);
+        }
+    }, (error) => {
+        console.error("Error subscribing to public ranking:", error);
+        callback(null);
+    });
+};
+
 export const subscribeToRankings = (callback: (rankings: Ranking[]) => void, ownerId?: string) => {
     let q;
     if (ownerId) {

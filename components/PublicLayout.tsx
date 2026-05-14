@@ -4,7 +4,7 @@ import { RankingView } from './RankingView';
 import { PlayerDetailView } from './PlayerDetailView';
 import { PairDetailView } from './PairDetailView';
 import { Player, Ranking } from '../types';
-import { subscribeToPlayers, subscribeToRankings } from '../services/db';
+import { subscribeToPlayers, subscribeToRankings, subscribeToPublicRanking } from '../services/db';
 
 interface Props {
     rankingId: string;
@@ -18,9 +18,13 @@ export const PublicLayout = ({ rankingId }: Props) => {
 
     // Subscribe to Data
     useEffect(() => {
-        // 1. Subscribe to Rankings
-        const unsubscribeRankings = subscribeToRankings((data) => {
-            setRankings(data);
+        // 1. Subscribe to this specific ranking (public access)
+        const unsubscribeRanking = subscribeToPublicRanking(rankingId, (ranking) => {
+            if (ranking) {
+                setRankings([ranking]);
+            } else {
+                setRankings([]);
+            }
         });
 
         // 2. Subscribe to Players
@@ -30,10 +34,10 @@ export const PublicLayout = ({ rankingId }: Props) => {
         });
 
         return () => {
-            unsubscribeRankings();
+            unsubscribeRanking();
             unsubscribePlayers();
         };
-    }, []);
+    }, [rankingId]);
 
     const activeRanking = rankings.find(r => r.id === rankingId);
     const [ownerLogo, setOwnerLogo] = useState<string | null>(null);
