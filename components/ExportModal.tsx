@@ -11,7 +11,10 @@ import {
   exportMatchesToExcel,
   exportMatchesToJSON,
   exportMatchesToPDF,
-  exportRankingAndMatchesToPDF
+  exportRankingAndMatchesToPDF,
+  exportMultipleDivisionsToCSV,
+  exportMultipleDivisionsToExcel,
+  exportMultipleDivisionsToJSON
 } from '../services/export';
 
 interface ExportModalProps {
@@ -75,18 +78,37 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     }
 
     if (exportType === 'standings' || exportType === 'both') {
+      // Check if exporting multiple divisions
+      const isMultipleDivisions = filteredDivisions.length > 1;
+
       switch (exportFormat) {
         case 'pdf':
-          exportRankingToPDF(ranking, standingsCallback, players, config);
+          if (isMultipleDivisions) {
+            exportRankingAndMatchesToPDF(ranking, standingsCallback, filteredDivisions, players, config);
+          } else {
+            exportRankingToPDF(ranking, standingsCallback, players, config);
+          }
           break;
         case 'csv':
-          exportRankingToCSV(ranking, standingsCallback, players, config);
+          if (isMultipleDivisions) {
+            exportMultipleDivisionsToCSV(ranking, filteredDivisions, players, config);
+          } else {
+            exportRankingToCSV(ranking, standingsCallback, players, config);
+          }
           break;
         case 'excel':
-          exportRankingToExcel(ranking, standingsCallback, players, config);
+          if (isMultipleDivisions) {
+            exportMultipleDivisionsToExcel(ranking, filteredDivisions, players, config);
+          } else {
+            exportRankingToExcel(ranking, standingsCallback, players, config);
+          }
           break;
         case 'json':
-          exportRankingToJSON(ranking, standingsCallback, players, config);
+          if (isMultipleDivisions) {
+            exportMultipleDivisionsToJSON(ranking, filteredDivisions, players, config);
+          } else {
+            exportRankingToJSON(ranking, standingsCallback, players, config);
+          }
           break;
       }
     }
