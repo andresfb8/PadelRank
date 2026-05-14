@@ -182,7 +182,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </button>
             ))}
           </div>
-          {format === 'pdf' && exportType === 'matches' && (
+          {exportFormat === 'pdf' && exportType === 'matches' && (
             <p className="text-xs text-gray-500 mt-2">PDF de partidos está en desarrollo</p>
           )}
         </div>
