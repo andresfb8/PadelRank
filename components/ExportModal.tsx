@@ -14,7 +14,8 @@ import {
   exportRankingAndMatchesToPDF,
   exportMultipleDivisionsToCSV,
   exportMultipleDivisionsToExcel,
-  exportMultipleDivisionsToJSON
+  exportMultipleDivisionsToJSON,
+  exportMultipleDivisionsToPDF
 } from '../services/export';
 
 interface ExportModalProps {
@@ -84,7 +85,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       switch (exportFormat) {
         case 'pdf':
           if (isMultipleDivisions) {
-            exportRankingAndMatchesToPDF(ranking, standingsCallback, filteredDivisions, players, config);
+            exportMultipleDivisionsToPDF(ranking, filteredDivisions, players, config);
           } else {
             exportRankingToPDF(ranking, standingsCallback, players, config);
           }

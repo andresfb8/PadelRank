@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Player, Ranking, StandingRow, Division, Match } from '../types';
+import { generateStandings } from './logic';
 
 interface ExportConfig {
     rankingName: string;
@@ -1067,6 +1068,149 @@ export const exportMultipleDivisionsToJSON = (
 };
 
 /**
+ * Exporta clasificación de múltiples divisiones (cada una por separado) a PDF
+ */
+export const exportMultipleDivisionsToPDF = (
+    ranking: Ranking,
+    divisions: Division[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+    });
+    const pageWidth = doc.internal.pageSize.width;
+
+    // --- Header ---
+    doc.setFontSize(22);
+    doc.setTextColor(40, 40, 40);
+    doc.text(config.rankingName, pageWidth / 2, 20, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    const subtitle = config.categoryName ? `${config.categoryName} • ${config.clubName || 'Racket Grid'}` : (config.clubName || 'Generado por Racket Grid');
+    doc.text(subtitle, pageWidth / 2, 28, { align: 'center' });
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 32, pageWidth - 15, 32);
+
+    let currentY = 40;
+
+    // --- SECTION: STANDINGS ---
+    doc.setFontSize(16);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Clasificación', 15, currentY);
+    currentY += 10;
+
+    const formatName = (id: string): string => {
+        if (!id) return "Desconocido";
+        if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+            const separator = id.includes('::') ? '::' : '-';
+            const [p1Id, p2Id] = id.split(separator);
+            const p1 = players[p1Id];
+            const p2 = players[p2Id];
+            return `${p1?.nombre || '?'} ${p1?.apellidos?.charAt(0) || ''}. / ${p2?.nombre || '?'} ${p2?.apellidos?.charAt(0) || ''}.`;
+        } else {
+            const p = players[id];
+            return p ? `${p.nombre} ${p.apellidos}` : "Jugador Eliminado";
+        }
+    };
+
+    let tableColumns = [
+        { header: '#', dataKey: 'pos', key: 'pos' },
+        { header: (ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador', dataKey: 'name', key: 'player' },
+        { header: 'PJ', dataKey: 'matchCount', key: 'pj' },
+        { header: 'PTS', dataKey: 'pts', key: 'pts' },
+        { header: 'PG', dataKey: 'matchesWon', key: 'pg' },
+        { header: 'PP', dataKey: 'matchesLost', key: 'pp' },
+    ];
+
+    if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+        tableColumns.push(
+            { header: 'Dif Sets', dataKey: 'setsDiff', key: 'setsDiff' },
+            { header: 'Dif Juegos', dataKey: 'gamesDiff', key: 'gamesDiff' }
+        );
+    }
+
+    // Generate standings for each division
+    divisions.forEach(division => {
+        // Add division title
+        doc.setFontSize(12);
+        doc.setTextColor(63, 81, 181);
+        doc.text(division.category || `División ${division.numero}`, 15, currentY);
+        currentY += 7;
+
+        // Get standings for this division
+        const divisionStandings = generateStandings(
+            division.id,
+            division.matches,
+            division.players,
+            ranking.format as any,
+            ranking.manualPointsAdjustments,
+            ranking.manualStatsAdjustments,
+            ranking.config?.tieBreakCriteria
+        );
+
+        const tableData = divisionStandings.map(row => ({
+            pos: row.pos,
+            name: formatName(row.playerId),
+            matchCount: row.pj,
+            pts: row.pts,
+            matchesWon: row.pg,
+            matchesLost: row.pj - row.pg,
+            setsDiff: row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff,
+            gamesDiff: row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff
+        }));
+
+        const finalBody = tableData.map(row => tableColumns.map(c => (row as any)[c.dataKey]));
+
+        if (finalBody.length > 0) {
+            autoTable(doc, {
+                startY: currentY,
+                head: [tableColumns.map(c => c.header)],
+                body: finalBody,
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 1.5,
+                    valign: 'middle'
+                },
+                headStyles: {
+                    fillColor: [63, 81, 181],
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                columnStyles: tableColumns.reduce((acc, col, index) => {
+                    if (col.key === 'pos') acc[index] = { halign: 'center', fontStyle: 'bold', cellWidth: 10 };
+                    else if (col.key === 'player') acc[index] = { halign: 'left', cellWidth: 35 };
+                    else if (col.key === 'pts') acc[index] = { halign: 'center', fontStyle: 'bold' };
+                    else acc[index] = { halign: 'center' };
+                    return acc;
+                }, {} as any),
+                alternateRowStyles: {
+                    fillColor: [245, 245, 245]
+                },
+                margin: { bottom: 10 }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 8;
+        }
+
+        // Add page break if needed
+        if (currentY > 250) {
+            doc.addPage();
+            currentY = 20;
+        }
+    });
+
+    const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+};
+
+/**
  * Exporta clasificación y partidos a PDF en un solo documento
  */
 export const exportRankingAndMatchesToPDF = (
@@ -1137,7 +1281,6 @@ export const exportRankingAndMatchesToPDF = (
     }
 
     // Generate standings for each division
-    const { generateStandings } = require('../services/logic');
     divisions.forEach(division => {
         // Add division title
         doc.setFontSize(12);
