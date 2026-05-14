@@ -17,9 +17,15 @@ const App = () => {
   useEffect(() => {
     // Check for Public URL (Deep Linking) or TV Mode
     const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname;
+
     const id = params.get('id');
     const tvId = params.get('tv');
     const migration = params.get('migration');
+
+    // Extract ID from pathname: /ranking/r-123 -> r-123
+    const pathMatch = path.match(/^\/ranking\/(.+)$/);
+    const pathId = pathMatch ? pathMatch[1] : null;
 
     if (migration === 'true') {
       setIsMigration(true);
@@ -27,11 +33,13 @@ const App = () => {
       setTvRankingId(tvId);
     } else if (id) {
       setPublicRankingId(id);
+    } else if (pathId) {
+      setPublicRankingId(pathId);
     }
   }, []);
 
   // Simple Routing
-  const path = window.location.pathname;
+  const path = window.location.pathname.split('?')[0]; // Remove query params for cleaner path
   if (path === '/onboarding/complete') return <RegistrationFinalizer />;
   if (path === '/payment/success') return <PaymentSuccess />;
   if (path === '/payment/cancel') return <PaymentCancel />;
