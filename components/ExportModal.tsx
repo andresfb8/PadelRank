@@ -9,7 +9,9 @@ import {
   exportRankingToJSON,
   exportMatchesToCSV,
   exportMatchesToExcel,
-  exportMatchesToJSON
+  exportMatchesToJSON,
+  exportMatchesToPDF,
+  exportRankingAndMatchesToPDF
 } from '../services/export';
 
 interface ExportModalProps {
@@ -65,6 +67,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       clubName: 'Racket Grid'
     };
 
+    // Special case: Both standings and matches as PDF
+    if (exportType === 'both' && exportFormat === 'pdf') {
+      exportRankingAndMatchesToPDF(ranking, standingsCallback, filteredDivisions, players, config);
+      onClose();
+      return;
+    }
+
     if (exportType === 'standings' || exportType === 'both') {
       switch (exportFormat) {
         case 'pdf':
@@ -82,12 +91,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       }
     }
 
-    if (exportType === 'matches' || exportType === 'both') {
+    if ((exportType === 'matches' || exportType === 'both') && exportFormat !== 'pdf') {
       switch (exportFormat) {
-        case 'pdf':
-          // PDF de partidos podría añadirse en el futuro
-          alert('Exportación a PDF de partidos viene próximamente');
-          break;
         case 'csv':
           exportMatchesToCSV(ranking, filteredDivisions, players, config);
           break;
@@ -98,6 +103,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           exportMatchesToJSON(ranking, filteredDivisions, players, config);
           break;
       }
+    }
+
+    if (exportType === 'matches' && exportFormat === 'pdf') {
+      exportMatchesToPDF(ranking, filteredDivisions, players, config);
     }
 
     onClose();
@@ -172,19 +181,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   exportFormat === format
                     ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                     : 'border-gray-200 hover:border-gray-300'
-                } ${
-                  format === 'pdf' && exportType === 'matches' ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
-                disabled={exportFormat === 'pdf' && exportType === 'matches'}
               >
                 {formatIcons[format]}
                 <span className="text-sm font-medium">{formatLabels[format]}</span>
               </button>
             ))}
           </div>
-          {exportFormat === 'pdf' && exportType === 'matches' && (
-            <p className="text-xs text-gray-500 mt-2">PDF de partidos está en desarrollo</p>
-          )}
         </div>
 
         {/* Divisiones */}

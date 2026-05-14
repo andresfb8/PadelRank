@@ -809,6 +809,375 @@ export const exportMatchesToExcel = (
 };
 
 /**
+ * Exporta clasificación y partidos a PDF en un solo documento
+ */
+export const exportRankingAndMatchesToPDF = (
+    ranking: Ranking,
+    standingsCallback: () => StandingRow[],
+    divisions: Division[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const isLandscape = false;
+    const doc = new jsPDF({
+        orientation: isLandscape ? 'l' : 'p',
+        unit: 'mm',
+        format: 'a4'
+    });
+    const pageWidth = doc.internal.pageSize.width;
+
+    // --- Header ---
+    doc.setFontSize(22);
+    doc.setTextColor(40, 40, 40);
+    doc.text(config.rankingName, pageWidth / 2, 20, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    const subtitle = config.categoryName ? `${config.categoryName} • ${config.clubName || 'Racket Grid'}` : (config.clubName || 'Generado por Racket Grid');
+    doc.text(subtitle, pageWidth / 2, 28, { align: 'center' });
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 32, pageWidth - 15, 32);
+
+    let currentY = 40;
+
+    // --- SECTION 1: STANDINGS ---
+    doc.setFontSize(16);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Clasificación', 15, currentY);
+    currentY += 10;
+
+    const standings = standingsCallback();
+    const formatName = (id: string): string => {
+        if (!id) return "Desconocido";
+        if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
+            const separator = id.includes('::') ? '::' : '-';
+            const [p1Id, p2Id] = id.split(separator);
+            const p1 = players[p1Id];
+            const p2 = players[p2Id];
+            return `${p1?.nombre || '?'} ${p1?.apellidos?.charAt(0) || ''}. / ${p2?.nombre || '?'} ${p2?.apellidos?.charAt(0) || ''}.`;
+        } else {
+            const p = players[id];
+            return p ? `${p.nombre} ${p.apellidos}` : "Jugador Eliminado";
+        }
+    };
+
+    let tableColumns = [
+        { header: '#', dataKey: 'pos', key: 'pos' },
+        { header: (ranking.format === 'pairs' || ranking.format === 'hybrid') ? 'Pareja' : 'Jugador', dataKey: 'name', key: 'player' },
+        { header: 'PJ', dataKey: 'matchCount', key: 'pj' },
+        { header: 'PTS', dataKey: 'pts', key: 'pts' },
+        { header: 'PG', dataKey: 'matchesWon', key: 'pg' },
+        { header: 'PP', dataKey: 'matchesLost', key: 'pp' },
+    ];
+
+    if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+        tableColumns.push(
+            { header: 'Dif Sets', dataKey: 'setsDiff', key: 'setsDiff' },
+            { header: 'Dif Juegos', dataKey: 'gamesDiff', key: 'gamesDiff' }
+        );
+    }
+
+    const tableData = standings.map(row => ({
+        pos: row.pos,
+        name: formatName(row.playerId),
+        matchCount: row.pj,
+        pts: row.pts,
+        matchesWon: row.pg,
+        matchesLost: row.pj - row.pg,
+        setsDiff: row.setsDiff > 0 ? `+${row.setsDiff}` : row.setsDiff,
+        gamesDiff: row.gamesDiff > 0 ? `+${row.gamesDiff}` : row.gamesDiff
+    }));
+
+    const finalBody = tableData.map(row => tableColumns.map(c => (row as any)[c.dataKey]));
+
+    autoTable(doc, {
+        startY: currentY,
+        head: [tableColumns.map(c => c.header)],
+        body: finalBody,
+        styles: {
+            fontSize: 9,
+            cellPadding: 2,
+            valign: 'middle'
+        },
+        headStyles: {
+            fillColor: [63, 81, 181],
+            textColor: 255,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        columnStyles: tableColumns.reduce((acc, col, index) => {
+            if (col.key === 'pos') acc[index] = { halign: 'center', fontStyle: 'bold', cellWidth: 12 };
+            else if (col.key === 'player') acc[index] = { halign: 'left', cellWidth: 40 };
+            else if (col.key === 'pts') acc[index] = { halign: 'center', fontStyle: 'bold' };
+            else acc[index] = { halign: 'center' };
+            return acc;
+        }, {} as any),
+        alternateRowStyles: {
+            fillColor: [245, 245, 245]
+        },
+        margin: { bottom: 20 }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+
+    // --- PAGE BREAK ---
+    doc.addPage();
+    currentY = 20;
+
+    // --- SECTION 2: MATCHES ---
+    doc.setFontSize(16);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Partidos', 15, currentY);
+    currentY += 10;
+
+    const formatPairName = (pair: any): string => {
+        if (!pair.p1Id) return "TBD";
+        if (pair.p1Id === 'BYE') return 'BYE';
+        const p1 = formatName(pair.p1Id);
+        const p2 = pair.p2Id ? formatName(pair.p2Id) : '';
+        return p2 ? `${p1} / ${p2}` : p1;
+    };
+
+    const matchesData: any[] = [];
+    divisions.forEach(division => {
+        division.matches.forEach(match => {
+            const p1Name = formatPairName(match.pair1);
+            const p2Name = formatPairName(match.pair2);
+
+            let resultado = '';
+            if (match.status === 'finalizado') {
+                resultado = match.points.p1 > match.points.p2 ? p1Name : p2Name;
+            } else if (match.status === 'pendiente') {
+                resultado = 'Pendiente';
+            } else {
+                resultado = match.status;
+            }
+
+            let scoreStr = '';
+            if (match.status === 'finalizado' && match.score) {
+                if (ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'pozo') {
+                    scoreStr = `${match.score.pointsScored?.p1 || match.points.p1}-${match.score.pointsScored?.p2 || match.points.p2}`;
+                } else {
+                    const sets = [];
+                    if (match.score.set1) sets.push(`${match.score.set1.p1}-${match.score.set1.p2}`);
+                    if (match.score.set2) sets.push(`${match.score.set2.p1}-${match.score.set2.p2}`);
+                    if (match.score.set3) sets.push(`${match.score.set3.p1}-${match.score.set3.p2}`);
+                    scoreStr = sets.join(', ');
+                }
+            }
+
+            matchesData.push({
+                division: division.category || `División ${division.numero}`,
+                jornada: match.jornada,
+                team1: p1Name,
+                team2: p2Name,
+                resultado: resultado,
+                status: match.status,
+                score: scoreStr
+            });
+        });
+    });
+
+    if (matchesData.length > 0) {
+        const matchHeaders = ['División', 'Jornada', 'Equipo 1', 'Equipo 2', 'Ganador', 'Estado', 'Score'];
+        const matchBody = matchesData.map(row => [
+            row.division,
+            row.jornada,
+            row.team1,
+            row.team2,
+            row.resultado,
+            row.status,
+            row.score
+        ]);
+
+        autoTable(doc, {
+            startY: currentY,
+            head: [matchHeaders],
+            body: matchBody,
+            styles: {
+                fontSize: 8,
+                cellPadding: 1.5,
+                valign: 'middle'
+            },
+            headStyles: {
+                fillColor: [100, 130, 100],
+                textColor: 255,
+                fontStyle: 'bold',
+                halign: 'center'
+            },
+            columnStyles: {
+                0: { cellWidth: 25, halign: 'center' },
+                1: { cellWidth: 12, halign: 'center' },
+                2: { cellWidth: 35, halign: 'left' },
+                3: { cellWidth: 35, halign: 'left' },
+                4: { cellWidth: 28, halign: 'left' },
+                5: { cellWidth: 18, halign: 'center' },
+                6: { cellWidth: 15, halign: 'center' }
+            },
+            alternateRowStyles: {
+                fillColor: [250, 250, 250]
+            },
+            didDrawPage: (data) => {
+                const str = `Página ${doc.getNumberOfPages()}`;
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(str, pageWidth - 20, doc.internal.pageSize.height - 10, { align: 'right' });
+                doc.text("RacketGrid.com", 15, doc.internal.pageSize.height - 10);
+            }
+        });
+    }
+
+    const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+};
+
+/**
+ * Exporta solo los partidos a PDF
+ */
+export const exportMatchesToPDF = (
+    ranking: Ranking,
+    divisions: Division[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+    });
+    const pageWidth = doc.internal.pageSize.width;
+
+    // --- Header ---
+    doc.setFontSize(22);
+    doc.setTextColor(40, 40, 40);
+    doc.text(config.rankingName, pageWidth / 2, 20, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    const subtitle = config.categoryName ? `${config.categoryName} • ${config.clubName || 'Racket Grid'}` : (config.clubName || 'Generado por Racket Grid');
+    doc.text(subtitle, pageWidth / 2, 28, { align: 'center' });
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 32, pageWidth - 15, 32);
+
+    let currentY = 40;
+
+    doc.setFontSize(16);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Partidos', 15, currentY);
+    currentY += 10;
+
+    const formatName = (id: string): string => {
+        if (!id || id === 'BYE') return id;
+        const p = players[id];
+        return p ? `${p.nombre} ${p.apellidos}` : "Jugador Desconocido";
+    };
+
+    const formatPairName = (pair: any): string => {
+        if (!pair.p1Id) return "TBD";
+        if (pair.p1Id === 'BYE') return 'BYE';
+        const p1 = formatName(pair.p1Id);
+        const p2 = pair.p2Id ? formatName(pair.p2Id) : '';
+        return p2 ? `${p1} / ${p2}` : p1;
+    };
+
+    const matchesData: any[] = [];
+    divisions.forEach(division => {
+        division.matches.forEach(match => {
+            const p1Name = formatPairName(match.pair1);
+            const p2Name = formatPairName(match.pair2);
+
+            let resultado = '';
+            if (match.status === 'finalizado') {
+                resultado = match.points.p1 > match.points.p2 ? p1Name : p2Name;
+            } else if (match.status === 'pendiente') {
+                resultado = 'Pendiente';
+            } else {
+                resultado = match.status;
+            }
+
+            let scoreStr = '';
+            if (match.status === 'finalizado' && match.score) {
+                if (ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'pozo') {
+                    scoreStr = `${match.score.pointsScored?.p1 || match.points.p1}-${match.score.pointsScored?.p2 || match.points.p2}`;
+                } else {
+                    const sets = [];
+                    if (match.score.set1) sets.push(`${match.score.set1.p1}-${match.score.set1.p2}`);
+                    if (match.score.set2) sets.push(`${match.score.set2.p1}-${match.score.set2.p2}`);
+                    if (match.score.set3) sets.push(`${match.score.set3.p1}-${match.score.set3.p2}`);
+                    scoreStr = sets.join(', ');
+                }
+            }
+
+            matchesData.push({
+                division: division.category || `División ${division.numero}`,
+                jornada: match.jornada,
+                team1: p1Name,
+                team2: p2Name,
+                resultado: resultado,
+                status: match.status,
+                score: scoreStr
+            });
+        });
+    });
+
+    if (matchesData.length > 0) {
+        const matchHeaders = ['División', 'Jornada', 'Equipo 1', 'Equipo 2', 'Ganador', 'Estado', 'Score'];
+        const matchBody = matchesData.map(row => [
+            row.division,
+            row.jornada,
+            row.team1,
+            row.team2,
+            row.resultado,
+            row.status,
+            row.score
+        ]);
+
+        autoTable(doc, {
+            startY: currentY,
+            head: [matchHeaders],
+            body: matchBody,
+            styles: {
+                fontSize: 9,
+                cellPadding: 2,
+                valign: 'middle'
+            },
+            headStyles: {
+                fillColor: [100, 130, 100],
+                textColor: 255,
+                fontStyle: 'bold',
+                halign: 'center'
+            },
+            columnStyles: {
+                0: { cellWidth: 25, halign: 'center' },
+                1: { cellWidth: 12, halign: 'center' },
+                2: { cellWidth: 35, halign: 'left' },
+                3: { cellWidth: 35, halign: 'left' },
+                4: { cellWidth: 28, halign: 'left' },
+                5: { cellWidth: 18, halign: 'center' },
+                6: { cellWidth: 15, halign: 'center' }
+            },
+            alternateRowStyles: {
+                fillColor: [250, 250, 250]
+            },
+            didDrawPage: (data) => {
+                const str = `Página ${doc.getNumberOfPages()}`;
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(str, pageWidth - 20, doc.internal.pageSize.height - 10, { align: 'right' });
+                doc.text("RacketGrid.com", 15, doc.internal.pageSize.height - 10);
+            }
+        });
+    }
+
+    const fileName = `RacketGrid_Partidos_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+};
+
+/**
  * Exporta los partidos a JSON
  */
 export const exportMatchesToJSON = (
