@@ -4,7 +4,7 @@ import { RankingView } from './RankingView';
 import { PlayerDetailView } from './PlayerDetailView';
 import { PairDetailView } from './PairDetailView';
 import { Player, Ranking } from '../types';
-import { subscribeToPlayers, subscribeToRankings, subscribeToPublicRanking } from '../services/db';
+import { subscribeToPlayers, subscribeToRankings, subscribeToPublicRanking, subscribeToPlayersByIds } from '../services/db';
 
 interface Props {
     rankingId: string;
@@ -19,23 +19,33 @@ export const PublicLayout = ({ rankingId }: Props) => {
     // Subscribe to Data
     useEffect(() => {
         // 1. Subscribe to this specific ranking (public access)
+        let unsubscribePlayers: (() => void) | null = null;
+
         const unsubscribeRanking = subscribeToPublicRanking(rankingId, (ranking) => {
             if (ranking) {
                 setRankings([ranking]);
+
+                // 2. Once ranking is loaded, subscribe to only its players
+                if (unsubscribePlayers) unsubscribePlayers();
+
+                const playerIds = new Set<string>();
+                ranking.divisions.forEach(div => {
+                    div.players.forEach(id => playerIds.add(id));
+                });
+
+                unsubscribePlayers = subscribeToPlayersByIds(Array.from(playerIds), (data) => {
+                    setPlayers(data);
+                    setLoading(false);
+                });
             } else {
                 setRankings([]);
+                setLoading(false);
             }
-        });
-
-        // 2. Subscribe to Players
-        const unsubscribePlayers = subscribeToPlayers((data) => {
-            setPlayers(data);
-            setLoading(false);
         });
 
         return () => {
             unsubscribeRanking();
-            unsubscribePlayers();
+            if (unsubscribePlayers) unsubscribePlayers();
         };
     }, [rankingId]);
 

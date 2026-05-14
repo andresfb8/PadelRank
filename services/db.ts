@@ -79,17 +79,55 @@ export const logActivity = async (userId: string, content: string, author: strin
 
 // --- PLAYERS ---
 
+/**
+ * Subscribe to specific players by ID array (for public access - no auth required)
+ */
+export const subscribeToPlayersByIds = (playerIds: string[], callback: (players: Record<string, Player>) => void) => {
+    if (playerIds.length === 0) {
+        callback({});
+        return () => {};
+    }
+
+    // Subscribe to each player individually since we can't do a batch query without auth constraints
+    const unsubscribers: (() => void)[] = [];
+    const playersMap: Record<string, Player> = {};
+    let loadedCount = 0;
+
+    playerIds.forEach(playerId => {
+        const unsubscribe = onSnapshot(doc(db, "players", playerId), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                playersMap[docSnap.id] = {
+                    id: docSnap.id,
+                    ...data,
+                    stats: data.stats || { pj: 0, pg: 0, pp: 0, winrate: 0 }
+                } as Player;
+            }
+            loadedCount++;
+            // Call callback when all players have been loaded at least once
+            if (loadedCount === playerIds.length) {
+                callback(playersMap);
+            }
+        }, (error) => {
+            console.warn("Error subscribing to player:", playerId, error);
+            loadedCount++;
+            if (loadedCount === playerIds.length) {
+                callback(playersMap);
+            }
+        });
+        unsubscribers.push(unsubscribe);
+    });
+
+    return () => {
+        unsubscribers.forEach(unsub => unsub());
+    };
+};
+
 export const subscribeToPlayers = (callback: (players: Record<string, Player>) => void, ownerId?: string) => {
     let q;
 
     if (ownerId) {
         // Optimized: Only fetch players owned by this user
-        // Note: orderBy requires an index if mixed with where(). 
-        // If sorting by 'nombre', we need a composite index "ownerId ASC, nombre ASC".
-        // Use 'orderBy' only if index exists, otherwise let client sort?
-        // Safe bet: Query by ownerId, filter/sort client side if index missing.
-        // But user request implies optimizing *fetching*.
-        // Let's try simple query first.
         q = query(collection(db, "players"), where("ownerId", "==", ownerId));
     } else {
         // Fallback or Superadmin: Fetch all (careful with scale)
