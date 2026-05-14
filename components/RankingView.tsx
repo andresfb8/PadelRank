@@ -26,6 +26,7 @@ import { RankingSettingsModal } from './RankingSettingsModal';
 import { StatsAdjustmentModal } from './StatsAdjustmentModal';
 import { PozoView } from './PozoView';
 import * as PozoEngine from '../services/PozoEngine';
+import { ExportModal } from './ExportModal';
 
 interface Props {
   ranking: Ranking;
@@ -89,6 +90,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editingPlayerName, setEditingPlayerName] = useState<string>('');
+
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc'; // Default to descending for stats (higher is better)
@@ -1460,76 +1464,14 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               title: 'Generar ronda con emparejamientos aleatorios'
             },
             {
-              id: 'export-pdf',
-              label: 'PDF',
-              icon: FileText,
-              onClick: () => {
-                const currentStandings = activeTab === 'global' ? globalStandings : standings;
-                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
-                exportRankingToPDF(ranking, () => currentStandings, players, {
-                  rankingName: ranking.nombre,
-                  categoryName: catName,
-                  clubName: 'Racket Grid'
-                });
-              },
-              visible: true,
-              variant: 'secondary',
-              className: 'text-red-600 bg-red-50 border-red-100 hover:bg-red-100',
-              title: 'Exportar a PDF'
-            },
-            {
-              id: 'export-csv',
-              label: 'CSV',
+              id: 'export-advanced',
+              label: 'Exportar',
               icon: Download,
-              onClick: () => {
-                const currentStandings = activeTab === 'global' ? globalStandings : standings;
-                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
-                exportRankingToCSV(ranking, () => currentStandings, players, {
-                  rankingName: ranking.nombre,
-                  categoryName: catName,
-                  clubName: 'Racket Grid'
-                });
-              },
+              onClick: () => setIsExportModalOpen(true),
               visible: true,
               variant: 'secondary',
-              className: 'text-green-600 bg-green-50 border-green-100 hover:bg-green-100',
-              title: 'Exportar a CSV'
-            },
-            {
-              id: 'export-excel',
-              label: 'Excel',
-              icon: Sheet,
-              onClick: () => {
-                const currentStandings = activeTab === 'global' ? globalStandings : standings;
-                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
-                exportRankingToExcel(ranking, () => currentStandings, players, {
-                  rankingName: ranking.nombre,
-                  categoryName: catName,
-                  clubName: 'Racket Grid'
-                });
-              },
-              visible: true,
-              variant: 'secondary',
-              className: 'text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100',
-              title: 'Exportar a Excel'
-            },
-            {
-              id: 'export-json',
-              label: 'JSON',
-              icon: Code,
-              onClick: () => {
-                const currentStandings = activeTab === 'global' ? globalStandings : standings;
-                const catName = activeTab === 'global' ? 'Global' : activeDivision ? (activeDivision.category || `División ${activeDivision.numero}`) : '';
-                exportRankingToJSON(ranking, () => currentStandings, players, {
-                  rankingName: ranking.nombre,
-                  categoryName: catName,
-                  clubName: 'Racket Grid'
-                });
-              },
-              visible: true,
-              variant: 'secondary',
-              className: 'text-purple-600 bg-purple-50 border-purple-100 hover:bg-purple-100',
-              title: 'Exportar a JSON'
+              className: 'text-indigo-600 bg-indigo-50 border-indigo-100 hover:bg-indigo-100',
+              title: 'Exportar clasificación y partidos'
             },
             // AVAILABILITY BUTTON (Restored)
             {
@@ -2887,6 +2829,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             manualStatsAdjustments: newHelper
           });
         }}
+      />
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        ranking={ranking}
+        divisions={ranking.divisions}
+        players={players}
+        standingsCallback={() => activeTab === 'global' ? globalStandings : standings}
       />
     </div >
   );

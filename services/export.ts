@@ -615,3 +615,281 @@ export const exportRankingToJSON = (
     const fileName = `RacketGrid_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
     downloadFile(jsonContent, fileName, 'application/json');
 };
+
+/**
+ * Exporta los partidos a CSV
+ */
+export const exportMatchesToCSV = (
+    ranking: Ranking,
+    divisions: Division[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const formatName = (id: string): string => {
+        if (!id || id === 'BYE') return id;
+        const p = players[id];
+        return p ? `${p.nombre} ${p.apellidos}` : "Jugador Desconocido";
+    };
+
+    const formatPairName = (pair: any): string => {
+        if (!pair.p1Id) return "TBD";
+        if (pair.p1Id === 'BYE') return 'BYE';
+        const p1 = formatName(pair.p1Id);
+        const p2 = pair.p2Id ? formatName(pair.p2Id) : '';
+        return p2 ? `${p1} / ${p2}` : p1;
+    };
+
+    let csvContent = `Partidos: ${config.rankingName}\n`;
+    if (config.categoryName) csvContent += `Categoría: ${config.categoryName}\n`;
+    if (config.clubName) csvContent += `Club: ${config.clubName}\n`;
+    csvContent += `Fecha de Exportación: ${new Date().toLocaleDateString('es-ES')}\n\n`;
+
+    // Headers
+    const headers = ['División', 'Jornada', 'Equipo 1', 'Equipo 2', 'Resultado', 'Estado', 'Hora'];
+    if (ranking.format !== 'americano' && ranking.format !== 'mexicano' && ranking.format !== 'pozo') {
+        headers.push('Sets');
+    } else {
+        headers.push('Puntos');
+    }
+    headers.push('Cancha');
+
+    csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+
+    // Data
+    divisions.forEach(division => {
+        division.matches.forEach(match => {
+            const p1Name = formatPairName(match.pair1);
+            const p2Name = formatPairName(match.pair2);
+
+            let resultado = '';
+            if (match.status === 'finalizado') {
+                resultado = match.points.p1 > match.points.p2 ? p1Name : p2Name;
+            } else if (match.status === 'pendiente') {
+                resultado = 'Pendiente';
+            } else {
+                resultado = match.status;
+            }
+
+            let scoreStr = '';
+            if (match.status === 'finalizado' && match.score) {
+                if (ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'pozo') {
+                    scoreStr = `${match.score.pointsScored?.p1 || match.points.p1} - ${match.score.pointsScored?.p2 || match.points.p2}`;
+                } else {
+                    const sets = [];
+                    if (match.score.set1) sets.push(`${match.score.set1.p1}-${match.score.set1.p2}`);
+                    if (match.score.set2) sets.push(`${match.score.set2.p1}-${match.score.set2.p2}`);
+                    if (match.score.set3) sets.push(`${match.score.set3.p1}-${match.score.set3.p2}`);
+                    scoreStr = sets.join(', ');
+                }
+            }
+
+            const rowData = [
+                division.category || `División ${division.numero}`,
+                match.jornada,
+                p1Name,
+                p2Name,
+                resultado,
+                match.status,
+                match.startTime ? new Date(match.startTime).toLocaleTimeString('es-ES') : '',
+                scoreStr,
+                match.court || ''
+            ];
+
+            csvContent += rowData.map(cell => `"${cell}"`).join(',') + '\n';
+        });
+    });
+
+    const fileName = `RacketGrid_Partidos_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadFile(csvContent, fileName, 'text/csv;charset=utf-8;');
+};
+
+/**
+ * Exporta los partidos a Excel
+ */
+export const exportMatchesToExcel = (
+    ranking: Ranking,
+    divisions: Division[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const formatName = (id: string): string => {
+        if (!id || id === 'BYE') return id;
+        const p = players[id];
+        return p ? `${p.nombre} ${p.apellidos}` : "Jugador Desconocido";
+    };
+
+    const formatPairName = (pair: any): string => {
+        if (!pair.p1Id) return "TBD";
+        if (pair.p1Id === 'BYE') return 'BYE';
+        const p1 = formatName(pair.p1Id);
+        const p2 = pair.p2Id ? formatName(pair.p2Id) : '';
+        return p2 ? `${p1} / ${p2}` : p1;
+    };
+
+    let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xmlContent += '<?mso-application progid="Excel.Sheet"?>\n';
+    xmlContent += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+    xmlContent += '<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office"><Title>Partidos - ' + config.rankingName + '</Title></DocumentProperties>\n';
+    xmlContent += '<Styles>\n';
+    xmlContent += '<Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="3F51B5" ss:Pattern="Solid"/><Font ss:Color="FFFFFF"/></Style>\n';
+    xmlContent += '<Style ss:ID="Center"><Alignment ss:Horizontal="Center"/></Style>\n';
+    xmlContent += '<Style ss:ID="DivisionHeader"><Font ss:Bold="1" ss:Size="12"/><Interior ss:Color="E0E0E0" ss:Pattern="Solid"/></Style>\n';
+    xmlContent += '</Styles>\n';
+    xmlContent += '<Worksheet ss:Name="Partidos">\n';
+    xmlContent += '<Table>\n';
+
+    // Header Info
+    xmlContent += '<Row><Cell ss:StyleID="Header"><Data ss:Type="String">Partidos: ' + config.rankingName + '</Data></Cell></Row>\n';
+    if (config.categoryName) xmlContent += '<Row><Cell><Data ss:Type="String">Categoría: ' + config.categoryName + '</Data></Cell></Row>\n';
+    if (config.clubName) xmlContent += '<Row><Cell><Data ss:Type="String">Club: ' + config.clubName + '</Data></Cell></Row>\n';
+    xmlContent += '<Row><Cell><Data ss:Type="String">Fecha: ' + new Date().toLocaleDateString('es-ES') + '</Data></Cell></Row>\n';
+    xmlContent += '<Row></Row>\n';
+
+    // Headers
+    const headers = ['División', 'Jornada', 'Equipo 1', 'Equipo 2', 'Resultado', 'Estado', 'Hora', 'Score', 'Cancha'];
+    xmlContent += '<Row>\n';
+    headers.forEach(header => {
+        xmlContent += '<Cell ss:StyleID="Header"><Data ss:Type="String">' + header + '</Data></Cell>\n';
+    });
+    xmlContent += '</Row>\n';
+
+    // Data
+    divisions.forEach(division => {
+        // Division separator
+        xmlContent += '<Row>\n';
+        xmlContent += '<Cell ss:StyleID="DivisionHeader"><Data ss:Type="String">' + (division.category || `División ${division.numero}`) + '</Data></Cell>\n';
+        xmlContent += '</Row>\n';
+
+        division.matches.forEach(match => {
+            const p1Name = formatPairName(match.pair1);
+            const p2Name = formatPairName(match.pair2);
+
+            let resultado = '';
+            if (match.status === 'finalizado') {
+                resultado = match.points.p1 > match.points.p2 ? p1Name : p2Name;
+            } else if (match.status === 'pendiente') {
+                resultado = 'Pendiente';
+            } else {
+                resultado = match.status;
+            }
+
+            let scoreStr = '';
+            if (match.status === 'finalizado' && match.score) {
+                if (ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'pozo') {
+                    scoreStr = `${match.score.pointsScored?.p1 || match.points.p1}-${match.score.pointsScored?.p2 || match.points.p2}`;
+                } else {
+                    const sets = [];
+                    if (match.score.set1) sets.push(`${match.score.set1.p1}-${match.score.set1.p2}`);
+                    if (match.score.set2) sets.push(`${match.score.set2.p1}-${match.score.set2.p2}`);
+                    if (match.score.set3) sets.push(`${match.score.set3.p1}-${match.score.set3.p2}`);
+                    scoreStr = sets.join(', ');
+                }
+            }
+
+            xmlContent += '<Row>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + (division.category || `División ${division.numero}`) + '</Data></Cell>\n';
+            xmlContent += '<Cell ss:StyleID="Center"><Data ss:Type="Number">' + match.jornada + '</Data></Cell>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + p1Name + '</Data></Cell>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + p2Name + '</Data></Cell>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + resultado + '</Data></Cell>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + match.status + '</Data></Cell>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + (match.startTime ? new Date(match.startTime).toLocaleTimeString('es-ES') : '') + '</Data></Cell>\n';
+            xmlContent += '<Cell><Data ss:Type="String">' + scoreStr + '</Data></Cell>\n';
+            xmlContent += '<Cell ss:StyleID="Center"><Data ss:Type="String">' + (match.court || '') + '</Data></Cell>\n';
+            xmlContent += '</Row>\n';
+        });
+    });
+
+    xmlContent += '</Table>\n';
+    xmlContent += '</Worksheet>\n';
+    xmlContent += '</Workbook>';
+
+    const fileName = `RacketGrid_Partidos_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.xls`;
+    downloadFile(xmlContent, fileName, 'application/vnd.ms-excel');
+};
+
+/**
+ * Exporta los partidos a JSON
+ */
+export const exportMatchesToJSON = (
+    ranking: Ranking,
+    divisions: Division[],
+    players: Record<string, Player>,
+    config: ExportConfig = { rankingName: 'Torneo Racket Grid' }
+) => {
+    const formatName = (id: string): string => {
+        if (!id || id === 'BYE') return id;
+        const p = players[id];
+        return p ? `${p.nombre} ${p.apellidos}` : "Jugador Desconocido";
+    };
+
+    const formatPairName = (pair: any): string => {
+        if (!pair.p1Id) return "TBD";
+        if (pair.p1Id === 'BYE') return 'BYE';
+        const p1 = formatName(pair.p1Id);
+        const p2 = pair.p2Id ? formatName(pair.p2Id) : '';
+        return p2 ? `${p1} / ${p2}` : p1;
+    };
+
+    const matches = divisions.flatMap(division =>
+        division.matches.map(match => {
+            const p1Name = formatPairName(match.pair1);
+            const p2Name = formatPairName(match.pair2);
+
+            let resultado = '';
+            if (match.status === 'finalizado') {
+                resultado = match.points.p1 > match.points.p2 ? p1Name : p2Name;
+            } else if (match.status === 'pendiente') {
+                resultado = 'Pendiente';
+            } else {
+                resultado = match.status;
+            }
+
+            let score = null;
+            if (match.status === 'finalizado' && match.score) {
+                if (ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'pozo') {
+                    score = {
+                        p1Points: match.score.pointsScored?.p1 || match.points.p1,
+                        p2Points: match.score.pointsScored?.p2 || match.points.p2
+                    };
+                } else {
+                    score = {
+                        set1: match.score.set1,
+                        set2: match.score.set2,
+                        set3: match.score.set3
+                    };
+                }
+            }
+
+            return {
+                id: match.id,
+                division: division.category || `División ${division.numero}`,
+                jornada: match.jornada,
+                team1: p1Name,
+                team2: p2Name,
+                winner: resultado,
+                status: match.status,
+                scheduledTime: match.startTime,
+                score: score,
+                court: match.court
+            };
+        })
+    );
+
+    const exportData = {
+        metadata: {
+            rankingName: config.rankingName,
+            categoryName: config.categoryName,
+            clubName: config.clubName,
+            format: ranking.format,
+            exportDate: new Date().toISOString(),
+            totalMatches: matches.length,
+            totalDivisions: divisions.length
+        },
+        matches: matches
+    };
+
+    const jsonContent = JSON.stringify(exportData, null, 2);
+    const fileName = `RacketGrid_Partidos_${ranking.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
+    downloadFile(jsonContent, fileName, 'application/json');
+};
