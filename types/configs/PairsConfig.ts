@@ -17,6 +17,9 @@ export interface PairsConfig {
 
     /** Points awarded for losing 0-2 */
     pointsPerLoss2_0: number;
+
+    /** If true, each pair plays every other pair twice (home + away legs). */
+    doubleRoundRobin?: boolean;
 }
 
 /**

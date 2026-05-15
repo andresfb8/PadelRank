@@ -1,5 +1,6 @@
 
 import { Match, MatchScore, Player, StandingRow, Ranking, Division, TieBreakCriterion, DEFAULT_TIE_BREAK_ORDER } from "../types";
+import { computeBracketSize, selectByCrossGroupPosition } from "./crossGroupQualifiers";
 
 // PRD 4.4.2 & 4.6.2 Logic
 export function calculateMatchPoints(
@@ -749,8 +750,9 @@ export function getQualifiedPlayersBuckets(ranking: Ranking): { main: string[], 
   if (ranking.format !== 'hybrid') return { main: [], consolation: [] };
   if (!ranking.config?.hybridConfig) return { main: [], consolation: [] };
 
-  const qualifiersPerGroup = ranking.config.hybridConfig.qualifiersPerGroup;
-  const consolationPerGroup = ranking.config.hybridConfig.consolationQualifiersPerGroup || 0;
+  const hc = ranking.config.hybridConfig;
+  const qualifiersPerGroup = hc.qualifiersPerGroup;
+  const consolationPerGroup = hc.consolationQualifiersPerGroup || 0;
 
   // Sort divisions by number to ensure Group A, B, C order
   // FILTER: Only consider GROUP divisions, ignore existing Playoff brackets
@@ -770,33 +772,17 @@ export function getQualifiedPlayersBuckets(ranking: Ranking): { main: string[], 
     ranking.config?.tieBreakCriteria
   ));
 
-  const mainQualifiedIds: string[] = [];
-  const consolationQualifiedIds: string[] = [];
+  const mainSize = computeBracketSize(hc.playoffBracketSize, qualifiersPerGroup, divisions.length);
+  const main = selectByCrossGroupPosition(allStandings, mainSize);
 
-  // Interleave logic: Div1#1, Div2#1... then Div1#2, Div2#2...
-  // This maximizes the chance that 1st places don't meet purely by seed index logic in existing generateBracket
-
-  // Main Playoff Qualifiers
-  for (let pos = 0; pos < qualifiersPerGroup; pos++) {
-    divisions.forEach((_, divIdx) => {
-      const standing = allStandings[divIdx];
-      if (standing && standing[pos]) {
-        mainQualifiedIds.push(standing[pos].playerId);
-      }
-    });
+  const mainSet = new Set(main);
+  let consolation: string[] = [];
+  if (consolationPerGroup > 0) {
+    const consolationSize = computeBracketSize(hc.consolationBracketSize, consolationPerGroup, divisions.length);
+    consolation = selectByCrossGroupPosition(allStandings, consolationSize, mainSet);
   }
 
-  // Consolation Playoff Qualifiers (next positions after main qualifiers)
-  for (let pos = qualifiersPerGroup; pos < qualifiersPerGroup + consolationPerGroup; pos++) {
-    divisions.forEach((_, divIdx) => {
-      const standing = allStandings[divIdx];
-      if (standing && standing[pos]) {
-        consolationQualifiedIds.push(standing[pos].playerId);
-      }
-    });
-  }
-
-  return { main: mainQualifiedIds, consolation: consolationQualifiedIds };
+  return { main, consolation };
 }
 
 /**

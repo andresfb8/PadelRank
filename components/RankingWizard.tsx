@@ -96,6 +96,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
     const [individualMaxPlayers, setIndividualMaxPlayers] = useState(12); // Default for individual
     const [categorySizes, setCategorySizes] = useState<Record<number, number>>({});
     const [assignments, setAssignments] = useState<Record<number, string[]>>({});
+    const [drawSeed, setDrawSeed] = useState<number | undefined>(undefined);
     // Guest Players (stored as full objects temporarily)
     const [guestPlayers, setGuestPlayers] = useState<{ id: string; nombre: string; apellidos?: string }[]>([]);
     const [newGuestName, setNewGuestName] = useState('');
@@ -332,7 +333,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers}
                 />
             )}
-            {format === 'hybrid' && <HybridConfig config={config} setConfig={setConfig} />}
+            {format === 'hybrid' && <HybridConfig config={config} setConfig={setConfig} numDivisions={numDivisions} />}
             {format === 'pozo' && <PozoConfig config={config} setConfig={setConfig} />}
             {format === 'elimination' && (
                 <EliminationConfig
@@ -363,7 +364,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             <h3 className="text-lg font-semibold text-gray-800">Jugadores y Asignaciones</h3>
             {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
             {format === 'elimination' && <EliminationAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} />}
-            {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
+            {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} setDrawSeed={setDrawSeed} />}
         </div>
     );
 
@@ -409,6 +410,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             config: { ...config, maxPlayersPerDivision: format === 'individual' ? individualMaxPlayers : undefined },
             isOfficial,
             guestPlayers: activeGuestPlayers,
+            ...(format === 'hybrid' && drawSeed !== undefined ? { drawSeed } : {}),
         };
 
         onSave(newRanking);

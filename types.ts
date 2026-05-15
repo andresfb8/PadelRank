@@ -166,6 +166,10 @@ export interface Ranking {
   guestPlayers?: { id: string; nombre: string; apellidos?: string }[]; // Temporary players for this tournament only
   rounds?: number; // Total rounds for elimination bracket
 
+  // Seed used to reproduce the animated group draw (hybrid format). When set,
+  // viewers of the shared tournament can replay the same draw animation.
+  drawSeed?: number;
+
   // Scheduler Configuration
   schedulerConfig?: import('./services/SchedulerEngine').SchedulerConfig;
   playerConstraints?: Record<string, import('./services/SchedulerEngine').PlayerAvailability>;

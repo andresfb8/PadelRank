@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw, Download, Sheet, Code } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
@@ -27,6 +27,9 @@ import { StatsAdjustmentModal } from './StatsAdjustmentModal';
 import { PozoView } from './PozoView';
 import * as PozoEngine from '../services/PozoEngine';
 import { ExportModal } from './ExportModal';
+import { DrawReplayModal } from './DrawReplayModal';
+import { QualifiersOverrideModal } from './QualifiersOverrideModal';
+import { computeBracketSize } from '../services/crossGroupQualifiers';
 
 interface Props {
   ranking: Ranking;
@@ -93,6 +96,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
   // Export Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isDrawReplayOpen, setIsDrawReplayOpen] = useState(false);
+  const [playoffsPreview, setPlayoffsPreview] = useState<{ main: string[]; consolation: string[] } | null>(null);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc'; // Default to descending for stats (higher is better)
@@ -237,8 +242,39 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           <button onClick={copyToClipboard} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500">
             <Share2 size={20} />
           </button>
+          {ranking.format === 'hybrid' && ranking.drawSeed !== undefined && (
+            <button
+              onClick={() => setIsDrawReplayOpen(true)}
+              className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-yellow-600"
+              title="Ver sorteo de grupos"
+            >
+              <Trophy size={20} />
+            </button>
+          )}
         </div>
       </div>
+
+      <DrawReplayModal
+        isOpen={isDrawReplayOpen}
+        onClose={() => setIsDrawReplayOpen(false)}
+        ranking={ranking}
+        players={players}
+      />
+
+      {playoffsOverrideContext && playoffsPreview && (
+        <QualifiersOverrideModal
+          isOpen={!!playoffsPreview}
+          onClose={() => setPlayoffsPreview(null)}
+          onConfirm={handleConfirmPlayoffs}
+          initialMain={playoffsPreview.main}
+          initialConsolation={playoffsPreview.consolation}
+          allGroupParticipants={playoffsOverrideContext.allGroupParticipants}
+          mainBracketSize={playoffsOverrideContext.mainBracketSize}
+          consolationBracketSize={playoffsOverrideContext.consolationBracketSize}
+          players={players}
+          guestPlayers={ranking.guestPlayers}
+        />
+      )}
 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
@@ -1277,25 +1313,17 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
   const handleStartPlayoffs = () => {
     if (!onUpdateRanking || ranking.format !== 'hybrid') return;
-
-    // 1. Get Qualified Players (Main + Consolation buckets)
     const buckets = getQualifiedPlayersBuckets(ranking);
-    const mainQualified = buckets.main;
-    const consolationQualified = buckets.consolation;
+    if (buckets.main.length < 2) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 2).");
+    setPlayoffsPreview({ main: buckets.main, consolation: buckets.consolation });
+  };
 
-    if (mainQualified.length < 2) return alert("No hay suficientes parejas clasificadas para un cuadro (mínimo 2).");
+  const handleConfirmPlayoffs = (mainQualified: string[], consolationQualified: string[]) => {
+    if (!onUpdateRanking) return;
+    setPlayoffsPreview(null);
 
-    let confirmMessage = `Se generará un cuadro principal con ${mainQualified.length} parejas clasificadas.`;
-    if (consolationQualified.length > 0) {
-      confirmMessage += `\n\nTambién se generará un cuadro de consolación con ${consolationQualified.length} parejas.`;
-    }
-    confirmMessage += `\n\nLa fase de grupos se mantendrá visible. ¿Continuar?`;
-    if (!confirm(confirmMessage)) return;
-
-    // 2. Generate Brackets (both with internal consolation)
     const allBracketDivisions: Division[] = [];
 
-    // Main Bracket
     if (mainQualified.length >= 2) {
       const mainDivs = TournamentEngine.generateBracket(mainQualified, false);
       mainDivs.forEach(d => {
@@ -1305,7 +1333,6 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       allBracketDivisions.push(...mainDivs);
     }
 
-    // Consolation Bracket (simple elimination for non-qualifiers)
     if (consolationQualified.length >= 2) {
       const consolationDivs = TournamentEngine.generateBracket(consolationQualified, false);
       consolationDivs.forEach(d => {
@@ -1316,22 +1343,44 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       allBracketDivisions.push(...consolationDivs);
     }
 
-    // 3. Mark Stages
     const currentDivisions = ranking.divisions.map(d => ({ ...d, stage: 'group' as const }));
-
-    // 4. Update Ranking with BOTH sets of divisions
     const updatedRanking: Ranking = {
       ...ranking,
       phase: 'playoff',
       divisions: [...currentDivisions, ...allBracketDivisions]
     };
-
     onUpdateRanking(updatedRanking);
     if (allBracketDivisions.length > 0) {
       setActiveDivisionId(allBracketDivisions[0].id);
     }
     setViewMode('playoff');
   };
+
+  // Compute participant pool + bracket sizes for the override modal
+  const playoffsOverrideContext = useMemo(() => {
+    if (!playoffsPreview || ranking.format !== 'hybrid' || !ranking.config?.hybridConfig) return null;
+    const hc = ranking.config.hybridConfig;
+    const groupDivisions = ranking.divisions.filter(d => d.type !== 'main' && d.type !== 'consolation');
+    // Build pair IDs as p1::p2 strings, matching what TournamentEngine expects
+    const allPairIds: string[] = [];
+    for (const d of groupDivisions) {
+      for (let i = 0; i < d.players.length; i += 2) {
+        const p1 = d.players[i];
+        const p2 = d.players[i + 1];
+        if (p1 && p2) allPairIds.push(`${p1}::${p2}`);
+      }
+    }
+    // Order all participants so that the proposed main qualifiers come first
+    // (the override modal preserves the order when it returns the final lists).
+    const ordered = [...playoffsPreview.main, ...playoffsPreview.consolation, ...allPairIds.filter(id => !playoffsPreview.main.includes(id) && !playoffsPreview.consolation.includes(id))];
+    return {
+      allGroupParticipants: ordered,
+      mainBracketSize: computeBracketSize(hc.playoffBracketSize, hc.qualifiersPerGroup, groupDivisions.length),
+      consolationBracketSize: (hc.consolationQualifiersPerGroup || 0) > 0
+        ? computeBracketSize(hc.consolationBracketSize, hc.consolationQualifiersPerGroup || 0, groupDivisions.length)
+        : 0,
+    };
+  }, [playoffsPreview, ranking]);
 
   // Calculate primary action IDs based on format
   const primaryIds = ['settings', 'share'];
@@ -2398,7 +2447,15 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               }
 
               {
-                activeTab === 'matches' && activeDivision && (
+                activeTab === 'matches' && activeDivision && (() => {
+                  const isDoubleLeg = ranking.format === 'hybrid'
+                    ? !!ranking.config?.hybridConfig?.doubleRoundRobin
+                    : ranking.format === 'pairs'
+                    ? !!ranking.config?.pairsConfig?.doubleRoundRobin
+                    : false;
+                  const maxJornada = activeDivision.matches.reduce((m, x) => Math.max(m, x.jornada || 0), 0);
+                  const firstVueltaJornada = isDoubleLeg && maxJornada > 0 ? Math.floor(maxJornada / 2) + 1 : Infinity;
+                  return (
                   <div className="space-y-8">
                     {Object.entries(
                       activeDivision.matches.reduce((acc, m) => {
@@ -2408,6 +2465,12 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       }, {} as Record<number, Match[]>)
                     ).sort((a, b) => Number(a[0]) - Number(b[0])).map(([round, matches]) => (
                       <div key={round} className="animate-fade-in">
+                        {isDoubleLeg && Number(round) === 1 && (
+                          <div className="text-xs font-extrabold tracking-[0.3em] text-primary/70 uppercase mb-2 border-l-4 border-primary pl-3">Ida</div>
+                        )}
+                        {isDoubleLeg && Number(round) === firstVueltaJornada && (
+                          <div className="text-xs font-extrabold tracking-[0.3em] text-amber-600 uppercase mb-2 mt-6 border-l-4 border-amber-500 pl-3">Vuelta</div>
+                        )}
                         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                           <Calendar size={20} className="text-primary" /> Jornada {round}
                         </h3>
@@ -2595,7 +2658,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       </div>
                     ))}
                   </div>
-                )
+                  );
+                })()
               }
 
             </>

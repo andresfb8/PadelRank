@@ -445,7 +445,7 @@ export const MatchGenerator = {
         return matches;
     },
     // --- PAIRS LEAGUE (Fixed Teams A vs B) ---
-    generatePairsLeague: (pairs: string[][], divIndex: number): Match[] => {
+    generatePairsLeague: (pairs: string[][], divIndex: number, doubleRoundRobin: boolean = false): Match[] => {
         // pairs is array of [p1Id, p2Id]
         const n = pairs.length;
         if (n < 2) return [];
@@ -514,6 +514,24 @@ export const MatchGenerator = {
             // Remove last, insert at index 1
             const last = participants.pop();
             if (last) participants.splice(1, 0, last);
+        }
+
+        // --- Second leg (vuelta): mirror the first leg with pairs swapped ---
+        // Each match becomes pair2 vs pair1 in a later round, so each pair
+        // plays each rival once as "home" and once as "away".
+        if (doubleRoundRobin) {
+            const firstLeg = [...matches];
+            for (const m of firstLeg) {
+                const vuelta = createMatch(
+                    divIndex,
+                    m.jornada + numRounds,
+                    m.pair2.p1Id, m.pair2.p2Id,
+                    m.pair1.p1Id, m.pair1.p2Id,
+                    undefined
+                );
+                if (m.status === 'descanso') vuelta.status = 'descanso';
+                matches.push(vuelta);
+            }
         }
 
         return matches;

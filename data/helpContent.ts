@@ -60,12 +60,85 @@ export const HELP_ARTICLES: HelpArticle[] = [
             <p>El formato <strong>Híbrido</strong> combina lo mejor de una fase de grupos con la emoción de un cuadro final.</p>
             <h4 class="font-bold mt-2">Fases:</h4>
             <ol class="list-decimal pl-4 mt-1 space-y-1">
-                <li><strong>Fase de Grupos:</strong> Parejas fijas divididas en grupos (A, B, C...). Juegan todos contra todos dentro del grupo.</li>
-                <li><strong>Clasificación:</strong> Los mejores de cada grupo (ej. los 2 primeros) pasan a la fase final.</li>
-                <li><strong>Playoffs:</strong> Se genera automáticamente un cuadro eliminatorio (Cuartos, Semis, Final) cruzando a los clasificados (1º Grupo A vs 2º Grupo B).</li>
+                <li><strong>Fase de Grupos:</strong> Parejas fijas divididas en grupos (A, B, C...). Juegan todos contra todos dentro del grupo. Opcionalmente con ida y vuelta.</li>
+                <li><strong>Clasificación:</strong> Los mejores de cada grupo pasan a la fase final. El sistema rellena automáticamente los huecos del cuadro con los mejores clasificados cruzados entre grupos.</li>
+                <li><strong>Playoffs:</strong> Se genera automáticamente un cuadro eliminatorio cruzando a los clasificados. Antes de generarlo puedes ajustar manualmente quién pasa.</li>
             </ol>
+            <p class="mt-2 text-sm text-gray-500">Nuevo: puedes hacer un <strong>Sorteo en Directo</strong> animado para asignar parejas a grupos y compartirlo con todos los participantes.</p>
         `,
-        tags: ['hibrido', 'grupos', 'champions', 'eliminatoria', 'bracket']
+        tags: ['hibrido', 'grupos', 'champions', 'eliminatoria', 'bracket', 'sorteo']
+    },
+    {
+        id: 'fmt-hibrido-sorteo',
+        categoryId: 'formats',
+        title: 'Híbrido: Sorteo Animado de Grupos',
+        content: `
+            <p>Antes de empezar el torneo puedes hacer un <strong>sorteo en directo</strong> para asignar las parejas a los grupos de forma aleatoria y con animación.</p>
+            <h4 class="font-bold mt-2">¿Cómo funciona?</h4>
+            <ol class="list-decimal pl-4 mt-1 space-y-1">
+                <li>En el paso de asignación de jugadores, pulsa el botón <strong>"Sorteo en Directo"</strong> (icono de trofeo, junto a "Distribución Aleatoria").</li>
+                <li>Aparecerá una animación donde cada grupo se va formando: el título del grupo aparece y las cartas de las parejas caen una tras otra.</li>
+                <li>El resultado del sorteo se asigna automáticamente al cerrar la animación.</li>
+            </ol>
+            <h4 class="font-bold mt-2">¿Cómo compartirlo?</h4>
+            <p>Una vez guardado el torneo, cualquier participante que abra el enlace de la competición verá un botón <strong>"Ver sorteo"</strong> (icono de trofeo en la cabecera). Al pulsarlo, se reproduce exactamente la misma animación del sorteo original. Todos ven el mismo resultado porque el orden está guardado en el servidor.</p>
+            <p class="mt-2 text-sm text-gray-500">El botón "Distribución Aleatoria" sigue disponible si prefieres asignar grupos al instante sin animación.</p>
+        `,
+        tags: ['sorteo', 'animacion', 'grupos', 'hibrido', 'compartir', 'directo']
+    },
+    {
+        id: 'fmt-ida-vuelta',
+        categoryId: 'formats',
+        title: 'Liga con Ida y Vuelta',
+        content: `
+            <p>En los formatos <strong>Híbrido</strong> y <strong>Parejas</strong> puedes activar el modo <strong>ida y vuelta</strong> para que cada pareja juegue dos veces contra cada rival (una como "local" y otra como "visitante").</p>
+            <h4 class="font-bold mt-2">¿Cómo activarlo?</h4>
+            <ul class="list-disc pl-4 mt-1 space-y-1">
+                <li><strong>Híbrido:</strong> En el paso de configuración (paso 2), marca la casilla "Liga con ida y vuelta" en la sección de configuración de grupos.</li>
+                <li><strong>Parejas:</strong> En el mismo paso 2, encontrarás la misma casilla al final de la configuración.</li>
+            </ul>
+            <h4 class="font-bold mt-2">¿Cómo se ve en el calendario?</h4>
+            <p>Las jornadas se dividen en dos bloques claramente etiquetados: <strong>IDA</strong> (primera mitad del calendario) y <strong>VUELTA</strong> (segunda mitad). En la vuelta se mantiene el mismo emparejamiento pero con las parejas invertidas.</p>
+            <p class="mt-2 text-sm text-gray-500">Ejemplo: Con 4 parejas por grupo, la ida tiene 3 jornadas y la vuelta otras 3 (total 6 jornadas).</p>
+        `,
+        tags: ['ida', 'vuelta', 'doble', 'calendario', 'jornadas', 'hibrido', 'parejas']
+    },
+    {
+        id: 'fmt-hibrido-clasificados',
+        categoryId: 'formats',
+        title: 'Híbrido: Cuadro Eliminatorio Flexible',
+        content: `
+            <p>Por defecto, el sistema clasifica a los N primeros de cada grupo. Con el <strong>cuadro flexible</strong> puedes elegir el tamaño exacto del cuadro y el sistema rellena los huecos automáticamente con los mejores clasificados cruzando todos los grupos.</p>
+            <h4 class="font-bold mt-2">¿Cómo configurarlo?</h4>
+            <p>En el paso de configuración del torneo, elige el <strong>Tamaño del Cuadro Principal</strong>:</p>
+            <ul class="list-disc pl-4 mt-1 space-y-1">
+                <li><strong>Automático:</strong> El sistema calcula el tamaño mínimo (siguiente potencia de 2) según el número de clasificados directos.</li>
+                <li><strong>Manual:</strong> Final (2), Semifinales (4), Cuartos (8), Octavos (16), Dieciseisavos (32).</li>
+            </ul>
+            <h4 class="font-bold mt-2">¿Cómo se rellenan los huecos?</h4>
+            <p>El sistema prioriza por posición: primero pasan todos los 1ºs de cada grupo (ordenados por puntos), luego todos los 2ºs, y así sucesivamente hasta completar el cuadro. Los empates en puntos se resuelven por diferencia de sets y luego de juegos.</p>
+            <p class="mt-2"><strong>Ejemplo:</strong> 3 grupos con cuadro de 8 → pasan los 3 primeros + los 3 segundos + los 2 mejores terceros cruzados.</p>
+            <p class="mt-2 text-sm text-gray-500">Verás una previsión en tiempo real bajo los selectores que te explica exactamente quién clasificará.</p>
+        `,
+        tags: ['hibrido', 'cuadro', 'bracket', 'clasificados', 'segundos', 'cruzado', 'flexible']
+    },
+    {
+        id: 'fmt-hibrido-override',
+        categoryId: 'formats',
+        title: 'Híbrido: Ajustar Clasificados Antes del Playoff',
+        content: `
+            <p>Cuando pulsas <strong>"Iniciar Playoffs"</strong> en un torneo híbrido, antes de generar el cuadro aparece una pantalla para revisar y ajustar quién clasifica.</p>
+            <h4 class="font-bold mt-2">¿Qué puedes hacer?</h4>
+            <ul class="list-disc pl-4 mt-1 space-y-1">
+                <li>Mover una pareja del <strong>Cuadro Principal</strong> al <strong>Cuadro de Consolación</strong> o excluirla.</li>
+                <li>Incluir una pareja que el sistema había dejado fuera.</li>
+                <li>Intercambiar libremente entre los tres grupos: Principal, Consolación y No clasifican.</li>
+            </ul>
+            <h4 class="font-bold mt-2">Validación automática</h4>
+            <p>El sistema muestra contadores en tiempo real. El botón <strong>"Generar Playoffs"</strong> solo se activa cuando el número de clasificados en cada cuadro coincide exactamente con el tamaño configurado, evitando cuadros incompletos.</p>
+            <p class="mt-2 text-sm text-gray-500">Si no necesitas hacer cambios, simplemente pulsa "Generar Playoffs" directamente y el sistema usará la propuesta automática.</p>
+        `,
+        tags: ['hibrido', 'playoff', 'clasificados', 'manual', 'ajustar', 'override']
     },
     {
         id: 'fmt-league',

@@ -1,8 +1,10 @@
-import React from 'react';
-import { Wand2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Wand2, Trophy } from 'lucide-react';
 import { Button } from '../ui/Components';
 import { SearchableSelect } from '../SearchableSelect';
 import { FormatAssignmentsProps } from './types';
+import { seededShuffle, generateDrawSeed } from '../../services/seededRandom';
+import { DrawAnimationModal, DrawGroup } from './DrawAnimationModal';
 
 type LeagueFormat = 'classic' | 'individual' | 'pairs' | 'hybrid' | 'pozo';
 
@@ -23,7 +25,13 @@ export const LeagueAssignments = ({
     setNumDivisions,
     individualMaxPlayers,
     setIndividualMaxPlayers,
+    setDrawSeed,
 }: LeagueAssignmentsProps) => {
+    const [drawModal, setDrawModal] = useState<{ open: boolean; groups: DrawGroup[]; result: Record<number, string[]> }>({
+        open: false,
+        groups: [],
+        result: {},
+    });
     const isPozoFixedPairs = format === 'pozo' && config.pozoConfig?.variant === 'fixed-pairs';
     const isPairsMode = format === 'pairs' || format === 'hybrid' || isPozoFixedPairs;
 
@@ -63,40 +71,107 @@ export const LeagueAssignments = ({
     };
 
     // ─── Auto-distribute: Pairs ──────────────────────────────────────────────────
-    const handleAutoDistributePairs = () => {
-        const assignedPlayers = Object.values(assignments)
-            .flat()
-            .map((p: string) => (p.includes('::') ? p.split('::') : [p]))
-            .flat()
-            .filter(Boolean);
-        const allPlayers = Array.from(new Set([...selectedPlayerIds, ...assignedPlayers]));
-        if (allPlayers.length === 0) return alert('No hay jugadores seleccionados (ni en bolsa ni asignados).');
-        if (numDivisions < 1) return alert('Define el número de divisiones/grupos');
+    // When `seed` is provided, the shuffle is deterministic (used by animated draw).
+    const computePairAssignments = (seed?: number): Record<number, string[]> | null => {
+        if (numDivisions < 1) { alert('Define el número de divisiones/grupos'); return null; }
 
-        const shuffled = allPlayers.sort(() => Math.random() - 0.5);
-        const targetPairsPerGroup = format === 'hybrid'
-            ? (config.hybridConfig?.pairsPerGroup || 4)
-            : Math.max(2, individualMaxPlayers || 2);
+        // Separate complete pairs (atomic units) from orphan individual players
+        const completePairs: string[] = [];
+        const orphanPlayers: string[] = [];
 
+        Object.values(assignments).flat().forEach((s: string) => {
+            if (!s) return;
+            if (s.includes('::')) {
+                const [p1, p2] = s.split('::');
+                if (p1 && p2) completePairs.push(s);  // complete pair → keep as unit
+                else if (p1) orphanPlayers.push(p1);
+                else if (p2) orphanPlayers.push(p2);
+            } else {
+                orphanPlayers.push(s);
+            }
+        });
+
+        // Add pool players not already in any pair
+        const usedIds = new Set([
+            ...completePairs.flatMap(p => p.split('::')),
+            ...orphanPlayers,
+        ]);
+        for (const id of selectedPlayerIds) {
+            if (!usedIds.has(id)) orphanPlayers.push(id);
+        }
+
+        if (completePairs.length === 0 && orphanPlayers.length < 2) {
+            alert('No hay parejas ni jugadores suficientes.');
+            return null;
+        }
+
+        // Randomly pair orphan individuals
+        const shuffledOrphans = seed !== undefined
+            ? seededShuffle(orphanPlayers, seed)
+            : [...orphanPlayers].sort(() => Math.random() - 0.5);
+        const newPairs: string[] = [];
+        for (let i = 0; i + 1 < shuffledOrphans.length; i += 2) {
+            newPairs.push(`${shuffledOrphans[i]}::${shuffledOrphans[i + 1]}`);
+        }
+        if (shuffledOrphans.length % 2 === 1) {
+            newPairs.push(`${shuffledOrphans[shuffledOrphans.length - 1]}::`);
+        }
+
+        // Shuffle all pairs together and distribute across groups
+        const allPairs = seed !== undefined
+            ? seededShuffle([...completePairs, ...newPairs], seed)
+            : [...completePairs, ...newPairs].sort(() => Math.random() - 0.5);
+
+        const totalPairs = allPairs.length;
+        const basePairs = Math.floor(totalPairs / numDivisions);
+        const rem = totalPairs % numDivisions;
         const newAssignments: Record<number, string[]> = {};
         let idx = 0;
         for (let i = 0; i < numDivisions; i++) {
-            const totalPairs = Math.floor(shuffled.length / 2);
-            const basePairs = Math.floor(totalPairs / numDivisions);
-            const rem = totalPairs % numDivisions;
-            const pairsForDiv = basePairs + (i < rem ? 1 : 0);
-            const playersForDiv = pairsForDiv * 2;
-            const chunk = shuffled.slice(idx, idx + playersForDiv);
-            idx += playersForDiv;
-            const pairStrings: string[] = [];
-            for (let k = 0; k < chunk.length; k += 2) {
-                const p1 = chunk[k], p2 = chunk[k + 1];
-                if (p1 && p2) pairStrings.push(`${p1}::${p2}`);
-                else if (p1) pairStrings.push(`${p1}::`);
-            }
-            newAssignments[i] = pairStrings;
+            const count = basePairs + (i < rem ? 1 : 0);
+            newAssignments[i] = allPairs.slice(idx, idx + count);
+            idx += count;
         }
-        setAssignments(newAssignments);
+        return newAssignments;
+    };
+
+    const handleAutoDistributePairs = () => {
+        const result = computePairAssignments();
+        if (result) {
+            setAssignments(result);
+            setDrawSeed?.(undefined); // instant random draw is not reproducible
+        }
+    };
+
+    const playerName = (id: string) => {
+        if (!id) return '';
+        const p = availablePlayers.find(pp => pp.id === id);
+        return p ? `${p.nombre} ${p.apellidos || ''}`.trim() : '';
+    };
+
+    const handleAnimatedDraw = () => {
+        const seed = generateDrawSeed();
+        const result = computePairAssignments(seed);
+        if (!result) return;
+        const groups: DrawGroup[] = Object.entries(result).map(([divIdx, pairs]) => ({
+            label: `Grupo ${String.fromCharCode(65 + Number(divIdx))}`,
+            pairs: pairs.map(s => {
+                const [p1, p2] = s.split('::');
+                return { p1Name: playerName(p1), p2Name: playerName(p2) };
+            }),
+        }));
+        setDrawModal({ open: true, groups, result });
+        setDrawSeed?.(seed);
+    };
+
+    const handleDrawComplete = () => {
+        setAssignments(drawModal.result);
+    };
+
+    const closeDrawModal = () => {
+        // Ensure assignments are applied even if user closes mid-animation
+        setAssignments(drawModal.result);
+        setDrawModal({ open: false, groups: [], result: {} });
     };
 
     // ─── Individual mode ─────────────────────────────────────────────────────────
@@ -202,7 +277,24 @@ export const LeagueAssignments = ({
                 >
                     <Wand2 size={14} className="mr-1" /> Distribución Aleatoria
                 </Button>
+                {isHybrid && (
+                    <Button
+                        onClick={handleAnimatedDraw}
+                        variant="secondary"
+                        className="text-xs bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200"
+                    >
+                        <Trophy size={14} className="mr-1" /> Sorteo en Directo
+                    </Button>
+                )}
             </div>
+
+            <DrawAnimationModal
+                isOpen={drawModal.open}
+                groups={drawModal.groups}
+                onComplete={handleDrawComplete}
+                onClose={closeDrawModal}
+                autoCloseOnComplete={false}
+            />
 
             {Array.from({ length: numDivisions }).map((_, divIdx) => {
                 const currentList = assignments[divIdx] || [];

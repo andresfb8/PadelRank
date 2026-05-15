@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { Match, MatchScore, RankingConfig, Division } from '../../types';
+import { MatchScore, RankingConfig, Division } from '../../types';
 import { getHybridConfig } from '../../utils/configHelpers';
+import { computeBracketSize, selectByCrossGroupPosition } from '../../services/crossGroupQualifiers';
 
 /**
  * Hook for Hybrid format-specific logic
@@ -75,51 +76,44 @@ export function useHybridLogic(config: RankingConfig | undefined) {
     }, [hybridConfig]);
 
     /**
-     * Determine which pairs qualify for main playoff
+     * Determine which pairs qualify for main playoff.
+     * Uses cross-group position ranking to fill a bracket of configured size.
      */
     const getMainPlayoffQualifiers = useMemo(() => {
         return (groupDivisions: Division[]): string[] => {
-            const qualifiers: string[] = [];
-
-            groupDivisions.forEach(division => {
-                const standings = division.standings || [];
-                const sortedStandings = [...standings].sort((a, b) => a.pos - b.pos);
-
-                // Take top N pairs from each group
-                const topPairs = sortedStandings
-                    .slice(0, hybridConfig.qualifiersPerGroup)
-                    .map(s => s.playerId);
-
-                qualifiers.push(...topPairs);
-            });
-
-            return qualifiers;
+            const sortedStandings = groupDivisions.map(d =>
+                [...(d.standings || [])].sort((a, b) => a.pos - b.pos)
+            );
+            const size = computeBracketSize(
+                hybridConfig.playoffBracketSize,
+                hybridConfig.qualifiersPerGroup,
+                groupDivisions.length,
+            );
+            return selectByCrossGroupPosition(sortedStandings, size);
         };
     }, [hybridConfig]);
 
     /**
-     * Determine which pairs qualify for consolation playoff
+     * Determine which pairs qualify for consolation playoff (excluding main qualifiers).
      */
     const getConsolationQualifiers = useMemo(() => {
         return (groupDivisions: Division[]): string[] => {
-            const qualifiers: string[] = [];
-
-            groupDivisions.forEach(division => {
-                const standings = division.standings || [];
-                const sortedStandings = [...standings].sort((a, b) => a.pos - b.pos);
-
-                // Take next N pairs from each group (after main qualifiers)
-                const consolationPairs = sortedStandings
-                    .slice(
-                        hybridConfig.qualifiersPerGroup,
-                        hybridConfig.qualifiersPerGroup + hybridConfig.consolationQualifiersPerGroup
-                    )
-                    .map(s => s.playerId);
-
-                qualifiers.push(...consolationPairs);
-            });
-
-            return qualifiers;
+            if (!hybridConfig.consolationQualifiersPerGroup) return [];
+            const sortedStandings = groupDivisions.map(d =>
+                [...(d.standings || [])].sort((a, b) => a.pos - b.pos)
+            );
+            const mainSize = computeBracketSize(
+                hybridConfig.playoffBracketSize,
+                hybridConfig.qualifiersPerGroup,
+                groupDivisions.length,
+            );
+            const main = new Set(selectByCrossGroupPosition(sortedStandings, mainSize));
+            const consolationSize = computeBracketSize(
+                hybridConfig.consolationBracketSize,
+                hybridConfig.consolationQualifiersPerGroup,
+                groupDivisions.length,
+            );
+            return selectByCrossGroupPosition(sortedStandings, consolationSize, main);
         };
     }, [hybridConfig]);
 

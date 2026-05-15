@@ -185,7 +185,10 @@ export function generateLeagueDivisions(input: GeneratorInput): Division[] {
 
             const pairs = pairStrings.map(s => s.split('::'));
             const flatPlayers = pairs.flat();
-            const matches = MatchGenerator.generatePairsLeague(pairs, i);
+            const doubleRoundRobin = format === 'hybrid'
+                ? !!config.hybridConfig?.doubleRoundRobin
+                : !!config.pairsConfig?.doubleRoundRobin;
+            const matches = MatchGenerator.generatePairsLeague(pairs, i, doubleRoundRobin);
 
             divisions.push({
                 id: `div-${crypto.randomUUID()}`,

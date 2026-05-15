@@ -21,4 +21,6 @@ export interface FormatAssignmentsProps {
     // Optional: used by EliminationAssignments to manage per-category bracket sizes
     categorySizes?: Record<number, number>;
     setCategorySizes?: (sizes: Record<number, number>) => void;
+    // Optional: used by hybrid format to persist the seed of the animated draw
+    setDrawSeed?: (seed: number | undefined) => void;
 }

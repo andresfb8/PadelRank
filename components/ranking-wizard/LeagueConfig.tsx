@@ -49,6 +49,22 @@ export const LeagueConfig = ({
                 <Input type="number" label="Descienden" value={config.relegationCount}
                     onChange={(e: any) => setConfig({ ...config, relegationCount: parseInt(e.target.value) || 0 })} />
             </div>
+
+            {format === 'pairs' && (
+                <label className="flex items-center gap-2 mt-4 text-sm font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-primary"
+                        checked={!!config.pairsConfig?.doubleRoundRobin}
+                        onChange={(e) => setConfig({
+                            ...config,
+                            pairsConfig: { ...(config.pairsConfig || {} as any), doubleRoundRobin: e.target.checked },
+                        })}
+                    />
+                    Liga con ida y vuelta
+                    <span className="text-xs text-gray-500 font-normal">(cada pareja juega dos veces contra cada rival)</span>
+                </label>
+            )}
         </div>
     );
 };

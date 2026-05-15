@@ -2,14 +2,48 @@ import React from 'react';
 import { Settings, Info } from 'lucide-react';
 import { Input } from '../ui/Components';
 import { FormatConfigProps } from './types';
+import {
+    computeBracketSize,
+    previewBracketBreakdown,
+    formatBreakdown,
+} from '../../services/crossGroupQualifiers';
 
 type HybridConfigProps = Pick<
     FormatConfigProps,
-    'config' | 'setConfig'
+    'config' | 'setConfig' | 'numDivisions'
 >;
 
-export const HybridConfig = ({ config, setConfig }: HybridConfigProps) => {
+const BRACKET_SIZE_OPTIONS: { value: number | undefined; label: string }[] = [
+    { value: undefined, label: 'Automático' },
+    { value: 2, label: 'Final (2)' },
+    { value: 4, label: 'Semifinales (4)' },
+    { value: 8, label: 'Cuartos (8)' },
+    { value: 16, label: 'Octavos (16)' },
+    { value: 32, label: 'Dieciseisavos (32)' },
+];
+
+export const HybridConfig = ({ config, setConfig, numDivisions }: HybridConfigProps) => {
     const hc = config.hybridConfig!;
+    const groupCount = Math.max(1, numDivisions || 1);
+    const pairsPerGroup = hc?.pairsPerGroup || 4;
+
+    const handleBracketSize = (value: number | undefined) => {
+        setConfig({ ...config, hybridConfig: { ...hc, playoffBracketSize: value } });
+    };
+    const handleConsolationBracketSize = (value: number | undefined) => {
+        setConfig({ ...config, hybridConfig: { ...hc, consolationBracketSize: value } });
+    };
+
+    const mainSize = computeBracketSize(hc?.playoffBracketSize, hc?.qualifiersPerGroup || 0, groupCount);
+    const mainBreakdown = previewBracketBreakdown(groupCount, pairsPerGroup, mainSize, 0);
+    const mainGuaranteed = (hc?.qualifiersPerGroup || 0) * groupCount;
+    const consolationEnabled = (hc?.consolationQualifiersPerGroup || 0) > 0;
+    const consolationSize = consolationEnabled
+        ? computeBracketSize(hc?.consolationBracketSize, hc?.consolationQualifiersPerGroup || 0, groupCount)
+        : 0;
+    const consolationBreakdown = consolationEnabled
+        ? previewBracketBreakdown(groupCount, pairsPerGroup, consolationSize, hc?.qualifiersPerGroup || 0)
+        : null;
 
     const handleMainQualifiers = (mainQualifiers: number) => {
         const consolation = hc?.consolationQualifiersPerGroup || 0;
@@ -71,14 +105,57 @@ export const HybridConfig = ({ config, setConfig }: HybridConfigProps) => {
                     value={hc?.pairsPerGroup || 4}
                     onChange={(e: any) => handlePairsPerGroup(parseInt(e.target.value) || 2)}
                 />
-                <div className="text-xs text-gray-500 mt-2 md:col-span-3">
-                    <strong>Cuadro Principal:</strong> Los <strong>{hc?.qualifiersPerGroup || 2} primeros</strong> de cada grupo.
-                    {(hc?.consolationQualifiersPerGroup || 0) > 0 && (
+                <label className="md:col-span-3 flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-primary"
+                        checked={!!hc?.doubleRoundRobin}
+                        onChange={(e) => setConfig({ ...config, hybridConfig: { ...hc, doubleRoundRobin: e.target.checked } })}
+                    />
+                    Liga con ida y vuelta
+                    <span className="text-xs text-gray-500 font-normal">(cada pareja juega dos veces contra cada rival)</span>
+                </label>
+                <div className="md:col-span-3 grid md:grid-cols-2 gap-4 mt-1">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Tamaño Cuadro Principal</label>
+                        <select
+                            value={hc?.playoffBracketSize ?? ''}
+                            onChange={(e) => handleBracketSize(e.target.value === '' ? undefined : parseInt(e.target.value))}
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium"
+                        >
+                            {BRACKET_SIZE_OPTIONS.map(opt => (
+                                <option key={opt.label} value={opt.value ?? ''}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Tamaño Cuadro Consolación</label>
+                        <select
+                            value={hc?.consolationBracketSize ?? ''}
+                            onChange={(e) => handleConsolationBracketSize(e.target.value === '' ? undefined : parseInt(e.target.value))}
+                            disabled={!consolationEnabled}
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium disabled:opacity-50"
+                        >
+                            {BRACKET_SIZE_OPTIONS.map(opt => (
+                                <option key={opt.label} value={opt.value ?? ''}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="text-xs text-gray-600 mt-2 md:col-span-3 bg-gray-50 border border-gray-100 rounded-lg p-3">
+                    <strong className="text-gray-800">Cuadro Principal ({mainSize} clasificados):</strong>{' '}
+                    {formatBreakdown(mainBreakdown)}.
+                    {mainSize > mainGuaranteed && mainGuaranteed > 0 && (
+                        <span className="text-gray-500"> Los {mainSize - mainGuaranteed} huecos restantes se rellenan con el mejor rendimiento cruzado entre grupos.</span>
+                    )}
+                    {consolationBreakdown && (
                         <>
-                            <br /><strong>Cuadro Consolación:</strong> Los <strong>siguientes {hc?.consolationQualifiersPerGroup}</strong> de cada grupo.
+                            <br /><strong className="text-gray-800">Cuadro Consolación ({consolationSize} clasificados):</strong>{' '}
+                            {formatBreakdown(consolationBreakdown)}.
                         </>
                     )}
-                    <br />Ambos cuadros serán de eliminación simple. Todos los jugadores juegan al menos un partido.
+                    <br /><span className="text-gray-500">Antes de generar los cuadros podrás ajustar manualmente los clasificados.</span>
                 </div>
             </div>
 
