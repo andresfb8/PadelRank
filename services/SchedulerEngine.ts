@@ -12,6 +12,18 @@ export interface SchedulerConfig {
     }[];
     /** Legacy: single daily time window (kept for backward compat) */
     timeWindows: { start: string; end: string }[];
+    /**
+     * Optional per-round time windows. Matches whose round name matches (e.g.
+     * "Semifinales", "Final") are confined to the given day + time window,
+     * regardless of category/bracket size. Used to phase the tournament
+     * (e.g. "Sunday morning = semifinals, Sunday afternoon = finals").
+     */
+    roundWindows?: {
+        roundName: string; // normalized round name, e.g. "Final", "Semifinales"
+        date: string;      // "YYYY-MM-DD"
+        startTime: string; // "HH:MM"
+        endTime: string;   // "HH:MM"
+    }[];
 }
 
 /** @deprecated Use PairAvailability with pairConstraints on Ranking */
@@ -174,17 +186,65 @@ export class SchedulerEngine {
         return { valid: false, reason: 'No courts available' };
     }
 
+    /** Strips the consolation suffix so round names align across brackets. */
+    static normalizeRoundName(name?: string): string {
+        return (name || '').replace(/\s*\(Cons\.\)\s*$/i, '').trim();
+    }
+
+    /** Returns the configured time window for a match's round, if any. */
+    static getRoundWindow(
+        roundName: string | undefined,
+        config: SchedulerConfig
+    ): { date: string; startTime: string; endTime: string } | undefined {
+        if (!config.roundWindows?.length) return undefined;
+        const target = this.normalizeRoundName(roundName);
+        if (!target) return undefined;
+        return config.roundWindows.find(rw => this.normalizeRoundName(rw.roundName) === target);
+    }
+
     /**
-     * Finds the next available slot for a match
+     * Finds the next available slot for a match.
+     * If `bound` is provided, the search is confined to that single day and
+     * the intersection of its [startTime, endTime] with the operating hours.
      */
     static findNextSlot(
         minStartTime: Date,
         config: SchedulerConfig,
         occupiedSlots: { start: Date; end: Date; court: number }[],
         pairConstraints?: Record<string, PairAvailability>,
-        pairKeys?: string[]
+        pairKeys?: string[],
+        bound?: { date: string; startTime: string; endTime: string }
     ): { start: Date; court: number } | null {
         const interval = 30;
+
+        // Bounded mode: confine to a single day + window (used for round windows)
+        if (bound) {
+            const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
+            const windowEnd = this.parseTimeOnDate(bound.endTime, bound.date);
+            // Respect the day's operating hours if that day is configured
+            const dayCfg = config.dailySchedule?.find(d => d.date === bound.date);
+            const lowerBound = dayCfg
+                ? new Date(Math.max(windowStart.getTime(), this.parseTimeOnDate(dayCfg.startTime, bound.date).getTime()))
+                : windowStart;
+            const upperBound = dayCfg
+                ? new Date(Math.min(windowEnd.getTime(), this.parseTimeOnDate(dayCfg.endTime, bound.date).getTime()))
+                : windowEnd;
+
+            let current = new Date(Math.max(lowerBound.getTime(), minStartTime.getTime()));
+            const remainder = current.getMinutes() % interval;
+            if (remainder !== 0) current = this.addMinutes(current, interval - remainder);
+
+            while (current < upperBound) {
+                const potentialEnd = this.addMinutes(current, config.slotDurationMinutes);
+                if (potentialEnd > upperBound) break;
+                // Pass a config without dailySchedule check conflicts: isValidSlot still
+                // validates operating hours, which we've already intersected above.
+                const result = this.isValidSlot(current, potentialEnd, config, occupiedSlots, pairConstraints, pairKeys);
+                if (result.valid && result.court) return { start: current, court: result.court };
+                current = this.addMinutes(current, interval);
+            }
+            return null;
+        }
 
         // Multi-day mode: iterate through dailySchedule days in order
         if (config.dailySchedule?.length) {
@@ -403,8 +463,15 @@ export class SchedulerEngine {
                 minStart = this.addMinutes(latest, config.restMinutes);
             }
 
+            // If this round is pinned to a time window, confine the slot to it
+            const bound = this.getRoundWindow(match.roundName, config);
+            if (bound) {
+                const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
+                if (minStart < windowStart) minStart = windowStart;
+            }
+
             const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
-            const slot = this.findNextSlot(minStart, config, occupiedSlots, pairConstraints, pairKeys);
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, pairConstraints, pairKeys, bound);
 
             if (slot) {
                 match.startTime = slot.start.toISOString();
@@ -447,9 +514,16 @@ export class SchedulerEngine {
                 if (!latestEnd || end > latestEnd) latestEnd = end;
             }
 
-            const minStart = latestEnd ? this.addMinutes(latestEnd, config.restMinutes) : this.getTournamentStart(config);
+            let minStart = latestEnd ? this.addMinutes(latestEnd, config.restMinutes) : this.getTournamentStart(config);
+
+            const bound = this.getRoundWindow(match.roundName, config);
+            if (bound) {
+                const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
+                if (minStart < windowStart) minStart = windowStart;
+            }
+
             const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
-            const slot = this.findNextSlot(minStart, config, occupiedSlots, undefined, undefined);
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, undefined, undefined, bound);
             if (slot) {
                 match.startTime = slot.start.toISOString();
                 match.court = slot.court;

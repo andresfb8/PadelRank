@@ -1,8 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { Modal, Button } from './ui/Components';
-import { Save, Plus, Trash2, Calendar, Clock, Users } from 'lucide-react';
+import { Save, Plus, Trash2, Calendar, Clock, Users, Layers } from 'lucide-react';
 import { Ranking, Player } from '../types';
-import { SchedulerConfig, PairAvailability, makePairKey } from '../services/SchedulerEngine';
+import { SchedulerConfig, PairAvailability, makePairKey, SchedulerEngine } from '../services/SchedulerEngine';
+
+interface RoundWindow {
+    roundName: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+}
 
 interface TournamentDay {
     date: string;      // "YYYY-MM-DD"
@@ -23,7 +30,7 @@ interface Props {
 export const SchedulerConfigModal = ({
     isOpen, onClose, tournament, players, onSave, initialConfig, initialPairConstraints
 }: Props) => {
-    const [activeTab, setActiveTab] = useState<'resources' | 'days' | 'availability'>('resources');
+    const [activeTab, setActiveTab] = useState<'resources' | 'days' | 'phases' | 'availability'>('resources');
 
     // Resources
     const [courts, setCourts] = useState(initialConfig?.courts || 4);
@@ -37,6 +44,15 @@ export const SchedulerConfigModal = ({
     const [newDate, setNewDate] = useState('');
     const [newDayStart, setNewDayStart] = useState('09:00');
     const [newDayEnd, setNewDayEnd] = useState('22:00');
+
+    // Per-round time windows (phase scheduling)
+    const [roundWindows, setRoundWindows] = useState<Record<string, RoundWindow>>(() => {
+        const map: Record<string, RoundWindow> = {};
+        (initialConfig?.roundWindows ?? []).forEach(rw => {
+            map[SchedulerEngine.normalizeRoundName(rw.roundName)] = rw;
+        });
+        return map;
+    });
 
     // Pair availability
     const [pairConstraints, setPairConstraints] = useState<Record<string, PairAvailability>>(
@@ -69,6 +85,39 @@ export const SchedulerConfigModal = ({
         });
         return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
     }, [tournament, players]);
+
+    // Distinct round names present in the tournament, ordered from first-played to final
+    const roundNames = useMemo(() => {
+        const set = new Set<string>();
+        tournament.divisions.forEach(div => div.matches.forEach(m => {
+            const name = SchedulerEngine.normalizeRoundName(m.roundName);
+            if (name) set.add(name);
+        }));
+        const rank = (name: string): number => {
+            if (name === 'Final') return 5000;
+            if (name === 'Semifinales') return 4000;
+            if (name === 'Cuartos') return 3000;
+            if (name === 'Octavos') return 2000;
+            const m = name.match(/Ronda de (\d+)/);
+            if (m) return 1000 - Number(m[1]); // larger bracket plays earlier
+            return 0;
+        };
+        return Array.from(set).sort((a, b) => rank(a) - rank(b));
+    }, [tournament]);
+
+    const setRoundWindowField = (roundName: string, field: keyof RoundWindow, value: string) => {
+        setRoundWindows(prev => {
+            const existing = prev[roundName] ?? { roundName, date: '', startTime: '', endTime: '' };
+            return { ...prev, [roundName]: { ...existing, roundName, [field]: value } };
+        });
+    };
+
+    const clearRoundWindow = (roundName: string) => {
+        setRoundWindows(prev => {
+            const { [roundName]: _, ...rest } = prev;
+            return rest;
+        });
+    };
 
     const handleAddDay = () => {
         if (!newDate || !newDayStart || !newDayEnd) return;
@@ -129,7 +178,10 @@ export const SchedulerConfigModal = ({
                 ? [{ start: days[0]?.startTime ?? '09:00', end: days[0]?.endTime ?? '22:00' }]
                 : [{ start: '09:00', end: '22:00' }],
             dailySchedule: days.length > 0 ? days : undefined,
+            roundWindows: Object.values(roundWindows)
+                .filter(rw => rw.date && rw.startTime && rw.endTime && rw.endTime > rw.startTime),
         };
+        if (!config.roundWindows?.length) delete config.roundWindows;
         onSave(config, pairConstraints);
         onClose();
     };
@@ -144,6 +196,7 @@ export const SchedulerConfigModal = ({
     const tabs = [
         { id: 'resources', label: 'Recursos', icon: <Users size={14} /> },
         { id: 'days', label: 'Días', icon: <Calendar size={14} /> },
+        { id: 'phases', label: 'Fases', icon: <Layers size={14} /> },
         { id: 'availability', label: 'Disponibilidad', icon: <Clock size={14} /> },
     ] as const;
 
@@ -254,7 +307,78 @@ export const SchedulerConfigModal = ({
                     </div>
                 )}
 
-                {/* Tab 3: Pair availability */}
+                {/* Tab 3: Round phases */}
+                {activeTab === 'phases' && (
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-500">
+                            Asigna cada fase a una franja horaria (ej. domingo mañana = Semifinales,
+                            domingo tarde = Final). Se aplica a <strong>todas las categorías</strong> por
+                            igual, así las rondas avanzan equilibradas. Las fases sin asignar se programan
+                            automáticamente. Luego puedes ajustar partidos sueltos a mano.
+                        </p>
+
+                        {days.length === 0 && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                                Configura primero los días del torneo en la pestaña "Días".
+                            </div>
+                        )}
+
+                        {roundNames.length === 0 ? (
+                            <p className="text-sm text-gray-400 text-center py-4">
+                                No hay rondas en este torneo todavía.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {roundNames.map(name => {
+                                    const rw = roundWindows[name];
+                                    return (
+                                        <div key={name} className="border rounded-lg p-3 bg-white">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="font-medium text-sm">{name}</span>
+                                                {rw && (
+                                                    <button onClick={() => clearRoundWindow(name)}
+                                                        className="text-red-400 hover:text-red-600 p-1" title="Quitar franja">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">Día</label>
+                                                    <select className="w-full text-sm border rounded p-1.5"
+                                                        value={rw?.date ?? ''}
+                                                        onChange={e => setRoundWindowField(name, 'date', e.target.value)}>
+                                                        <option value="">Automático</option>
+                                                        {days.map(d => (
+                                                            <option key={d.date} value={d.date}>{formatDate(d.date)}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">Desde</label>
+                                                    <input type="time" className="w-full text-sm border rounded p-1.5"
+                                                        value={rw?.startTime ?? ''}
+                                                        onChange={e => setRoundWindowField(name, 'startTime', e.target.value)} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">Hasta</label>
+                                                    <input type="time" className="w-full text-sm border rounded p-1.5"
+                                                        value={rw?.endTime ?? ''}
+                                                        onChange={e => setRoundWindowField(name, 'endTime', e.target.value)} />
+                                                </div>
+                                            </div>
+                                            {rw && rw.date && rw.startTime && rw.endTime && rw.endTime <= rw.startTime && (
+                                                <p className="text-xs text-red-500 mt-1">La hora de fin debe ser posterior al inicio.</p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Tab 4: Pair availability */}
                 {activeTab === 'availability' && (
                     <div className="space-y-4">
                         {days.length === 0 && (

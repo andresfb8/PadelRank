@@ -74,6 +74,37 @@ describe('SchedulerEngine.generateFullSchedule', () => {
         });
     });
 
+    it('confines a round to its configured time window across categories', () => {
+        // Two categories of 4 pairs → both have "Semifinales" (R1) and "Final" (R2)
+        const [catA] = TournamentEngine.generateBracket(['p1', 'p2', 'p3', 'p4'], false);
+        const [catB] = TournamentEngine.generateBracket(['q1', 'q2', 'q3', 'q4'], false);
+        catB.id = catB.id + '-b';
+
+        const config = makeConfig({
+            courts: 2,
+            dailySchedule: [
+                { date: '2026-06-06', startTime: '09:00', endTime: '22:00' },
+                { date: '2026-06-07', startTime: '09:00', endTime: '22:00' },
+            ],
+            roundWindows: [
+                { roundName: 'Final', date: '2026-06-07', startTime: '17:00', endTime: '20:00' },
+            ],
+        });
+        const ranking = makeRanking([catA, catB], config);
+
+        const result = SchedulerEngine.generateFullSchedule(ranking);
+
+        const finals = result.flatMap(d => d.matches).filter(m => m.roundName === 'Final');
+        expect(finals.length).toBe(2);
+        finals.forEach(f => {
+            expect(f.startTime).toBeTruthy();
+            const start = new Date(f.startTime!);
+            expect(start.toISOString().split('T')[0]).toBe('2026-06-07');
+            expect(start.getTime()).toBeGreaterThanOrEqual(new Date('2026-06-07T17:00:00').getTime());
+            expect(start.getTime() + 90 * 60000).toBeLessThanOrEqual(new Date('2026-06-07T20:00:00').getTime());
+        });
+    });
+
     it('re-running clears stale estimates (idempotent)', () => {
         const playerIds = ['p1', 'p2', 'p3', 'p4'];
         const [main] = TournamentEngine.generateBracket(playerIds, false);
