@@ -1305,12 +1305,12 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     }
   };
 
-  const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, constraints: Record<string, import('../services/SchedulerEngine').PlayerAvailability>) => {
+  const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, pairConstraints: Record<string, import('../services/SchedulerEngine').PairAvailability>) => {
     if (!onUpdateRanking) return;
     const updatedRanking = {
       ...ranking,
       schedulerConfig: config,
-      playerConstraints: constraints
+      pairConstraints
     };
     onUpdateRanking(updatedRanking);
   };
@@ -2848,7 +2848,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         players={players}
         onSave={handleSaveSchedulerConfig}
         initialConfig={ranking.schedulerConfig}
-        initialConstraints={ranking.playerConstraints}
+        initialPairConstraints={ranking.pairConstraints}
       />
 
       <ScheduleGridModal

@@ -139,7 +139,6 @@ export class SchedulerEngine {
         pairConstraints?: Record<string, PairAvailability>,
         pairKeys?: string[]
     ): { valid: boolean; court?: number; reason?: string } {
-
         // 1. Check operating hours
         const dateStr = startTime.toISOString().split('T')[0];
         if (config.dailySchedule?.length) {
