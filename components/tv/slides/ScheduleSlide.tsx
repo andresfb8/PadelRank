@@ -78,14 +78,9 @@ export const ScheduleSlide = ({ ranking, players }: Props) => {
                             // Using simplified approach: Sort matches by time, then group by time slot?
                             // Or strict grid? Let's use strict grid row logic like the modal.
 
-                            // Determine time range
-                            const dayTimes = dateMatches.map(m => new Date(m.startTime!).getTime());
-                            const minTime = Math.min(...dayTimes);
-                            const maxTime = Math.max(...dayTimes);
-
-                            // Align to slots? Default 90m or just list unique times?
-                            // Listing unique start times is safer for visual compactness in TV
-                            const uniqueTimes = Array.from(new Set(dayTimes)).sort((a, b) => a - b);
+                            // Determine unique start times for this day (sorted ascending)
+                            const dayTimes: number[] = dateMatches.map(m => new Date(m.startTime!).getTime());
+                            const uniqueTimes: number[] = Array.from(new Set<number>(dayTimes)).sort((a, b) => a - b);
 
                             return (
                                 <div key={dateStr} className="animate-fade-in">

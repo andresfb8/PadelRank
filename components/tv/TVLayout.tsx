@@ -148,13 +148,9 @@ export const TVLayout = ({ ranking, players }: Props) => {
         return list;
     }, [config, ranking.divisions, ranking.status, ranking.format, ranking.phase]);
 
-    // If no slides enabled, show fallback
-    if (slides.length === 0) {
-        return <div className="h-screen flex items-center justify-center bg-black text-white">Modo TV no configurado</div>;
-    }
-
     // Timer Logic
     useEffect(() => {
+        if (slides.length === 0) return;
         const durationMs = (config.slideDuration || 15) * 1000;
         const intervalMs = 100; // Update progress every 100ms
         const step = 100 / (durationMs / intervalMs);
@@ -177,6 +173,18 @@ export const TVLayout = ({ ranking, players }: Props) => {
     useEffect(() => {
         setProgress(0);
     }, [activeSlideIndex]);
+
+    // Keep active index in range if the slide list shrinks
+    useEffect(() => {
+        if (activeSlideIndex >= slides.length && slides.length > 0) {
+            setActiveSlideIndex(0);
+        }
+    }, [slides.length, activeSlideIndex]);
+
+    // If no slides enabled, show fallback (AFTER all hooks to respect Rules of Hooks)
+    if (slides.length === 0) {
+        return <div className="h-screen flex items-center justify-center bg-black text-white">Modo TV no configurado</div>;
+    }
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
