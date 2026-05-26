@@ -345,6 +345,99 @@ export class SchedulerEngine {
             .sort((a, b) => b.jornada - a.jornada)[0];
     }
 
+    /**
+     * Schedules all currently-ready matches in one batch pass.
+     * "Ready" = both pairs known, non-BYE, pending, no startTime assigned yet.
+     * Processes rounds in order so earlier matches claim slots first.
+     */
+    static generateFullSchedule(ranking: import('../types').Ranking): import('../types').Division[] {
+        const config = ranking.schedulerConfig;
+        if (!config) return ranking.divisions;
+
+        // Deep clone to avoid mutating React state
+        const newDivisions: import('../types').Division[] = JSON.parse(JSON.stringify(ranking.divisions));
+        const pairConstraints = (ranking as any).pairConstraints as Record<string, PairAvailability> ?? {};
+
+        // Collect schedulable matches: both pairs known + non-BYE + pending + no slot yet
+        const schedulable: Match[] = [];
+        newDivisions.forEach(div => {
+            div.matches.forEach(m => {
+                if (
+                    m.status === 'pendiente' &&
+                    !m.startTime &&
+                    m.pair1.p1Id && m.pair1.p1Id !== 'BYE' &&
+                    m.pair2.p1Id && m.pair2.p1Id !== 'BYE'
+                ) {
+                    schedulable.push(m);
+                }
+            });
+        });
+
+        // Sort by round so R1 matches get first pick of slots
+        schedulable.sort((a, b) => a.jornada - b.jornada);
+
+        for (const match of schedulable) {
+            const pair1Key = makePairKey(match.pair1.p1Id, match.pair1.p2Id || undefined);
+            const pair2Key = makePairKey(match.pair2.p1Id, match.pair2.p2Id || undefined);
+            const pairKeys = [pair1Key, pair2Key].filter(k => !!k && k !== 'BYE');
+
+            // EPST: earliest start = after both pairs' last scheduled match + rest
+            const lastEnd1 = this.getLastScheduledEnd(match.pair1, newDivisions, match.id, config);
+            const lastEnd2 = this.getLastScheduledEnd(match.pair2, newDivisions, match.id, config);
+
+            let minStart: Date;
+            if (!lastEnd1 && !lastEnd2) {
+                minStart = this.getTournamentStart(config);
+            } else {
+                const latest = !lastEnd1 ? lastEnd2! : !lastEnd2 ? lastEnd1! : (lastEnd1 > lastEnd2 ? lastEnd1 : lastEnd2);
+                minStart = this.addMinutes(latest, config.restMinutes);
+            }
+
+            const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, pairConstraints, pairKeys);
+
+            if (slot) {
+                match.startTime = slot.start.toISOString();
+                match.court = slot.court;
+            }
+        }
+
+        return newDivisions;
+    }
+
+    private static getTournamentStart(config: SchedulerConfig): Date {
+        if (config.dailySchedule?.length) {
+            const firstDay = [...config.dailySchedule].sort((a, b) => a.date.localeCompare(b.date))[0];
+            return this.parseTimeOnDate(firstDay.startTime, firstDay.date);
+        }
+        if (config.timeWindows?.[0]) {
+            return this.parseTime(config.timeWindows[0].start, new Date());
+        }
+        return new Date();
+    }
+
+    private static getLastScheduledEnd(
+        pair: { p1Id: string; p2Id: string },
+        divisions: import('../types').Division[],
+        excludeMatchId: string,
+        config: SchedulerConfig
+    ): Date | null {
+        let lastEnd: Date | null = null;
+        divisions.forEach(div => {
+            div.matches.forEach(m => {
+                if (m.id === excludeMatchId || !m.startTime) return;
+                if (
+                    (m.pair1.p1Id === pair.p1Id && (m.pair1.p2Id || '') === (pair.p2Id || '')) ||
+                    (m.pair2.p1Id === pair.p1Id && (m.pair2.p2Id || '') === (pair.p2Id || ''))
+                ) {
+                    const end = this.addMinutes(new Date(m.startTime), config.slotDurationMinutes);
+                    if (!lastEnd || end > lastEnd) lastEnd = end;
+                }
+            });
+        });
+        return lastEnd;
+    }
+
     static getAllOccupiedSlots(ranking: import('../types').Ranking, excludeMatchId?: string): { start: Date; end: Date; court: number }[] {
         const slots: { start: Date; end: Date; court: number }[] = [];
         const duration = ranking.schedulerConfig?.slotDurationMinutes || 90;

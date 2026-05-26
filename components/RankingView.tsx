@@ -1305,6 +1305,17 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     }
   };
 
+  const handleGenerateFullSchedule = () => {
+    if (!ranking.schedulerConfig?.dailySchedule?.length) {
+      alert('Configura primero los días del torneo en "Disponibilidad".');
+      setIsSchedulerConfigModalOpen(true);
+      return;
+    }
+    if (!onUpdateRanking) return;
+    const newDivisions = SchedulerEngine.generateFullSchedule(ranking);
+    onUpdateRanking({ ...ranking, divisions: newDivisions });
+  };
+
   const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, pairConstraints: Record<string, import('../services/SchedulerEngine').PairAvailability>) => {
     if (!onUpdateRanking) return;
     const updatedRanking = {
@@ -1534,6 +1545,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: () => setIsSchedulerConfigModalOpen(true),
               visible: isAdmin && (ranking.format === 'elimination' || ranking.format === 'hybrid'),
               variant: 'secondary'
+            },
+            {
+              id: 'generate-schedule',
+              label: 'Generar horario',
+              icon: Clock,
+              onClick: handleGenerateFullSchedule,
+              visible: isAdmin && (ranking.format === 'elimination' || ranking.format === 'hybrid') && !!ranking.schedulerConfig,
+              variant: 'secondary',
+              title: 'Asignar automáticamente horarios y pistas a todos los partidos listos',
+              className: 'text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-100'
             },
 
             {
