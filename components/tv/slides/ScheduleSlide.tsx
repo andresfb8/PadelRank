@@ -122,6 +122,7 @@ export const ScheduleSlide = ({ ranking, players }: Props) => {
                                                                         <div className="flex justify-between items-start">
                                                                             <span className="text-[10px] uppercase font-bold text-blue-300/80 tracking-wider">
                                                                                 {match.roundName || `Ronda ${match.jornada}`}
+                                                                                {match.scheduleEstimated && <span className="ml-1 italic normal-case text-amber-400">· estimado</span>}
                                                                             </span>
                                                                             {match.status === 'finalizado' && <span className="text-green-400 text-xs">Finalizado</span>}
                                                                         </div>

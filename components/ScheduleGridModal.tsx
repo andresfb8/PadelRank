@@ -189,6 +189,7 @@ export const ScheduleGridModal = ({ isOpen, onClose, matches, players, divisions
                                                                 {match ? (
                                                                     <div className={`
                                                                     rounded-lg p-3 text-sm border shadow-sm h-full
+                                                                    ${match.scheduleEstimated ? 'border-dashed opacity-70 ' : ''}
                                                                     ${match.roundName?.includes('(Cons.)')
                                                                             ? 'bg-orange-50 border-orange-100 text-orange-800' // Consolacion
                                                                             : 'bg-blue-50 border-blue-100 text-blue-900'} // Principal
@@ -197,6 +198,7 @@ export const ScheduleGridModal = ({ isOpen, onClose, matches, players, divisions
                                                                             <div className="flex-1">
                                                                                 <div className="text-[10px] font-bold uppercase opacity-70 tracking-wider">
                                                                                     {match.roundName || `Ronda ${match.jornada}`}
+                                                                                    {match.scheduleEstimated && <span className="ml-1 italic normal-case font-medium text-amber-600">· estimado</span>}
                                                                                 </div>
                                                                                 {getCategoryName(match) && (
                                                                                     <div className="text-[9px] font-semibold opacity-60 mt-0.5">

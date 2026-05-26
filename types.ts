@@ -252,6 +252,7 @@ export interface Match {
   status: 'pendiente' | 'finalizado' | 'no_disputado' | 'descanso';
   court?: number;
   startTime?: string; // ISO string for scheduling
+  scheduleEstimated?: boolean; // true when startTime is a projection (pairs not yet decided), not a confirmed slot
 
   // Elimination Pointers
   nextMatchId?: string; // ID of the match where the winner goes

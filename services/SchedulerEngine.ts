@@ -319,9 +319,10 @@ export class SchedulerEngine {
             const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, pairConstraints, pairKeys);
 
             if (slot) {
-                // Assign Slot
+                // Assign confirmed slot (clears any prior estimate)
                 nextMatch.startTime = slot.start.toISOString();
                 nextMatch.court = slot.court;
+                nextMatch.scheduleEstimated = false;
                 // Update match in division
                 const mIndex = division.matches.findIndex(m => m.id === nextMatch.id);
                 if (mIndex !== -1) division.matches[mIndex] = nextMatch;
@@ -357,6 +358,15 @@ export class SchedulerEngine {
         // Deep clone to avoid mutating React state
         const newDivisions: import('../types').Division[] = JSON.parse(JSON.stringify(ranking.divisions));
         const pairConstraints = (ranking as any).pairConstraints as Record<string, PairAvailability> ?? {};
+
+        // Clear previous estimates so they recompute fresh on every run
+        newDivisions.forEach(div => div.matches.forEach(m => {
+            if (m.scheduleEstimated) {
+                m.startTime = undefined;
+                m.court = undefined;
+                m.scheduleEstimated = false;
+            }
+        }));
 
         // Collect schedulable matches: both pairs known + non-BYE + pending + no slot yet
         const schedulable: Match[] = [];
@@ -401,6 +411,51 @@ export class SchedulerEngine {
                 match.court = slot.court;
             }
         }
+
+        // --- Estimation pass: project the NEXT round for matches whose feeders
+        // are already confirmed-scheduled or finalized (e.g. BYE). Winners are
+        // unknown so we skip pair availability and mark the slot as estimated. ---
+        const feedersOf = new Map<string, Match[]>();
+        newDivisions.forEach(div => div.matches.forEach(m => {
+            if (m.nextMatchId) {
+                const arr = feedersOf.get(m.nextMatchId) ?? [];
+                arr.push(m);
+                feedersOf.set(m.nextMatchId, arr);
+            }
+        }));
+
+        newDivisions.forEach(div => div.matches.forEach(match => {
+            if (match.startTime || match.status !== 'pendiente') return;
+            const bothPairsKnown = match.pair1.p1Id && match.pair1.p1Id !== 'BYE' &&
+                match.pair2.p1Id && match.pair2.p1Id !== 'BYE';
+            if (bothPairsKnown) return; // already handled by the main loop
+
+            const feeders = feedersOf.get(match.id) ?? [];
+            if (feeders.length === 0) return;
+
+            // Only one round ahead: feeders must be confirmed (not themselves estimated)
+            const allResolved = feeders.every(f =>
+                (f.startTime && !f.scheduleEstimated) ||
+                f.status === 'finalizado' || f.status === 'no_disputado'
+            );
+            if (!allResolved) return;
+
+            let latestEnd: Date | null = null;
+            for (const f of feeders) {
+                if (!f.startTime) continue; // BYE/finalized without a slot: available from start
+                const end = this.addMinutes(new Date(f.startTime), config.slotDurationMinutes);
+                if (!latestEnd || end > latestEnd) latestEnd = end;
+            }
+
+            const minStart = latestEnd ? this.addMinutes(latestEnd, config.restMinutes) : this.getTournamentStart(config);
+            const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, undefined, undefined);
+            if (slot) {
+                match.startTime = slot.start.toISOString();
+                match.court = slot.court;
+                match.scheduleEstimated = true;
+            }
+        }));
 
         return newDivisions;
     }
