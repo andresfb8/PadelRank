@@ -1,71 +1,122 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal, Button } from './ui/Components';
-import { Clock, Users, Save, X } from 'lucide-react';
+import { Save, Plus, Trash2, Calendar, Clock, Users } from 'lucide-react';
 import { Ranking, Player } from '../types';
-import { SchedulerConfig, PlayerAvailability } from '../services/SchedulerEngine';
+import { SchedulerConfig, PairAvailability, makePairKey } from '../services/SchedulerEngine';
+
+interface TournamentDay {
+    date: string;      // "YYYY-MM-DD"
+    startTime: string; // "HH:MM"
+    endTime: string;   // "HH:MM"
+}
 
 interface Props {
     isOpen: boolean;
     onClose: () => void;
     tournament: Ranking;
     players: Record<string, Player>;
-    onSave: (config: SchedulerConfig, constraints: Record<string, PlayerAvailability>) => void;
+    onSave: (config: SchedulerConfig, pairConstraints: Record<string, PairAvailability>) => void;
     initialConfig?: SchedulerConfig;
-    initialConstraints?: Record<string, PlayerAvailability>;
+    initialPairConstraints?: Record<string, PairAvailability>;
 }
 
-export const SchedulerConfigModal = ({ isOpen, onClose, tournament, players, onSave, initialConfig, initialConstraints }: Props) => {
-    const [activeTab, setActiveTab] = useState<'resources' | 'availability'>('resources');
+export const SchedulerConfigModal = ({
+    isOpen, onClose, tournament, players, onSave, initialConfig, initialPairConstraints
+}: Props) => {
+    const [activeTab, setActiveTab] = useState<'resources' | 'days' | 'availability'>('resources');
 
-    // Resources State
+    // Resources
     const [courts, setCourts] = useState(initialConfig?.courts || 4);
     const [slotDuration, setSlotDuration] = useState(initialConfig?.slotDurationMinutes || 90);
-    const [startTime, setStartTime] = useState(initialConfig?.timeWindows[0]?.start || "09:00");
-    const [endTime, setEndTime] = useState(initialConfig?.timeWindows[0]?.end || "23:00");
+    const [restMinutes, setRestMinutes] = useState(initialConfig?.restMinutes || 60);
 
-    // Availability State (Map of PlayerID -> Unavailable Ranges)
-    const [constraints, setConstraints] = useState<Record<string, PlayerAvailability>>(initialConstraints || {});
-    const [selectedPlayer, setSelectedPlayer] = useState<string>('');
-    const [busyStart, setBusyStart] = useState('');
-    const [busyEnd, setBusyEnd] = useState('');
+    // Tournament days
+    const [days, setDays] = useState<TournamentDay[]>(
+        initialConfig?.dailySchedule ?? []
+    );
+    const [newDate, setNewDate] = useState('');
+    const [newDayStart, setNewDayStart] = useState('09:00');
+    const [newDayEnd, setNewDayEnd] = useState('22:00');
 
-    const handleAddConstraint = () => {
-        if (!selectedPlayer || !busyStart || !busyEnd) return;
+    // Pair availability
+    const [pairConstraints, setPairConstraints] = useState<Record<string, PairAvailability>>(
+        initialPairConstraints ?? {}
+    );
+    const [selectedPairKey, setSelectedPairKey] = useState('');
+    const [blockDate, setBlockDate] = useState('');
+    const [blockStart, setBlockStart] = useState('');
+    const [blockEnd, setBlockEnd] = useState('');
 
-        // Validate dates
-        // For V1 MVP: We just store ISO strings or simplistic "Day + Time" strings?
-        // User requirement: "No disponible a las 12:00h" -> implies specific date or recurring?
-        // Let's assume specific date for tournament days. 
-        // BUT tournaments span weeks. 
-        // "Jugador X no puede viernes tarde" -> Recurring logic is hard.
-        // MVP: Pick a specific date from a calendar picker.
+    // Extract unique pairs from tournament matches
+    const pairs = useMemo(() => {
+        const map = new Map<string, { key: string; label: string }>();
+        tournament.divisions.forEach(div => {
+            div.matches.forEach(m => {
+                const addPair = (p1Id: string, p2Id: string) => {
+                    if (!p1Id || p1Id === 'BYE') return;
+                    const key = makePairKey(p1Id, p2Id || undefined);
+                    if (!map.has(key)) {
+                        const p1 = players[p1Id];
+                        const p2 = p2Id ? players[p2Id] : null;
+                        const name1 = p1 ? `${p1.nombre} ${p1.apellidos.charAt(0)}.` : p1Id;
+                        const name2 = p2 ? `${p2.nombre} ${p2.apellidos.charAt(0)}.` : p2Id || '';
+                        map.set(key, { key, label: p2Id ? `${name1} / ${name2}` : name1 });
+                    }
+                };
+                addPair(m.pair1.p1Id, m.pair1.p2Id);
+                addPair(m.pair2.p1Id, m.pair2.p2Id);
+            });
+        });
+        return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    }, [tournament, players]);
 
-        const newConstraint = { start: busyStart, end: busyEnd };
+    const handleAddDay = () => {
+        if (!newDate || !newDayStart || !newDayEnd) return;
+        if (days.some(d => d.date === newDate)) return; // No duplicates
+        setDays(prev => [...prev, { date: newDate, startTime: newDayStart, endTime: newDayEnd }]
+            .sort((a, b) => a.date.localeCompare(b.date)));
+        setNewDate('');
+    };
 
-        setConstraints(prev => {
-            const playerConstraints = prev[selectedPlayer] || { unavailableRanges: [] };
+    const handleRemoveDay = (date: string) => {
+        setDays(prev => prev.filter(d => d.date !== date));
+        // Also remove blocked intervals for that day
+        setPairConstraints(prev => {
+            const updated: Record<string, PairAvailability> = {};
+            for (const [key, avail] of Object.entries(prev) as [string, PairAvailability][]) {
+                const filtered = avail.unavailableRanges.filter(r => r.date !== date);
+                if (filtered.length > 0) updated[key] = { unavailableRanges: filtered };
+            }
+            return updated;
+        });
+    };
+
+    const handleAddBlock = () => {
+        if (!selectedPairKey || !blockDate || !blockStart || !blockEnd) return;
+        if (blockEnd <= blockStart) return;
+        setPairConstraints(prev => {
+            const existing = prev[selectedPairKey] ?? { unavailableRanges: [] };
             return {
                 ...prev,
-                [selectedPlayer]: {
-                    unavailableRanges: [...playerConstraints.unavailableRanges, newConstraint]
+                [selectedPairKey]: {
+                    unavailableRanges: [...existing.unavailableRanges, { date: blockDate, startTime: blockStart, endTime: blockEnd }]
                 }
             };
         });
-
-        setBusyStart('');
-        setBusyEnd('');
+        setBlockStart('');
+        setBlockEnd('');
     };
 
-    const handleRemoveConstraint = (playerId: string, index: number) => {
-        setConstraints(prev => {
-            const current = prev[playerId];
-            if (!current) return prev;
-            const newRanges = [...current.unavailableRanges];
-            newRanges.splice(index, 1);
-            return {
-                ...prev,
-                [playerId]: { unavailableRanges: newRanges }
-            };
+    const handleRemoveBlock = (pairKey: string, index: number) => {
+        setPairConstraints(prev => {
+            const existing = prev[pairKey];
+            if (!existing) return prev;
+            const updated = existing.unavailableRanges.filter((_, i) => i !== index);
+            if (updated.length === 0) {
+                const { [pairKey]: _, ...rest } = prev;
+                return rest;
+            }
+            return { ...prev, [pairKey]: { unavailableRanges: updated } };
         });
     };
 
@@ -73,159 +124,217 @@ export const SchedulerConfigModal = ({ isOpen, onClose, tournament, players, onS
         const config: SchedulerConfig = {
             courts,
             slotDurationMinutes: slotDuration,
-            restMinutes: 60,
-            timeWindows: [{ start: startTime, end: endTime }]
+            restMinutes,
+            timeWindows: days.length > 0
+                ? [{ start: days[0]?.startTime ?? '09:00', end: days[0]?.endTime ?? '22:00' }]
+                : [{ start: '09:00', end: '22:00' }],
+            dailySchedule: days.length > 0 ? days : undefined,
         };
-
-        onSave(config, constraints);
+        onSave(config, pairConstraints);
         onClose();
     };
 
+    const formatDate = (dateStr: string) =>
+        new Date(dateStr + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    const selectedPairBlocks = selectedPairKey
+        ? (pairConstraints[selectedPairKey]?.unavailableRanges ?? [])
+        : [];
+
+    const tabs = [
+        { id: 'resources', label: 'Recursos', icon: <Users size={14} /> },
+        { id: 'days', label: 'Días', icon: <Calendar size={14} /> },
+        { id: 'availability', label: 'Disponibilidad', icon: <Clock size={14} /> },
+    ] as const;
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Configuración de Horarios">
-            <div className="flex gap-2 mb-4 border-b">
-                <button
-                    className={`px-4 py-2 font-medium ${activeTab === 'resources' ? 'text-primary border-b-2 border-primary' : 'text-gray-500'}`}
-                    onClick={() => setActiveTab('resources')}
-                >
-                    Recursos
-                </button>
-                <button
-                    className={`px-4 py-2 font-medium ${activeTab === 'availability' ? 'text-primary border-b-2 border-primary' : 'text-gray-500'}`}
-                    onClick={() => setActiveTab('availability')}
-                >
-                    Disponibilidad Jugadores
-                </button>
+            {/* Tabs */}
+            <div className="flex gap-1 mb-4 border-b">
+                {tabs.map(tab => (
+                    <button
+                        key={tab.id}
+                        className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                            activeTab === tab.id
+                                ? 'text-primary border-b-2 border-primary'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        onClick={() => setActiveTab(tab.id)}
+                    >
+                        {tab.icon} {tab.label}
+                    </button>
+                ))}
             </div>
 
-            <div className="min-h-[300px]">
+            <div className="min-h-[320px]">
+                {/* Tab 1: Resources */}
                 {activeTab === 'resources' && (
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Número de Pistas</label>
-                            <input
-                                type="number"
-                                min="1"
+                            <input type="number" min="1" max="20"
                                 className="mt-1 block w-full border rounded-md p-2"
-                                value={courts}
-                                onChange={(e) => setCourts(Number(e.target.value))}
-                            />
+                                value={courts} onChange={e => setCourts(Number(e.target.value))} />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Hora Apertura</label>
-                                <input
-                                    type="time"
-                                    className="mt-1 block w-full border rounded-md p-2"
-                                    value={startTime}
-                                    onChange={(e) => setStartTime(e.target.value)}
-                                />
+                                <label className="block text-sm font-medium text-gray-700">Duración partido (min)</label>
+                                <select className="mt-1 block w-full border rounded-md p-2"
+                                    value={slotDuration} onChange={e => setSlotDuration(Number(e.target.value))}>
+                                    <option value={60}>60 min</option>
+                                    <option value={90}>90 min (Estándar)</option>
+                                    <option value={120}>120 min</option>
+                                </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Hora Cierre</label>
-                                <input
-                                    type="time"
-                                    className="mt-1 block w-full border rounded-md p-2"
-                                    value={endTime}
-                                    onChange={(e) => setEndTime(e.target.value)}
-                                />
+                                <label className="block text-sm font-medium text-gray-700">Descanso mínimo entre partidos (min)</label>
+                                <select className="mt-1 block w-full border rounded-md p-2"
+                                    value={restMinutes} onChange={e => setRestMinutes(Number(e.target.value))}>
+                                    <option value={30}>30 min</option>
+                                    <option value={60}>60 min (Estándar)</option>
+                                    <option value={90}>90 min</option>
+                                    <option value={120}>120 min</option>
+                                </select>
                             </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Duración Slot (min)</label>
-                            <select
-                                className="mt-1 block w-full border rounded-md p-2"
-                                value={slotDuration}
-                                onChange={(e) => setSlotDuration(Number(e.target.value))}
-                            >
-                                <option value={60}>60 min</option>
-                                <option value={90}>90 min (Estándar)</option>
-                                <option value={120}>120 min</option>
-                            </select>
                         </div>
                     </div>
                 )}
 
-                {activeTab === 'availability' && (
+                {/* Tab 2: Tournament days */}
+                {activeTab === 'days' && (
                     <div className="space-y-4">
-                        <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800 mb-2">
-                            Añade restricciones para jugadores específicos. El sistema no programará partidos durante estos periodos.
-                        </div>
-
-                        <div className="p-4 bg-gray-50 rounded-lg space-y-3">
-                            <select
-                                className="w-full p-2 border rounded-md"
-                                value={selectedPlayer}
-                                onChange={(e) => setSelectedPlayer(e.target.value)}
-                            >
-                                <option value="">Seleccionar Jugador...</option>
-                                {Object.values(players)
-                                    .filter(p => tournament.divisions.some(d => d.players.includes(p.id) || d.matches.some(m => m.pair1.p1Id === p.id || m.pair1.p2Id === p.id || m.pair2.p1Id === p.id || m.pair2.p2Id === p.id)))
-                                    .map(p => (
-                                        <option key={p.id} value={p.id}>{p.nombre} {p.apellidos}</option>
-                                    ))}
-                            </select>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                <input
-                                    type="datetime-local"
-                                    className="p-2 border rounded-md text-sm"
-                                    value={busyStart}
-                                    onChange={(e) => setBusyStart(e.target.value)}
-                                    placeholder="Inicio No-Disp"
-                                />
-                                <input
-                                    type="datetime-local"
-                                    className="p-2 border rounded-md text-sm"
-                                    value={busyEnd}
-                                    onChange={(e) => setBusyEnd(e.target.value)}
-                                    placeholder="Fin No-Disp"
-                                />
+                        <p className="text-sm text-gray-500">
+                            Añade cada día del torneo con su franja horaria disponible.
+                        </p>
+                        {/* Add day form */}
+                        <div className="bg-gray-50 p-3 rounded-lg space-y-2 border">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Fecha</label>
+                                    <input type="date" className="w-full text-sm border rounded p-1.5"
+                                        value={newDate} onChange={e => setNewDate(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Apertura</label>
+                                    <input type="time" className="w-full text-sm border rounded p-1.5"
+                                        value={newDayStart} onChange={e => setNewDayStart(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Cierre</label>
+                                    <input type="time" className="w-full text-sm border rounded p-1.5"
+                                        value={newDayEnd} onChange={e => setNewDayEnd(e.target.value)} />
+                                </div>
                             </div>
-
-                            <Button
-                                onClick={handleAddConstraint}
-                                disabled={!selectedPlayer || !busyStart || !busyEnd}
-                                className="w-full"
-                            >
-                                Añadir Restricción
+                            <Button onClick={handleAddDay} disabled={!newDate}
+                                className="w-full flex items-center justify-center gap-1">
+                                <Plus size={14} /> Añadir día
                             </Button>
                         </div>
 
-                        <div className="max-h-60 overflow-y-auto space-y-2">
-                            {Object.entries(constraints).map(([playerId, availability]) => {
-                                const p = players[playerId];
-                                // Ensure availability is typed correctly if Object.entries infers unknown
-                                const avail = availability as PlayerAvailability;
-                                if (!p || !avail.unavailableRanges || avail.unavailableRanges.length === 0) return null;
+                        {/* Day list */}
+                        {days.length === 0 ? (
+                            <p className="text-sm text-gray-400 text-center py-4">No hay días configurados</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {days.map(day => (
+                                    <div key={day.date}
+                                        className="flex items-center justify-between border rounded-lg p-3 bg-white">
+                                        <div>
+                                            <div className="font-medium text-sm capitalize">{formatDate(day.date)}</div>
+                                            <div className="text-xs text-gray-500">{day.startTime} – {day.endTime}</div>
+                                        </div>
+                                        <button onClick={() => handleRemoveDay(day.date)}
+                                            className="text-red-400 hover:text-red-600 p-1">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                                return (
-                                    <div key={playerId} className="border rounded-md p-3 bg-white">
-                                        <div className="font-bold text-sm mb-2">{p.nombre} {p.apellidos}</div>
-                                        <div className="space-y-1">
-                                            {avail.unavailableRanges.map((range, idx) => (
-                                                <div key={idx} className="flex justify-between items-center text-xs bg-gray-100 p-1 rounded">
-                                                    <span>
-                                                        {new Date(range.start).toLocaleString()} - {new Date(range.end).toLocaleTimeString()}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => handleRemoveConstraint(playerId, idx)}
-                                                        className="text-red-500 hover:text-red-700 font-bold px-2"
-                                                    >
-                                                        &times;
-                                                    </button>
-                                                </div>
-                                            ))}
+                {/* Tab 3: Pair availability */}
+                {activeTab === 'availability' && (
+                    <div className="space-y-4">
+                        {days.length === 0 && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                                Configura primero los días del torneo en la pestaña "Días".
+                            </div>
+                        )}
+
+                        {/* Pair selector */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Pareja</label>
+                            <select className="w-full border rounded-md p-2 text-sm"
+                                value={selectedPairKey} onChange={e => setSelectedPairKey(e.target.value)}>
+                                <option value="">Seleccionar pareja...</option>
+                                {pairs.map(p => (
+                                    <option key={p.key} value={p.key}>{p.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {selectedPairKey && (
+                            <>
+                                {/* Add block form */}
+                                <div className="bg-gray-50 p-3 rounded-lg border space-y-2">
+                                    <p className="text-xs font-medium text-gray-600">Añadir franja bloqueada</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Día</label>
+                                            <select className="w-full text-sm border rounded p-1.5"
+                                                value={blockDate} onChange={e => setBlockDate(e.target.value)}>
+                                                <option value="">Día...</option>
+                                                {days.map(d => (
+                                                    <option key={d.date} value={d.date}>{formatDate(d.date)}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Desde</label>
+                                            <input type="time" className="w-full text-sm border rounded p-1.5"
+                                                value={blockStart} onChange={e => setBlockStart(e.target.value)} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Hasta</label>
+                                            <input type="time" className="w-full text-sm border rounded p-1.5"
+                                                value={blockEnd} onChange={e => setBlockEnd(e.target.value)} />
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                    <Button onClick={handleAddBlock}
+                                        disabled={!blockDate || !blockStart || !blockEnd || blockEnd <= blockStart}
+                                        className="w-full flex items-center justify-center gap-1">
+                                        <Plus size={14} /> Añadir restricción
+                                    </Button>
+                                </div>
+
+                                {/* Existing blocks */}
+                                {selectedPairBlocks.length === 0 ? (
+                                    <p className="text-xs text-gray-400 text-center py-2">Sin restricciones para esta pareja</p>
+                                ) : (
+                                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                                        {selectedPairBlocks.map((block, idx) => (
+                                            <div key={idx}
+                                                className="flex items-center justify-between bg-red-50 border border-red-100 rounded p-2 text-sm">
+                                                <span className="text-red-800 capitalize">
+                                                    {formatDate(block.date)}: {block.startTime} – {block.endTime}
+                                                </span>
+                                                <button onClick={() => handleRemoveBlock(selectedPairKey, idx)}
+                                                    className="text-red-400 hover:text-red-600 ml-2">
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                 )}
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 flex justify-end gap-2 border-t pt-4">
                 <Button variant="secondary" onClick={onClose}>Cancelar</Button>
                 <Button onClick={handleSave} className="flex items-center gap-2">
                     <Save size={16} /> Guardar Configuración

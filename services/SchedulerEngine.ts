@@ -2,14 +2,34 @@ import { Match, Division } from '../types';
 
 export interface SchedulerConfig {
     courts: number;
-    timeWindows: { start: string; end: string }[]; // e.g., ["09:00", "23:00"]
     slotDurationMinutes: number; // Default 90
     restMinutes: number; // Default 60
+    /** Multi-day schedule: one entry per tournament day with operating hours */
+    dailySchedule?: {
+        date: string;      // "YYYY-MM-DD"
+        startTime: string; // "HH:MM"
+        endTime: string;   // "HH:MM"
+    }[];
+    /** Legacy: single daily time window (kept for backward compat) */
+    timeWindows: { start: string; end: string }[];
 }
 
+/** @deprecated Use PairAvailability with pairConstraints on Ranking */
 export interface PlayerAvailability {
-    unavailableRanges: { start: string; end: string }[]; // ISO strings
+    unavailableRanges: { start: string; end: string }[];
 }
+
+/** Per-pair blocked intervals, keyed by makePairKey() */
+export interface PairAvailability {
+    unavailableRanges: {
+        date: string;      // "YYYY-MM-DD"
+        startTime: string; // "HH:MM"
+        endTime: string;   // "HH:MM"
+    }[];
+}
+
+export const makePairKey = (p1Id: string, p2Id?: string): string =>
+    p2Id ? `${p1Id}::${p2Id}` : p1Id;
 
 /**
  * Core Scheduler Engine
@@ -31,6 +51,13 @@ export class SchedulerEngine {
         const date = new Date(baseDate);
         date.setHours(hours, minutes, 0, 0);
         return date;
+    }
+
+    /** Parses "HH:MM" on a specific "YYYY-MM-DD" date into a Date object */
+    static parseTimeOnDate(timeStr: string, dateStr: string): Date {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return new Date(year, month - 1, day, hours, minutes, 0, 0);
     }
 
     /**
@@ -66,6 +93,26 @@ export class SchedulerEngine {
         return { valid: true };
     }
 
+    static checkPairAvailability(
+        startTime: Date,
+        endTime: Date,
+        pairKeys: string[],
+        pairConstraints: Record<string, PairAvailability>
+    ): { valid: boolean; conflictPairKey?: string } {
+        for (const pairKey of pairKeys) {
+            const avail = pairConstraints[pairKey];
+            if (!avail) continue;
+            for (const range of avail.unavailableRanges) {
+                const busyStart = this.parseTimeOnDate(range.startTime, range.date);
+                const busyEnd = this.parseTimeOnDate(range.endTime, range.date);
+                if (this.doRangesOverlap(startTime, endTime, busyStart, busyEnd)) {
+                    return { valid: false, conflictPairKey: pairKey };
+                }
+            }
+        }
+        return { valid: true };
+    }
+
     /**
      * Checks for specific resource conflict (Court overlap)
      */
@@ -89,34 +136,39 @@ export class SchedulerEngine {
         endTime: Date,
         config: SchedulerConfig,
         occupiedSlots: { start: Date; end: Date; court: number }[],
-        playerConstraints: PlayerAvailability[]
+        pairConstraints?: Record<string, PairAvailability>,
+        pairKeys?: string[]
     ): { valid: boolean; court?: number; reason?: string } {
-
-        // 1. Check Player Availability
-        for (const p of playerConstraints) {
-            for (const range of p.unavailableRanges) {
-                const busyStart = new Date(range.start);
-                const busyEnd = new Date(range.end);
-
-                // Rule of Margin: If busy at X, match must END before X
-                // Actually, busy range usually means "cannot play between A and B".
-                // So we check standard overlap.
-                if (this.doRangesOverlap(startTime, endTime, busyStart, busyEnd)) {
-                    return { valid: false, reason: 'Player unavailable' };
-                }
+        // 1. Check operating hours
+        const dateStr = startTime.toISOString().split('T')[0];
+        if (config.dailySchedule?.length) {
+            const dayConfig = config.dailySchedule.find(d => d.date === dateStr);
+            if (!dayConfig) return { valid: false, reason: 'Not a tournament day' };
+            const dayStart = this.parseTimeOnDate(dayConfig.startTime, dateStr);
+            const dayEnd = this.parseTimeOnDate(dayConfig.endTime, dateStr);
+            if (startTime < dayStart || endTime > dayEnd) {
+                return { valid: false, reason: 'Outside operating hours' };
+            }
+        } else if (config.timeWindows?.[0]) {
+            const windowStart = this.parseTime(config.timeWindows[0].start, startTime);
+            const windowEnd = this.parseTime(config.timeWindows[0].end, startTime);
+            if (startTime < windowStart || endTime > windowEnd) {
+                return { valid: false, reason: 'Outside operating hours' };
             }
         }
 
-        // 2. Find Available Court
-        // We check courts 1 to N.
+        // 2. Check pair availability
+        if (pairConstraints && pairKeys?.length) {
+            const avail = this.checkPairAvailability(startTime, endTime, pairKeys, pairConstraints);
+            if (!avail.valid) return { valid: false, reason: 'Pair unavailable' };
+        }
+
+        // 3. Find available court
         for (let c = 1; c <= config.courts; c++) {
             const isCourtBusy = occupiedSlots.some(
                 slot => slot.court === c && this.doRangesOverlap(startTime, endTime, slot.start, slot.end)
             );
-
-            if (!isCourtBusy) {
-                return { valid: true, court: c };
-            }
+            if (!isCourtBusy) return { valid: true, court: c };
         }
 
         return { valid: false, reason: 'No courts available' };
@@ -129,34 +181,54 @@ export class SchedulerEngine {
         minStartTime: Date,
         config: SchedulerConfig,
         occupiedSlots: { start: Date; end: Date; court: number }[],
-        playerConstraints: PlayerAvailability[]
+        pairConstraints?: Record<string, PairAvailability>,
+        pairKeys?: string[]
     ): { start: Date; court: number } | null {
+        const interval = 30;
 
-        // Search window: e.g., next 7 days
+        // Multi-day mode: iterate through dailySchedule days in order
+        if (config.dailySchedule?.length) {
+            const days = [...config.dailySchedule].sort((a, b) => a.date.localeCompare(b.date));
+
+            for (const day of days) {
+                const dayStart = this.parseTimeOnDate(day.startTime, day.date);
+                const dayEnd = this.parseTimeOnDate(day.endTime, day.date);
+
+                // Skip days that end before the earliest possible start
+                if (dayEnd <= minStartTime) continue;
+
+                let current = new Date(Math.max(dayStart.getTime(), minStartTime.getTime()));
+                // Round up to next 30-min boundary
+                const remainder = current.getMinutes() % interval;
+                if (remainder !== 0) current = this.addMinutes(current, interval - remainder);
+
+                while (current < dayEnd) {
+                    const potentialEnd = this.addMinutes(current, config.slotDurationMinutes);
+                    if (potentialEnd > dayEnd) break; // Slot does not fit in this day
+
+                    const result = this.isValidSlot(current, potentialEnd, config, occupiedSlots, pairConstraints, pairKeys);
+                    if (result.valid && result.court) {
+                        return { start: current, court: result.court };
+                    }
+                    current = this.addMinutes(current, interval);
+                }
+            }
+            return null;
+        }
+
+        // Legacy mode: single time window, search up to 7 days
         const searchEnd = this.addMinutes(minStartTime, 7 * 24 * 60);
         let current = new Date(minStartTime);
-
-        // Round to next slot interval (e.g. 15 or 30 mins) for cleaner schedules
-        const interval = 30;
         const remainder = current.getMinutes() % interval;
         if (remainder !== 0) current = this.addMinutes(current, interval - remainder);
 
         while (current < searchEnd) {
             const potentialEnd = this.addMinutes(current, config.slotDurationMinutes);
-
-            // Check if within club operating hours
-            // For simplicity V1, assumes single daily window. 
-            // Real logic needs to handle multi-day iteration.
-
-            const valid = this.isValidSlot(current, potentialEnd, config, occupiedSlots, playerConstraints);
-            if (valid.valid && valid.court) {
-                return { start: current, court: valid.court };
-            }
-
+            const result = this.isValidSlot(current, potentialEnd, config, occupiedSlots, pairConstraints, pairKeys);
+            if (result.valid && result.court) return { start: current, court: result.court };
             current = this.addMinutes(current, interval);
         }
-
-        return null; // Unassigned
+        return null;
     }
 
     /**
@@ -171,7 +243,7 @@ export class SchedulerEngine {
         if (!division) return ranking.divisions;
 
         // 1. Find the match where the winner/loser advanced to
-        // We look for a match in the same division (or others?) that has the winning pair 
+        // We look for a match in the same division (or others?) that has the winning pair
         // AND is in a future round (jornada > finishedMatch.jornada)
         // Actually, simple check: Look for matches where pair1 or pair2 matches the finishedMatch pairs
         // and status is 'pendiente' (or just check existence).
@@ -238,17 +310,13 @@ export class SchedulerEngine {
             // TODO: This should be global across ALL divisions if they share courts.
             const occupiedSlots = SchedulerEngine.getAllOccupiedSlots(ranking);
 
-            const playerConstraints = ranking.playerConstraints ? Object.values(ranking.playerConstraints) : [];
-            // Note: Filter constraints for ONLY the players in this match to optimize?
-            // Actually isValidSlot iterates all constraints provided. Better to filter.
-            const specificConstraints = [];
-            if (ranking.playerConstraints) {
-                [nextMatch.pair1.p1Id, nextMatch.pair1.p2Id, nextMatch.pair2.p1Id, nextMatch.pair2.p2Id].forEach(pid => {
-                    if (ranking.playerConstraints![pid]) specificConstraints.push(ranking.playerConstraints![pid]);
-                });
-            }
+            // Build pair keys for constraint lookup
+            const pairConstraints = (ranking as any).pairConstraints as Record<string, PairAvailability> | undefined;
+            const pair1Key = makePairKey(nextMatch.pair1.p1Id, nextMatch.pair1.p2Id || undefined);
+            const pair2Key = makePairKey(nextMatch.pair2.p1Id, nextMatch.pair2.p2Id || undefined);
+            const pairKeys = [pair1Key, pair2Key].filter(k => k && k !== 'BYE');
 
-            const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, specificConstraints as any);
+            const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, pairConstraints, pairKeys);
 
             if (slot) {
                 // Assign Slot
@@ -275,6 +343,99 @@ export class SchedulerEngine {
                 ((m.pair1.p1Id === pair.p1Id && m.pair1.p2Id === pair.p2Id) ||
                     (m.pair2.p1Id === pair.p1Id && m.pair2.p2Id === pair.p2Id)))
             .sort((a, b) => b.jornada - a.jornada)[0];
+    }
+
+    /**
+     * Schedules all currently-ready matches in one batch pass.
+     * "Ready" = both pairs known, non-BYE, pending, no startTime assigned yet.
+     * Processes rounds in order so earlier matches claim slots first.
+     */
+    static generateFullSchedule(ranking: import('../types').Ranking): import('../types').Division[] {
+        const config = ranking.schedulerConfig;
+        if (!config) return ranking.divisions;
+
+        // Deep clone to avoid mutating React state
+        const newDivisions: import('../types').Division[] = JSON.parse(JSON.stringify(ranking.divisions));
+        const pairConstraints = (ranking as any).pairConstraints as Record<string, PairAvailability> ?? {};
+
+        // Collect schedulable matches: both pairs known + non-BYE + pending + no slot yet
+        const schedulable: Match[] = [];
+        newDivisions.forEach(div => {
+            div.matches.forEach(m => {
+                if (
+                    m.status === 'pendiente' &&
+                    !m.startTime &&
+                    m.pair1.p1Id && m.pair1.p1Id !== 'BYE' &&
+                    m.pair2.p1Id && m.pair2.p1Id !== 'BYE'
+                ) {
+                    schedulable.push(m);
+                }
+            });
+        });
+
+        // Sort by round so R1 matches get first pick of slots
+        schedulable.sort((a, b) => a.jornada - b.jornada);
+
+        for (const match of schedulable) {
+            const pair1Key = makePairKey(match.pair1.p1Id, match.pair1.p2Id || undefined);
+            const pair2Key = makePairKey(match.pair2.p1Id, match.pair2.p2Id || undefined);
+            const pairKeys = [pair1Key, pair2Key].filter(k => !!k && k !== 'BYE');
+
+            // EPST: earliest start = after both pairs' last scheduled match + rest
+            const lastEnd1 = this.getLastScheduledEnd(match.pair1, newDivisions, match.id, config);
+            const lastEnd2 = this.getLastScheduledEnd(match.pair2, newDivisions, match.id, config);
+
+            let minStart: Date;
+            if (!lastEnd1 && !lastEnd2) {
+                minStart = this.getTournamentStart(config);
+            } else {
+                const latest = !lastEnd1 ? lastEnd2! : !lastEnd2 ? lastEnd1! : (lastEnd1 > lastEnd2 ? lastEnd1 : lastEnd2);
+                minStart = this.addMinutes(latest, config.restMinutes);
+            }
+
+            const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, pairConstraints, pairKeys);
+
+            if (slot) {
+                match.startTime = slot.start.toISOString();
+                match.court = slot.court;
+            }
+        }
+
+        return newDivisions;
+    }
+
+    private static getTournamentStart(config: SchedulerConfig): Date {
+        if (config.dailySchedule?.length) {
+            const firstDay = [...config.dailySchedule].sort((a, b) => a.date.localeCompare(b.date))[0];
+            return this.parseTimeOnDate(firstDay.startTime, firstDay.date);
+        }
+        if (config.timeWindows?.[0]) {
+            return this.parseTime(config.timeWindows[0].start, new Date());
+        }
+        return new Date();
+    }
+
+    private static getLastScheduledEnd(
+        pair: { p1Id: string; p2Id: string },
+        divisions: import('../types').Division[],
+        excludeMatchId: string,
+        config: SchedulerConfig
+    ): Date | null {
+        let lastEnd: Date | null = null;
+        divisions.forEach(div => {
+            div.matches.forEach(m => {
+                if (m.id === excludeMatchId || !m.startTime) return;
+                if (
+                    (m.pair1.p1Id === pair.p1Id && (m.pair1.p2Id || '') === (pair.p2Id || '')) ||
+                    (m.pair2.p1Id === pair.p1Id && (m.pair2.p2Id || '') === (pair.p2Id || ''))
+                ) {
+                    const end = this.addMinutes(new Date(m.startTime), config.slotDurationMinutes);
+                    if (!lastEnd || end > lastEnd) lastEnd = end;
+                }
+            });
+        });
+        return lastEnd;
     }
 
     static getAllOccupiedSlots(ranking: import('../types').Ranking, excludeMatchId?: string): { start: Date; end: Date; court: number }[] {

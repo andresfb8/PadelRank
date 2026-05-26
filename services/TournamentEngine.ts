@@ -157,7 +157,8 @@ export class TournamentEngine {
                 }
             }
 
-            // Link Main Losers -> Consolation R1
+            // Link Main R1 → Consolation R1 with deterministic slot assignment.
+            // Main R1 match i feeds consolation R1 match floor(i/2), slot (i%2===0 ? 1 : 2).
             const mainR1 = size / 2;
             for (let i = 0; i < mainR1; i++) {
                 const mainM = matchMap.get(`1-${i}`);
@@ -165,6 +166,7 @@ export class TournamentEngine {
 
                 if (mainM && consM) {
                     mainM.consolationMatchId = consM.id;
+                    mainM.consolationSlot = (i % 2 === 0) ? 1 : 2;
                 }
             }
         }
@@ -182,33 +184,9 @@ export class TournamentEngine {
                 }
 
                 this.checkBye(match, idMatchMap);
-
-                // NEW: If match is BYE (Auto-Finalized), move loser (BYE) to Consolation
-                if (hasConsolation && match.status === 'finalizado' && match.score?.description === 'BYE') {
-                    // Identify loser
-                    let loser = { p1: '', p2: '' };
-                    // Points set by checkBye: 1-0 or 0-1
-                    if (match.points.p1 > match.points.p2) loser = { p1: match.pair2.p1Id, p2: match.pair2.p2Id };
-                    else loser = { p1: match.pair1.p1Id, p2: match.pair1.p2Id };
-
-                    // Move to Consolation
-                    if (match.consolationMatchId) {
-                        const consM = idMatchMap.get(match.consolationMatchId);
-                        if (consM) {
-                            if (this.isEmpty(consM.pair1)) {
-                                consM.pair1.p1Id = loser.p1;
-                                consM.pair1.p2Id = loser.p2;
-                                delete consM.pair1.placeholder;
-                            } else if (this.isEmpty(consM.pair2)) {
-                                consM.pair2.p1Id = loser.p1;
-                                consM.pair2.p2Id = loser.p2;
-                                delete consM.pair2.placeholder;
-                            }
-                            // Recursive Check BYE in Consolation
-                            this.checkBye(consM, idMatchMap);
-                        }
-                    }
-                }
+                // BYE losers are NOT pre-filled into consolation during generation.
+                // Their consolation slot is resolved later via tryResolveConsolationDeferred
+                // once we know whether the bye-seed won or lost their first real match.
             }
         }
 
@@ -267,6 +245,27 @@ export class TournamentEngine {
 
     public static checkBye(m: Match, matchMap?: Map<string, Match>) {
         let winner: { p1: string, p2: string } | null = null;
+
+        // Double-BYE: no real participants — mark unplayed and propagate the void forward
+        if (m.pair1.p1Id === 'BYE' && m.pair2.p1Id === 'BYE') {
+            m.status = 'no_disputado';
+            if (m.nextMatchId && matchMap) {
+                const nextMatch = matchMap.get(m.nextMatchId);
+                if (nextMatch) {
+                    if (this.isEmpty(nextMatch.pair1)) {
+                        nextMatch.pair1.p1Id = 'BYE';
+                        nextMatch.pair1.p2Id = '';
+                        delete nextMatch.pair1.placeholder;
+                    } else if (this.isEmpty(nextMatch.pair2)) {
+                        nextMatch.pair2.p1Id = 'BYE';
+                        nextMatch.pair2.p2Id = '';
+                        delete nextMatch.pair2.placeholder;
+                    }
+                    this.checkBye(nextMatch, matchMap);
+                }
+            }
+            return;
+        }
 
         if (m.pair1.p1Id === 'BYE') {
             m.status = 'finalizado';
@@ -363,206 +362,146 @@ export class TournamentEngine {
         return newDivisions;
     }
 
-    // Also move loser to consolation
+    /**
+     * Routes the loser of their first match into the correct consolation slot.
+     * Uses deterministic feed-in: the R1 origin match's consolationMatchId/consolationSlot
+     * determines exactly which consolation slot to fill.
+     */
     static moveLoserToConsolation(
         currentMatch: Match,
         ranking: Ranking,
         loserId: { p1: string, p2: string }
     ): Division[] {
-        console.log("🔍 moveLoserToConsolation called for match:", currentMatch.id);
-        console.log("   consolationMatchId:", currentMatch.consolationMatchId);
-        console.log("   loserId:", loserId);
-
         const newDivisions = [...ranking.divisions];
-        let consMatch: Match | undefined;
 
-        // 1. Try to find consolation match by ID first (Standard R1 logic)
-        if (currentMatch.consolationMatchId) {
-            for (const div of newDivisions) {
-                consMatch = div.matches.find(m => m.id === currentMatch.consolationMatchId);
-                if (consMatch) {
-                    console.log("✅ Found consolation match by ID:", consMatch.id, "in division:", div.name);
-                    break;
-                }
-            }
-        }
-
-        // Pre-Flight Check: Is this Losed Pair ALREADY in the Consolation bracket?
-        // This prevents duplicate entries if the user updates the score multiple times.
+        // Prevent duplicate entry on score re-edits
         const alreadyInConsolation = newDivisions.some(d =>
             d.type === 'consolation' && d.matches.some(m =>
                 (m.pair1.p1Id === loserId.p1 && (m.pair1.p2Id || '') === (loserId.p2 || '')) ||
                 (m.pair2.p1Id === loserId.p1 && (m.pair2.p2Id || '') === (loserId.p2 || ''))
             )
         );
+        if (alreadyInConsolation) return newDivisions;
 
-        if (alreadyInConsolation) {
-            console.log("⚠️ Player already in consolation bracket. Skipping logic.");
-            return newDivisions;
-        }
+        // Find the loser's R1 origin match (the one that holds the consolation link)
+        let originMatch: Match | undefined;
 
-        // 2. Logic for Loser coming from R2+ (who had a BYE in R1)
-        if (!consMatch && currentMatch.jornada > 1) {
-            console.log("⚠️ No consolationMatchId on current match. Checking logic for advanced rounds (BYE catch-up)...");
-
-            let originMatch: Match | undefined;
-
+        if (currentMatch.consolationMatchId) {
+            // currentMatch IS the R1 origin (R1 real match lost directly)
+            originMatch = currentMatch;
+        } else {
+            // Bye-seed lost in R2+: trace back to their R1 BYE match in the main bracket
             for (const div of newDivisions) {
-                if (div.type === 'consolation') continue; // Don't look in consolation
-
-                // Find a match in Round 1 that has this player/pair
-                // Use relaxed comparison for P2 (undefined vs empty string)
+                if (div.type === 'consolation') continue;
                 originMatch = div.matches.find(m =>
                     m.jornada === 1 &&
+                    m.consolationMatchId &&
                     ((m.pair1.p1Id === loserId.p1 && (m.pair1.p2Id || '') === (loserId.p2 || '')) ||
-                        (m.pair2.p1Id === loserId.p1 && (m.pair2.p2Id || '') === (loserId.p2 || '')))
+                     (m.pair2.p1Id === loserId.p1 && (m.pair2.p2Id || '') === (loserId.p2 || '')))
                 );
                 if (originMatch) break;
             }
-
-            if (originMatch && originMatch.consolationMatchId) {
-                console.log("✅ Found Origin R1 Match:", originMatch.id, "with consolationMatchId:", originMatch.consolationMatchId);
-                // Now find THAT consolation match
-                for (const div of newDivisions) {
-                    consMatch = div.matches.find(m => m.id === originMatch!.consolationMatchId);
-                    if (consMatch) {
-                        // CRITICAL: Since this slot was likely filled with "BYE", we need to checking if we need to "Overwrite" the BYE
-                        // If the match is "finalizado" with "BYE", we must reset it.
-                        if (consMatch.score?.description === 'BYE') {
-                            console.log("   -> Target match was auto-finalized as BYE. Resetting for real match.");
-
-                            // 1. Identify who "won" this BYE match (the one who is NOT BYE)
-                            let previousWinnerId: string | undefined;
-                            let previousWinnerPairIndex: 1 | 2 = 1;
-
-                            if (consMatch.pair1.p1Id !== 'BYE') {
-                                previousWinnerId = consMatch.pair1.p1Id;
-                                previousWinnerPairIndex = 1;
-                            } else {
-                                previousWinnerId = consMatch.pair2.p1Id;
-                                previousWinnerPairIndex = 2;
-                            }
-
-                            // 2. Reset the current match
-                            consMatch.status = 'pendiente';
-                            consMatch.score = undefined;
-                            consMatch.points = { p1: 0, p2: 0 };
-
-                            // Important: Clear the BYE slot
-                            if (consMatch.pair1.p1Id === 'BYE') {
-                                consMatch.pair1.p1Id = '';
-                            } else if (consMatch.pair2.p1Id === 'BYE') {
-                                consMatch.pair2.p1Id = '';
-                            }
-
-                            // 3. PULL-BACK: Remove the previous winner from the NEXT match
-                            if (previousWinnerId && consMatch.nextMatchId) {
-                                console.log("   -> Pulling back previous winner:", previousWinnerId, "from next match:", consMatch.nextMatchId);
-                                // Find next match in any division (likely same division)
-                                let nextMatch: Match | undefined;
-                                for (const d of newDivisions) {
-                                    nextMatch = d.matches.find(m => m.id === consMatch!.nextMatchId);
-                                    if (nextMatch) break;
-                                }
-
-                                if (nextMatch) {
-                                    // Remove the player/pair from next match
-                                    if (nextMatch.pair1.p1Id === previousWinnerId) {
-                                        nextMatch.pair1.p1Id = '';
-                                        nextMatch.pair1.p2Id = '';
-                                        nextMatch.pair1.placeholder = 'Ganador Previo'; // Restore placeholder
-                                        console.log("      -> Removed from Pair 1");
-                                    } else if (nextMatch.pair2.p1Id === previousWinnerId) {
-                                        nextMatch.pair2.p1Id = '';
-                                        nextMatch.pair2.p2Id = '';
-                                        nextMatch.pair2.placeholder = 'Ganador Previo'; // Restore placeholder
-                                        console.log("      -> Removed from Pair 2");
-                                    }
-
-                                    // Also ensure Next Match is not marked as Finalized or BYE if it was
-                                    // (Unlikely for next match to be BYE immediately unless double BYE, but good practice)
-                                    if (nextMatch.status === 'finalizado' && nextMatch.score?.description === 'BYE') {
-                                        // Complex edge case: Recursive rollback? 
-                                        // For now, let's assume just resetting the slot is enough to stop the chain, 
-                                        // but ideally we should reset status if it was finalized.
-                                        // But if it was finalized, it means IT had a BYE too? 
-                                        // Safest is to just clear the participant. The next re-evaluation/user interaction handles it.
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            } else {
-                console.warn("⚠️ Could not find R1 origin match for this loser, or it has no consolation link.");
-            }
         }
 
-        // 3. Fallback: Find any empty slot in Consolation R1
-        // Only valid if the loser is coming from R1 (Standard flow).
-        // If they are dropping from R2+, they MUST be handled by Step 2. If Step 2 failed, we STOP.
-        if (!consMatch && currentMatch.jornada === 1) {
-            console.log("⚠️ No consolationMatchId found even after R1 traceback. Searching for available slot in Consolation R1.");
-            const consolationDiv = newDivisions.find(d => d.type === 'consolation');
-
-            if (consolationDiv) {
-                const consR1Matches = consolationDiv.matches.filter(m => m.jornada === 1);
-                for (const match of consR1Matches) {
-                    if (this.isEmpty(match.pair1) || this.isEmpty(match.pair2)) {
-                        consMatch = match;
-                        console.log("✅ Found available slot in consolation match:", match.id);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (!consMatch) {
-            console.error("❌ No consolation match available for loser");
+        if (!originMatch?.consolationMatchId) {
+            console.warn('⚠️ No consolation link found for loser:', loserId);
             return newDivisions;
         }
 
-        // Assign Loser to valid slot
-        let assigned = false;
+        const allMatchesMap = new Map<string, Match>();
+        newDivisions.forEach(d => d.matches.forEach(m => allMatchesMap.set(m.id, m)));
 
-        // Check for BYE overwriting first (Specific for the R2 drop-down case)
-        if (consMatch.pair1.p1Id === 'BYE') {
-            console.log("   -> Overwriting 'BYE' in pair1");
+        const consMatch = allMatchesMap.get(originMatch.consolationMatchId);
+        if (!consMatch) {
+            console.warn('⚠️ Consolation match not found:', originMatch.consolationMatchId);
+            return newDivisions;
+        }
+
+        // Fill the pre-assigned slot (consolationSlot=1 → pair1, =2 → pair2)
+        const slot = originMatch.consolationSlot ?? (this.isEmpty(consMatch.pair1) ? 1 : 2);
+        if (slot === 1) {
             consMatch.pair1.p1Id = loserId.p1;
             consMatch.pair1.p2Id = loserId.p2;
             delete consMatch.pair1.placeholder;
-            assigned = true;
-        } else if (consMatch.pair2.p1Id === 'BYE') {
-            console.log("   -> Overwriting 'BYE' in pair2");
+        } else {
             consMatch.pair2.p1Id = loserId.p1;
             consMatch.pair2.p2Id = loserId.p2;
             delete consMatch.pair2.placeholder;
-            assigned = true;
         }
 
-        // Normal Empty Slot Assignment
-        if (!assigned) {
-            if (this.isEmpty(consMatch.pair1)) {
-                console.log("   -> Assigning loser to pair1");
-                consMatch.pair1.p1Id = loserId.p1;
-                consMatch.pair1.p2Id = loserId.p2;
-                delete consMatch.pair1.placeholder;
-            } else if (this.isEmpty(consMatch.pair2)) {
-                console.log("   -> Assigning loser to pair2");
-                consMatch.pair2.p1Id = loserId.p1;
-                consMatch.pair2.p2Id = loserId.p2;
-                delete consMatch.pair2.placeholder;
-            } else {
-                console.warn("⚠️ Both pairs in consolation match are already filled!");
-            }
-        }
-
-        // NEW: Check if the moved loser is BYE (unlikely if dropping from R2, but possible in other flows)
-        if (loserId.p1 === 'BYE') {
-            const allMatchesMap = new Map<string, Match>();
-            newDivisions.forEach(d => d.matches.forEach(m => allMatchesMap.set(m.id, m)));
+        // If both slots are now determined, resolve any BYE (auto-advance if one is BYE)
+        if (consMatch.pair1.p1Id && consMatch.pair2.p1Id) {
             this.checkBye(consMatch, allMatchesMap);
+        }
+
+        return newDivisions;
+    }
+
+    /**
+     * Resolves deferred consolation BYEs after every main match result.
+     * When a bye-seed wins their first real match, their reserved consolation slot
+     * will never be filled → mark it BYE and auto-advance the waiting opponent.
+     * Call this after advanceWinner + moveLoserToConsolation on every main match finalization.
+     */
+    static tryResolveConsolationDeferred(ranking: { divisions: Division[] }): Division[] {
+        const newDivisions = [...ranking.divisions];
+        const allMatchesMap = new Map<string, Match>();
+        newDivisions.forEach(d => d.matches.forEach(m => allMatchesMap.set(m.id, m)));
+
+        for (const div of newDivisions) {
+            if (div.type === 'consolation') continue;
+
+            // Find R1 BYE matches with a consolation link whose bye-seed has now won their first real match
+            const r1ByeMatches = div.matches.filter(m =>
+                m.jornada === 1 &&
+                m.consolationMatchId &&
+                m.status === 'finalizado' &&
+                m.score?.description === 'BYE'
+            );
+
+            for (const r1Match of r1ByeMatches) {
+                const byeSeedPair = r1Match.pair1.p1Id !== 'BYE' ? r1Match.pair1 : r1Match.pair2;
+
+                // Bye-seed has won their first real match when they appear as winner
+                // of a non-BYE finalized match in a round > 1
+                const byeSeedWon = div.matches.some(m =>
+                    m.jornada > 1 &&
+                    m.status === 'finalizado' &&
+                    m.score?.description !== 'BYE' &&
+                    (
+                        (m.pair1.p1Id === byeSeedPair.p1Id &&
+                         (m.pair1.p2Id || '') === (byeSeedPair.p2Id || '') &&
+                         m.points.p1 > m.points.p2) ||
+                        (m.pair2.p1Id === byeSeedPair.p1Id &&
+                         (m.pair2.p2Id || '') === (byeSeedPair.p2Id || '') &&
+                         m.points.p2 > m.points.p1)
+                    )
+                );
+
+                if (!byeSeedWon) continue;
+
+                // Bye-seed won → their consolation slot is permanently empty → fill with BYE
+                const consMatch = allMatchesMap.get(r1Match.consolationMatchId!);
+                if (!consMatch || consMatch.status !== 'pendiente') continue;
+
+                const slot = r1Match.consolationSlot ?? 1;
+                if (slot === 1 && !consMatch.pair1.p1Id) {
+                    consMatch.pair1.p1Id = 'BYE';
+                    consMatch.pair1.p2Id = '';
+                    delete consMatch.pair1.placeholder;
+                } else if (slot === 2 && !consMatch.pair2.p1Id) {
+                    consMatch.pair2.p1Id = 'BYE';
+                    consMatch.pair2.p2Id = '';
+                    delete consMatch.pair2.placeholder;
+                } else {
+                    continue; // Slot already filled, nothing to do
+                }
+
+                // Both slots determined → resolve (handles single-BYE and double-BYE)
+                if (consMatch.pair1.p1Id && consMatch.pair2.p1Id) {
+                    this.checkBye(consMatch, allMatchesMap);
+                }
+            }
         }
 
         return newDivisions;

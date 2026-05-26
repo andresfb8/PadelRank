@@ -173,6 +173,7 @@ export interface Ranking {
   // Scheduler Configuration
   schedulerConfig?: import('./services/SchedulerEngine').SchedulerConfig;
   playerConstraints?: Record<string, import('./services/SchedulerEngine').PlayerAvailability>;
+  pairConstraints?: Record<string, import('./services/SchedulerEngine').PairAvailability>;
 
   // God Mode 2.0: Manual Adjustments (Extra points / Penalties)
   // Key: playerId or pairKey ("p1::p2")
@@ -254,7 +255,8 @@ export interface Match {
 
   // Elimination Pointers
   nextMatchId?: string; // ID of the match where the winner goes
-  consolationMatchId?: string; // ID of the match where the loser goes (if R1)
+  consolationMatchId?: string; // ID of the consolation match this main R1 match feeds into
+  consolationSlot?: 1 | 2; // Which slot (pair1=1 / pair2=2) this match feeds in the consolation match
   roundName?: string; // "Final", "Semi-Final", "Quarter-Final"
 }
 

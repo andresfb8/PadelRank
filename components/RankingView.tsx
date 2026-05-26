@@ -622,6 +622,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           } else {
             console.log("⏭️ Not first real match-loser eliminated");
           }
+
+          // Resolve deferred consolation BYEs: when a bye-seed wins their first match,
+          // their reserved consolation slot is confirmed permanently empty → auto-BYE opponent.
+          newDivisions = TournamentEngine.tryResolveConsolationDeferred({ divisions: newDivisions });
         }
 
         // Reactive Scheduler Hook
@@ -1301,12 +1305,23 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     }
   };
 
-  const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, constraints: Record<string, import('../services/SchedulerEngine').PlayerAvailability>) => {
+  const handleGenerateFullSchedule = () => {
+    if (!ranking.schedulerConfig?.dailySchedule?.length) {
+      alert('Configura primero los días del torneo en "Disponibilidad".');
+      setIsSchedulerConfigModalOpen(true);
+      return;
+    }
+    if (!onUpdateRanking) return;
+    const newDivisions = SchedulerEngine.generateFullSchedule(ranking);
+    onUpdateRanking({ ...ranking, divisions: newDivisions });
+  };
+
+  const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, pairConstraints: Record<string, import('../services/SchedulerEngine').PairAvailability>) => {
     if (!onUpdateRanking) return;
     const updatedRanking = {
       ...ranking,
       schedulerConfig: config,
-      playerConstraints: constraints
+      pairConstraints
     };
     onUpdateRanking(updatedRanking);
   };
@@ -1530,6 +1545,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: () => setIsSchedulerConfigModalOpen(true),
               visible: isAdmin && (ranking.format === 'elimination' || ranking.format === 'hybrid'),
               variant: 'secondary'
+            },
+            {
+              id: 'generate-schedule',
+              label: 'Generar horario',
+              icon: Clock,
+              onClick: handleGenerateFullSchedule,
+              visible: isAdmin && (ranking.format === 'elimination' || ranking.format === 'hybrid') && !!ranking.schedulerConfig,
+              variant: 'secondary',
+              title: 'Asignar automáticamente horarios y pistas a todos los partidos listos',
+              className: 'text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-100'
             },
 
             {
@@ -2844,7 +2869,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         players={players}
         onSave={handleSaveSchedulerConfig}
         initialConfig={ranking.schedulerConfig}
-        initialConstraints={ranking.playerConstraints}
+        initialPairConstraints={ranking.pairConstraints}
       />
 
       <ScheduleGridModal

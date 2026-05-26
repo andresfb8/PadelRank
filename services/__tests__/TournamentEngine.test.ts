@@ -1,6 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { TournamentEngine } from '../TournamentEngine';
-import { Player } from '../../types';
+import { Player, Match, Division, Ranking } from '../../types';
+
+// Minimal Ranking stub for engine methods that need it
+const makeRanking = (divisions: Division[]): Ranking => ({
+    id: 'r1', nombre: 'Test', categoria: 'Masculino',
+    fechaInicio: '', status: 'activo', divisions,
+    format: 'elimination',
+    config: { eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' } }
+});
+
+// Finalize a match with p1 winning (sets status, score, points)
+const finalizeP1Wins = (m: Match): void => {
+    m.status = 'finalizado';
+    m.score = { set1: { p1: 6, p2: 3 }, set2: { p1: 6, p2: 3 } };
+    m.points = { p1: 1, p2: 0 };
+};
 
 // Mock Players
 const createPlayers = (count: number): Record<string, Player> => {
@@ -97,6 +112,175 @@ describe('TournamentEngine - Elimination Mode', () => {
 
         expect(r1?.roundName).toBe('Semifinales');
         expect(r2?.roundName).toBe('Final');
+    });
+
+});
+
+describe('TournamentEngine - Consolation (feed-in)', () => {
+
+    it('generateBracket sets consolationMatchId and consolationSlot on every R1 match', () => {
+        // 7 players → size 8, 1 BYE → 4 R1 matches, 2 consolation R1 matches
+        const playerIds = Object.keys(createPlayers(7));
+        const [, consolation] = TournamentEngine.generateBracket(playerIds, true);
+        const [main] = TournamentEngine.generateBracket(playerIds, true);
+
+        const r1Matches = main.matches.filter(m => m.jornada === 1);
+        expect(r1Matches).toHaveLength(4);
+
+        r1Matches.forEach(m => {
+            expect(m.consolationMatchId).toBeDefined();
+            expect(m.consolationSlot).toBeOneOf([1, 2]);
+        });
+
+        // consolationSlot must be 1 for even-indexed R1 matches and 2 for odd
+        expect(r1Matches[0].consolationSlot).toBe(1);
+        expect(r1Matches[1].consolationSlot).toBe(2);
+        expect(r1Matches[2].consolationSlot).toBe(1);
+        expect(r1Matches[3].consolationSlot).toBe(2);
+    });
+
+    it('consolation R1 slot stays empty after generation (no premature BYE fill)', () => {
+        // 7 players → p1 gets BYE. Their consolation slot must remain empty at generation time.
+        const playerIds = Object.keys(createPlayers(7));
+        const [main, consolation] = TournamentEngine.generateBracket(playerIds, true);
+
+        const byeR1 = main.matches.find(m =>
+            m.jornada === 1 && (m.pair1.p1Id === 'BYE' || m.pair2.p1Id === 'BYE')
+        )!;
+        expect(byeR1).toBeDefined();
+
+        const consMatch = consolation.matches.find(m => m.id === byeR1.consolationMatchId)!;
+        expect(consMatch).toBeDefined();
+
+        // The slot reserved for the bye-seed should be empty (not 'BYE') at generation time
+        const reservedSlot = byeR1.consolationSlot === 1 ? consMatch.pair1 : consMatch.pair2;
+        expect(reservedSlot.p1Id).toBe('');
+    });
+
+    it('R1 real loser fills the correct consolation slot', () => {
+        // 4 players, no byes → 2 R1 matches → 1 consolation R1 match
+        const playerIds = Object.keys(createPlayers(4)); // p1,p2,p3,p4
+        const [main, consolation] = TournamentEngine.generateBracket(playerIds, true);
+
+        // Finalize R1 match 0 (p1 wins, p4 loses — based on snake seeding)
+        const r1m0 = main.matches.find(m => m.jornada === 1 && m.pair1.p1Id === 'p1')!;
+        expect(r1m0).toBeDefined();
+        const loserPair = r1m0.pair2; // p4
+
+        finalizeP1Wins(r1m0);
+
+        const ranking = makeRanking([main, consolation]);
+        const result = TournamentEngine.moveLoserToConsolation(r1m0, ranking, { p1: loserPair.p1Id, p2: loserPair.p2Id });
+
+        const consMatch = result
+            .flatMap(d => d.matches)
+            .find(m => m.id === r1m0.consolationMatchId)!;
+
+        const filledSlot = r1m0.consolationSlot === 1 ? consMatch.pair1 : consMatch.pair2;
+        expect(filledSlot.p1Id).toBe(loserPair.p1Id);
+    });
+
+    it('bye-seed losing R2 routes to the reserved consolation slot', () => {
+        // 7 players → p1 has BYE, plays first real match in R2
+        const playerIds = Object.keys(createPlayers(7));
+        let [main, consolation] = TournamentEngine.generateBracket(playerIds, true);
+
+        const byeR1 = main.matches.find(m =>
+            m.jornada === 1 && (m.pair1.p1Id === 'BYE' || m.pair2.p1Id === 'BYE')
+        )!;
+        const byeSeed = byeR1.pair1.p1Id !== 'BYE' ? byeR1.pair1 : byeR1.pair2;
+
+        // Find the R2 match where the bye-seed appears
+        const r2Match = main.matches.find(m =>
+            m.jornada === 2 &&
+            (m.pair1.p1Id === byeSeed.p1Id || m.pair2.p1Id === byeSeed.p1Id)
+        )!;
+        expect(r2Match).toBeDefined();
+
+        // Simulate bye-seed LOSING R2 (pair2 wins)
+        const isByeSeedPair1 = r2Match.pair1.p1Id === byeSeed.p1Id;
+        r2Match.status = 'finalizado';
+        r2Match.score = { set1: { p1: 3, p2: 6 }, set2: { p1: 3, p2: 6 } };
+        r2Match.points = isByeSeedPair1 ? { p1: 0, p2: 1 } : { p1: 1, p2: 0 };
+
+        const ranking = makeRanking([main, consolation]);
+        const result = TournamentEngine.moveLoserToConsolation(
+            r2Match, ranking, { p1: byeSeed.p1Id, p2: byeSeed.p2Id }
+        );
+
+        // The consolation slot reserved by the bye-seed's R1 match should now be filled
+        const consMatch = result
+            .flatMap(d => d.matches)
+            .find(m => m.id === byeR1.consolationMatchId)!;
+
+        const reservedSlot = byeR1.consolationSlot === 1 ? consMatch.pair1 : consMatch.pair2;
+        expect(reservedSlot.p1Id).toBe(byeSeed.p1Id);
+    });
+
+    it('tryResolveConsolationDeferred: bye-seed winning R2 triggers BYE walkover for waiting opponent', () => {
+        // 7 players → p1 has BYE
+        // R1 real loser fills consolation slot first, then p1 wins R2
+        // → consolation R1 match should auto-resolve (waiting pair wins by walkover)
+        const playerIds = Object.keys(createPlayers(7));
+        let [main, consolation] = TournamentEngine.generateBracket(playerIds, true);
+
+        const byeR1 = main.matches.find(m =>
+            m.jornada === 1 && (m.pair1.p1Id === 'BYE' || m.pair2.p1Id === 'BYE')
+        )!;
+        const byeSeed = byeR1.pair1.p1Id !== 'BYE' ? byeR1.pair1 : byeR1.pair2;
+
+        // Fill the OTHER slot in consolation with a real R1 loser
+        const realSlot = byeR1.consolationSlot === 1 ? 2 : 1;
+        const consMatch = consolation.matches.find(m => m.id === byeR1.consolationMatchId)!;
+        if (realSlot === 1) {
+            consMatch.pair1.p1Id = 'someLoser'; consMatch.pair1.p2Id = '';
+            delete consMatch.pair1.placeholder;
+        } else {
+            consMatch.pair2.p1Id = 'someLoser'; consMatch.pair2.p2Id = '';
+            delete consMatch.pair2.placeholder;
+        }
+
+        // Simulate bye-seed WINNING R2
+        const r2Match = main.matches.find(m =>
+            m.jornada === 2 &&
+            (m.pair1.p1Id === byeSeed.p1Id || m.pair2.p1Id === byeSeed.p1Id)
+        )!;
+        const isByeSeedPair1 = r2Match.pair1.p1Id === byeSeed.p1Id;
+        r2Match.status = 'finalizado';
+        r2Match.score = { set1: { p1: 6, p2: 3 }, set2: { p1: 6, p2: 3 } };
+        r2Match.points = isByeSeedPair1 ? { p1: 1, p2: 0 } : { p1: 0, p2: 1 };
+
+        const result = TournamentEngine.tryResolveConsolationDeferred({ divisions: [main, consolation] });
+
+        const resolvedConsMatch = result
+            .flatMap(d => d.matches)
+            .find(m => m.id === byeR1.consolationMatchId)!;
+
+        // Reserved slot should now be BYE
+        const resolvedReservedSlot = byeR1.consolationSlot === 1
+            ? resolvedConsMatch.pair1
+            : resolvedConsMatch.pair2;
+        expect(resolvedReservedSlot.p1Id).toBe('BYE');
+
+        // Match should be auto-finalized with 'someLoser' winning by walkover
+        expect(resolvedConsMatch.status).toBe('finalizado');
+        expect(resolvedConsMatch.score?.description).toBe('BYE');
+    });
+
+    it('checkBye handles double-BYE by marking match no_disputado', () => {
+        const [main, consolation] = TournamentEngine.generateBracket(
+            Object.keys(createPlayers(4)), true
+        );
+        const allMap = new Map<string, Match>();
+        [...main.matches, ...consolation.matches].forEach(m => allMap.set(m.id, m));
+
+        const consR1 = consolation.matches.find(m => m.jornada === 1)!;
+        consR1.pair1.p1Id = 'BYE'; consR1.pair1.p2Id = '';
+        consR1.pair2.p1Id = 'BYE'; consR1.pair2.p2Id = '';
+
+        TournamentEngine.checkBye(consR1, allMap);
+
+        expect(consR1.status).toBe('no_disputado');
     });
 
 });
