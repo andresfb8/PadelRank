@@ -173,6 +173,7 @@ export interface Ranking {
   // Scheduler Configuration
   schedulerConfig?: import('./services/SchedulerEngine').SchedulerConfig;
   playerConstraints?: Record<string, import('./services/SchedulerEngine').PlayerAvailability>;
+  pairConstraints?: Record<string, import('./services/SchedulerEngine').PairAvailability>;
 
   // God Mode 2.0: Manual Adjustments (Extra points / Penalties)
   // Key: playerId or pairKey ("p1::p2")
