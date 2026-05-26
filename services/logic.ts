@@ -805,7 +805,13 @@ export function updateMatchParticipant(
       const targetPair = pairIndex === 1 ? match.pair1 : match.pair2;
 
       // Parse new ID
-      if (newParticipantId === 'BYE') {
+      if (newParticipantId === '') {
+        // Clear slot (manual override): empty it and restore a placeholder
+        targetPair.p1Id = '';
+        targetPair.p2Id = '';
+        targetPair.placeholder = 'Por asignar';
+        break;
+      } else if (newParticipantId === 'BYE') {
         targetPair.p1Id = 'BYE';
         targetPair.p2Id = '';
       } else if (newParticipantId.includes('::')) {

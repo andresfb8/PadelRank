@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Match, Division, Player, Ranking } from '../types';
 import { Trophy, Calendar, Clock, AlertTriangle, Edit2, Lock, Unlock } from 'lucide-react';
 import { SchedulerEngine } from '../services/SchedulerEngine';
 import { updateMatchParticipant } from '../services/logic';
+import { ParticipantPickerModal } from './ParticipantPickerModal';
 
 interface BracketViewProps {
     divisions: Division[]; // Changed from single division to array
@@ -21,6 +22,24 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
 
     // Local state for editing match participants
     const [isEditMode, setIsEditMode] = useState(false);
+    const [pickerTarget, setPickerTarget] = useState<{ matchId: string; pairIndex: 1 | 2; currentId: string; currentLabel: string } | null>(null);
+
+    // Build the list of tournament participants (pairs) for the manual picker
+    const participantOptions = useMemo(() => {
+        const map = new Map<string, { id: string; label: string }>();
+        ranking.divisions.forEach(div => div.matches.forEach(m => {
+            ([m.pair1, m.pair2] as { p1Id: string; p2Id?: string }[]).forEach(pair => {
+                if (!pair.p1Id || pair.p1Id === 'BYE') return;
+                const id = pair.p2Id ? `${pair.p1Id}::${pair.p2Id}` : pair.p1Id;
+                if (!map.has(id)) {
+                    const n1 = players[pair.p1Id] ? `${players[pair.p1Id].nombre} ${players[pair.p1Id].apellidos.charAt(0)}.` : pair.p1Id;
+                    const n2 = pair.p2Id ? (players[pair.p2Id] ? `${players[pair.p2Id].nombre} ${players[pair.p2Id].apellidos.charAt(0)}.` : pair.p2Id) : '';
+                    map.set(id, { id, label: n2 ? `${n1} / ${n2}` : n1 });
+                }
+            });
+        }));
+        return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    }, [ranking.divisions, players]);
 
     // Filter matches based on bracket type
     // Main bracket: matches whose roundName doesn't contain "(Cons.)"
@@ -61,18 +80,15 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
         return n2 ? `${n1} / ${n2}` : n1;
     };
 
-    const handleParticipantClick = (matchId: string, pairIndex: 1 | 2, currentId: string) => {
+    const handleParticipantClick = (matchId: string, pairIndex: 1 | 2, currentId: string, currentLabel: string) => {
         if (!isEditMode || !onUpdateRanking) return;
+        setPickerTarget({ matchId, pairIndex, currentId, currentLabel });
+    };
 
-        const newId = prompt("Editar Participante\n\nIntroduce el ID del jugador/pareja (o 'BYE').\nFormato Pareja: 'ID1::ID2'", currentId);
-
-        if (newId !== null && newId !== currentId) {
-            const newDivisions = updateMatchParticipant(ranking, matchId, pairIndex, newId);
-
-            // Reconstruct ranking
-            const newRanking = { ...ranking, divisions: newDivisions };
-            onUpdateRanking(newRanking);
-        }
+    const handlePickerSelect = (newId: string) => {
+        if (!pickerTarget || !onUpdateRanking) return;
+        const newDivisions = updateMatchParticipant(ranking, pickerTarget.matchId, pickerTarget.pairIndex, newId);
+        onUpdateRanking({ ...ranking, divisions: newDivisions });
     };
 
     return (
@@ -90,6 +106,12 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                     >
                         {isEditMode ? <Unlock size={16} /> : <Lock size={16} />}
                     </button>
+                </div>
+            )}
+
+            {isEditMode && (
+                <div className="absolute top-2 left-2 z-10 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1.5">
+                    <Edit2 size={12} /> Modo edición: pulsa una pareja para reasignarla
                 </div>
             )}
 
@@ -124,7 +146,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                         if (isEditMode) {
                                                             e.stopPropagation();
                                                             const currentId = match.pair1.p1Id && match.pair1.p2Id ? `${match.pair1.p1Id}::${match.pair1.p2Id}` : match.pair1.p1Id;
-                                                            handleParticipantClick(match.id, 1, currentId);
+                                                            handleParticipantClick(match.id, 1, currentId, getPairName(match.pair1));
                                                         }
                                                     }}
                                                 >
@@ -149,7 +171,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                         if (isEditMode) {
                                                             e.stopPropagation();
                                                             const currentId = match.pair2.p1Id && match.pair2.p2Id ? `${match.pair2.p1Id}::${match.pair2.p2Id}` : match.pair2.p1Id;
-                                                            handleParticipantClick(match.id, 2, currentId);
+                                                            handleParticipantClick(match.id, 2, currentId, getPairName(match.pair2));
                                                         }
                                                     }}
                                                 >
@@ -221,6 +243,17 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                     </div>
                 ))}
             </div>
+
+            {pickerTarget && (
+                <ParticipantPickerModal
+                    isOpen={!!pickerTarget}
+                    onClose={() => setPickerTarget(null)}
+                    participants={participantOptions}
+                    currentId={pickerTarget.currentId}
+                    currentLabel={pickerTarget.currentLabel}
+                    onSelect={handlePickerSelect}
+                />
+            )}
         </div>
     );
 };
