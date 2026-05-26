@@ -622,6 +622,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           } else {
             console.log("⏭️ Not first real match-loser eliminated");
           }
+
+          // Resolve deferred consolation BYEs: when a bye-seed wins their first match,
+          // their reserved consolation slot is confirmed permanently empty → auto-BYE opponent.
+          newDivisions = TournamentEngine.tryResolveConsolationDeferred({ divisions: newDivisions });
         }
 
         // Reactive Scheduler Hook

@@ -3,7 +3,7 @@
  * Single or double elimination brackets
  */
 export interface EliminationConfig {
-    /** Enable consolation bracket for first-round losers */
+    /** Enable consolation bracket for pairs that lose their first match (regardless of round) */
     consolation: boolean;
 
     /** Include third-place match in the bracket */
