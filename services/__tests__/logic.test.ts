@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateMatchPoints } from '../logic';
+import { calculateMatchPoints, substitutePair } from '../logic';
+import { Ranking } from '../../types';
 
 describe('calculateMatchPoints', () => {
     const defaultConfig = {
@@ -45,5 +46,39 @@ describe('calculateMatchPoints', () => {
         expect(result.description).toContain('Empate');
         expect(result.points.p1).toBe(defaultConfig.pointsDraw);
         expect(result.points.p2).toBe(defaultConfig.pointsDraw);
+    });
+});
+
+describe('substitutePair', () => {
+    const makeRanking = (): Ranking => ({
+        id: 'r1', nombre: 'T', categoria: 'Masculino', fechaInicio: '', status: 'activo', format: 'elimination',
+        divisions: [{
+            id: 'd1', numero: 1, status: 'activa', type: 'main',
+            players: ['a1', 'a2', 'b1', 'b2'],
+            matches: [
+                { id: 'm1', jornada: 1, roundName: 'Final', status: 'pendiente',
+                  pair1: { p1Id: 'a1', p2Id: 'a2' }, pair2: { p1Id: 'b1', p2Id: 'b2' } } as any,
+            ],
+        }],
+    });
+
+    it('replaces an outgoing pair across the bracket with an incoming pair', () => {
+        const ranking = makeRanking();
+        const divs = substitutePair(ranking, 'a1::a2', { p1Id: 'g1', p2Id: 'g2' });
+
+        const m = divs[0].matches[0];
+        expect(m.pair1.p1Id).toBe('g1');
+        expect(m.pair1.p2Id).toBe('g2');
+        expect(m.pair2.p1Id).toBe('b1'); // untouched
+        expect(divs[0].players).toContain('g1');
+        expect(divs[0].players).toContain('g2');
+        expect(divs[0].players).not.toContain('a1');
+    });
+
+    it('matches the outgoing pair regardless of slot order', () => {
+        const ranking = makeRanking();
+        // outgoing given in reversed order should still match pair1 a1/a2
+        const divs = substitutePair(ranking, 'a2::a1', { p1Id: 'g1', p2Id: 'g2' });
+        expect(divs[0].matches[0].pair1.p1Id).toBe('g1');
     });
 });

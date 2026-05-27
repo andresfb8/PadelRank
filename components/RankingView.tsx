@@ -6,12 +6,13 @@ import { exportRankingToPDF, exportRankingToCSV, exportRankingToExcel, exportRan
 import { StandingsTable } from './shared/StandingsTable';
 import { FORMAT_COLUMN_PRESETS } from '../types/StandingsColumn';
 
-import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers, getQualifiedPlayersBuckets, calculatePlayerHistoryStats, reconstructPhaseHistory } from '../services/logic';
+import { generateStandings, generateGlobalStandings, calculatePromotions, getQualifiedPlayers, getQualifiedPlayersBuckets, calculatePlayerHistoryStats, reconstructPhaseHistory, substitutePair } from '../services/logic';
 import { Match, Player, Ranking, Division, PhaseSnapshot } from '../types';
 import { MatchGenerator } from '../services/matchGenerator';
 import { AddDivisionModal } from './AddDivisionModal';
 import { PromotionModal } from './PromotionModal';
 import { SubstituteModal } from './SubstituteModal';
+import { SubstitutePairModal } from './SubstitutePairModal';
 import { AddManualMatchModal } from './AddManualMatchModal';
 import { AddPairModal } from './AddPairModal';
 import { MatchModal } from './MatchModal';
@@ -36,7 +37,7 @@ interface Props {
   players: Record<string, Player>;
   onMatchClick?: (m: Match) => void;
   onBack?: () => void;
-  onAddDivision?: (division: Division | Division[]) => void;
+  onAddDivision?: (division: Division | Division[], newGuests?: { id: string; nombre: string; apellidos?: string }[]) => void;
   onUpdateRanking?: (ranking: Ranking) => void;
   isAdmin?: boolean;
   onUpdatePlayerStats?: (playerId: string, result: 'win' | 'loss' | 'draw') => void;
@@ -208,6 +209,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     return ['pts', 'pj', 'pg', 'winRate'].includes(key) || visibleConfig.includes(key);
   };
   const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
+  const [isSubstitutePairModalOpen, setIsSubstitutePairModalOpen] = useState(false);
   const [substituteData, setSubstituteData] = useState({ oldPlayerId: '', newPlayerId: '', nextPhaseDiv: '' });
   const [isManualMatchModalOpen, setIsManualMatchModalOpen] = useState(false);
   const [isAddPairModalOpen, setIsAddPairModalOpen] = useState(false);
@@ -891,6 +893,18 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     }
   };
 
+  const handleSubstitutePair = (
+    outgoingPairKey: string,
+    incoming: { p1Id: string; p2Id?: string },
+    newGuests: { id: string; nombre: string; apellidos?: string }[]
+  ) => {
+    if (!onUpdateRanking) return;
+    const mergedGuests = [...(ranking.guestPlayers || [])];
+    newGuests.forEach(g => { if (!mergedGuests.some(e => e.id === g.id)) mergedGuests.push(g); });
+    const newDivisions = substitutePair(ranking, outgoingPairKey, incoming);
+    onUpdateRanking({ ...ranking, guestPlayers: mergedGuests, divisions: newDivisions });
+  };
+
   const handleSubstitutePlayer = (data: { oldPlayerId: string, newPlayerId: string, nextPhaseDiv?: string }) => {
     if (!activeDivision || !onUpdateRanking || !data.oldPlayerId || !data.newPlayerId) return;
 
@@ -1506,12 +1520,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             {
               id: 'substitute-player',
               icon: RefreshCw,
-              label: 'Sustituir Jugador',
-              onClick: () => setIsSubstituteModalOpen(true),
+              label: ranking.format === 'elimination' ? 'Sustituir Pareja' : 'Sustituir Jugador',
+              onClick: () => ranking.format === 'elimination'
+                ? setIsSubstitutePairModalOpen(true)
+                : setIsSubstituteModalOpen(true),
               visible: isAdmin && !!onUpdateRanking,
               variant: 'secondary' as const,
               className: 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100',
-              title: 'Reemplazar un jugador lesionado o que cause baja'
+              title: ranking.format === 'elimination'
+                ? 'Reemplazar una pareja del cuadro por otra (existente o invitada)'
+                : 'Reemplazar un jugador lesionado o que cause baja'
             },
             {
               id: 'new-round',
@@ -2742,8 +2760,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             rankingFormat={ranking.format}
             rankingConfig={ranking.config}
             hasConsolation={ranking.config?.eliminationConfig?.consolation}
-            onSave={(div) => {
-              onAddDivision(div);
+            onSave={(div, newGuests) => {
+              onAddDivision(div, newGuests);
               // Handle array vs single division for UI switch
               if (Array.isArray(div)) {
                 if (div.length > 0) setActiveDivisionId(div[0].id);
@@ -2848,6 +2866,14 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         divisionPlayers={activeDivision ? activeDivision.players.map(id => players[id]).filter(Boolean) : []}
         availablePlayers={Object.values(players)}
         currentDiv={activeDivision?.numero || 1}
+      />
+
+      <SubstitutePairModal
+        isOpen={isSubstitutePairModalOpen}
+        onClose={() => setIsSubstitutePairModalOpen(false)}
+        ranking={ranking}
+        players={players}
+        onSubstitute={handleSubstitutePair}
       />
 
       <AddManualMatchModal

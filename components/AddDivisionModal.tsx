@@ -9,7 +9,7 @@ interface Props {
   nextDivisionNumber: number;
   players: Record<string, Player>;
   occupiedPlayerIds?: Set<string>;
-  onSave: (division: Division | Division[]) => void;
+  onSave: (division: Division | Division[], newGuests?: { id: string; nombre: string; apellidos?: string }[]) => void;
   rankingFormat?: RankingFormat; // Add format to determine modal behavior
   rankingConfig?: RankingConfig; // Add config to get division size settings
   hasConsolation?: boolean; // For elimination tournaments
@@ -160,10 +160,19 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
         participantIds.push(`${pair.p1Id}-${pair.p2Id}`);
       });
 
-      // Add guest pairs (generate IDs)
+      // Add guest pairs (generate IDs + collect names so they persist)
+      const newGuests: { id: string; nombre: string; apellidos?: string }[] = [];
+      const parseName = (full: string) => {
+        const parts = full.trim().split(/\s+/);
+        return { nombre: parts[0] || full.trim(), apellidos: parts.slice(1).join(' ') };
+      };
       guestPairs.forEach((guestPair) => {
         const guestP1Id = `guest-${crypto.randomUUID()}`;
         const guestP2Id = `guest-${crypto.randomUUID()}`;
+        const n1 = parseName(guestPair.p1Name);
+        const n2 = parseName(guestPair.p2Name);
+        newGuests.push({ id: guestP1Id, nombre: n1.nombre, apellidos: n1.apellidos });
+        newGuests.push({ id: guestP2Id, nombre: n2.nombre, apellidos: n2.apellidos });
 
         // Add to participant IDs
         participantIds.push(`${guestP1Id}-${guestP2Id}`);
@@ -199,7 +208,7 @@ export const AddDivisionModal = ({ isOpen, onClose, nextDivisionNumber, players,
 
           // Save all divisions at once (single DB update for main + consolation)
           console.log('🔧 Total divisions to save:', divisionsToSave.length);
-          onSave(divisionsToSave.length === 1 ? divisionsToSave[0] : divisionsToSave);
+          onSave(divisionsToSave.length === 1 ? divisionsToSave[0] : divisionsToSave, newGuests);
         } else {
           console.error('❌ No divisions generated!');
           alert('Error al generar el bracket. Por favor, intenta de nuevo.');

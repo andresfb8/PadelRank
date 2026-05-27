@@ -838,6 +838,46 @@ export function updateMatchParticipant(
 }
 
 /**
+ * Replaces an entire pair across the whole bracket (all divisions, main +
+ * consolation). The incoming pair may be brand-new players (e.g. a guest pair
+ * entering due to injury before the first match). Use this for elimination
+ * tournaments where pairs are fixed and a per-player swap doesn't apply.
+ */
+export function substitutePair(
+  ranking: Ranking,
+  outgoingPairKey: string,                 // "p1::p2" or "p1"
+  incoming: { p1Id: string; p2Id?: string }
+): Division[] {
+  const [outP1, outP2] = outgoingPairKey.includes('::')
+    ? outgoingPairKey.split('::')
+    : [outgoingPairKey, ''];
+
+  const isOutgoing = (pair: { p1Id: string; p2Id?: string }) => {
+    const a = pair.p1Id || '';
+    const b = pair.p2Id || '';
+    return (a === outP1 && b === outP2) || (a === outP2 && b === outP1);
+  };
+
+  return ranking.divisions.map(div => ({
+    ...div,
+    players: div.players.map(id =>
+      id === outP1 ? incoming.p1Id : (outP2 && id === outP2 ? (incoming.p2Id || '') : id)
+    ).filter(Boolean),
+    matches: div.matches.map(m => {
+      const next = { ...m, pair1: { ...m.pair1 }, pair2: { ...m.pair2 } };
+      ([next.pair1, next.pair2] as { p1Id: string; p2Id?: string; placeholder?: string }[]).forEach(pair => {
+        if (isOutgoing(pair)) {
+          pair.p1Id = incoming.p1Id;
+          pair.p2Id = incoming.p2Id || '';
+          delete pair.placeholder;
+        }
+      });
+      return next;
+    }),
+  }));
+}
+
+/**
  * God Mode 2.0: Updates manual points adjustment for a player/pair.
  */
 export function updateManualAdjustment(

@@ -350,7 +350,7 @@ export const AdminLayout = () => {
         setActiveRankingId(r.id);
         setView('ranking_detail');
     };
-    const handleAddDivision = (newDivisions: Division | Division[]) => {
+    const handleAddDivision = (newDivisions: Division | Division[], newGuests?: { id: string; nombre: string; apellidos?: string }[]) => {
         console.log('📥 handleAddDivision called with:', newDivisions);
         if (!activeRanking) {
             console.error('❌ No active ranking!');
@@ -360,9 +360,14 @@ export const AdminLayout = () => {
         // Normalize to array
         const divisionsArray = Array.isArray(newDivisions) ? newDivisions : [newDivisions];
 
+        // Merge any guest players (tournament-only, not in the DB) so their names resolve
+        const mergedGuests = [...(activeRanking.guestPlayers || [])];
+        (newGuests || []).forEach(g => { if (!mergedGuests.some(e => e.id === g.id)) mergedGuests.push(g); });
+
         // Add all divisions at once to prevent race conditions
         const updated = {
             ...activeRanking,
+            guestPlayers: mergedGuests,
             divisions: [...activeRanking.divisions, ...divisionsArray]
         };
 

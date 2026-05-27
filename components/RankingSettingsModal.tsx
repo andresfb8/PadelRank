@@ -96,6 +96,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     const isClassic = ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs';
     const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
     const showPointsTab = !isElimination;
+    const showStatsTab = !isElimination; // standings columns don't apply to brackets
     const showPromotionsTab = isClassic;
 
     // Branding Access: Pro, Star, Weekend
@@ -139,12 +140,14 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                             <Trophy size={16} /> Puntuación
                         </button>
                     )}
-                    <button
-                        onClick={() => setActiveTab('stats')}
-                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'stats' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <BarChart2 size={16} /> Estadísticas
-                    </button>
+                    {showStatsTab && (
+                        <button
+                            onClick={() => setActiveTab('stats')}
+                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'stats' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <BarChart2 size={16} /> Estadísticas
+                        </button>
+                    )}
                     {showPromotionsTab && (
                         <button
                             onClick={() => setActiveTab('promotions')}
