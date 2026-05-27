@@ -105,6 +105,39 @@ describe('SchedulerEngine.generateFullSchedule', () => {
         });
     });
 
+    it('falls back to the second window when the first is full (multi-window round)', () => {
+        // 1 court, 2 pairs of 8 (Cuartos) → 4 Cuartos matches; first window fits 2, second fits 2
+        const players8 = ['p1','p2','p3','p4','p5','p6','p7','p8'];
+        const [main] = TournamentEngine.generateBracket(players8, false);
+
+        const config = makeConfig({
+            courts: 1, // single court forces sequential
+            slotDurationMinutes: 90,
+            restMinutes: 0,
+            dailySchedule: [
+                { date: '2026-06-06', startTime: '09:00', endTime: '22:00' },
+                { date: '2026-06-07', startTime: '09:00', endTime: '22:00' },
+            ],
+            roundWindows: [
+                // Window 1: fits exactly 2 matches (3h / 90min = 2)
+                { roundName: 'Cuartos', date: '2026-06-06', startTime: '18:00', endTime: '21:00' },
+                // Window 2: Saturday morning overflow
+                { roundName: 'Cuartos', date: '2026-06-07', startTime: '09:00', endTime: '12:00' },
+            ],
+        });
+
+        const ranking = makeRanking([main], config);
+        const result = SchedulerEngine.generateFullSchedule(ranking);
+
+        const cuartos = result[0].matches.filter(m => m.roundName === 'Cuartos');
+        expect(cuartos).toHaveLength(4);
+
+        const onFri = cuartos.filter(m => m.startTime && new Date(m.startTime).toISOString().startsWith('2026-06-06'));
+        const onSat = cuartos.filter(m => m.startTime && new Date(m.startTime).toISOString().startsWith('2026-06-07'));
+        expect(onFri.length).toBe(2); // first window holds 2
+        expect(onSat.length).toBe(2); // overflow to second window
+    });
+
     it('re-running clears stale estimates (idempotent)', () => {
         const playerIds = ['p1', 'p2', 'p3', 'p4'];
         const [main] = TournamentEngine.generateBracket(playerIds, false);

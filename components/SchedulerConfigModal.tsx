@@ -4,8 +4,7 @@ import { Save, Plus, Trash2, Calendar, Clock, Users, Layers } from 'lucide-react
 import { Ranking, Player } from '../types';
 import { SchedulerConfig, PairAvailability, makePairKey, SchedulerEngine } from '../services/SchedulerEngine';
 
-interface RoundWindow {
-    roundName: string;
+interface RoundWindowSlot {
     date: string;
     startTime: string;
     endTime: string;
@@ -45,11 +44,14 @@ export const SchedulerConfigModal = ({
     const [newDayStart, setNewDayStart] = useState('09:00');
     const [newDayEnd, setNewDayEnd] = useState('22:00');
 
-    // Per-round time windows (phase scheduling)
-    const [roundWindows, setRoundWindows] = useState<Record<string, RoundWindow>>(() => {
-        const map: Record<string, RoundWindow> = {};
+    // Per-round time windows (phase scheduling): multiple slots per round allowed
+    // State: roundName → ordered list of { date, startTime, endTime }
+    const [roundWindows, setRoundWindows] = useState<Record<string, RoundWindowSlot[]>>(() => {
+        const map: Record<string, RoundWindowSlot[]> = {};
         (initialConfig?.roundWindows ?? []).forEach(rw => {
-            map[SchedulerEngine.normalizeRoundName(rw.roundName)] = rw;
+            const key = SchedulerEngine.normalizeRoundName(rw.roundName);
+            if (!map[key]) map[key] = [];
+            map[key].push({ date: rw.date, startTime: rw.startTime, endTime: rw.endTime });
         });
         return map;
     });
@@ -105,17 +107,29 @@ export const SchedulerConfigModal = ({
         return Array.from(set).sort((a, b) => rank(a) - rank(b));
     }, [tournament]);
 
-    const setRoundWindowField = (roundName: string, field: keyof RoundWindow, value: string) => {
+    const addRoundWindowSlot = (roundName: string) => {
+        setRoundWindows(prev => ({
+            ...prev,
+            [roundName]: [...(prev[roundName] ?? []), { date: '', startTime: '', endTime: '' }],
+        }));
+    };
+
+    const updateRoundWindowSlot = (roundName: string, idx: number, field: keyof RoundWindowSlot, value: string) => {
         setRoundWindows(prev => {
-            const existing = prev[roundName] ?? { roundName, date: '', startTime: '', endTime: '' };
-            return { ...prev, [roundName]: { ...existing, roundName, [field]: value } };
+            const slots = [...(prev[roundName] ?? [])];
+            slots[idx] = { ...slots[idx], [field]: value };
+            return { ...prev, [roundName]: slots };
         });
     };
 
-    const clearRoundWindow = (roundName: string) => {
+    const removeRoundWindowSlot = (roundName: string, idx: number) => {
         setRoundWindows(prev => {
-            const { [roundName]: _, ...rest } = prev;
-            return rest;
+            const slots = (prev[roundName] ?? []).filter((_, i) => i !== idx);
+            if (slots.length === 0) {
+                const { [roundName]: _, ...rest } = prev;
+                return rest;
+            }
+            return { ...prev, [roundName]: slots };
         });
     };
 
@@ -178,8 +192,12 @@ export const SchedulerConfigModal = ({
                 ? [{ start: days[0]?.startTime ?? '09:00', end: days[0]?.endTime ?? '22:00' }]
                 : [{ start: '09:00', end: '22:00' }],
             dailySchedule: days.length > 0 ? days : undefined,
-            roundWindows: Object.values(roundWindows)
-                .filter(rw => rw.date && rw.startTime && rw.endTime && rw.endTime > rw.startTime),
+            roundWindows: Object.entries(roundWindows).flatMap(([roundName, slots]) =>
+                slots
+                    .filter(s => s.date && s.startTime && s.endTime && s.endTime > s.startTime)
+                    .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+                    .map(s => ({ roundName, ...s }))
+            ),
         };
         if (!config.roundWindows?.length) delete config.roundWindows;
         onSave(config, pairConstraints);
@@ -311,10 +329,10 @@ export const SchedulerConfigModal = ({
                 {activeTab === 'phases' && (
                     <div className="space-y-4">
                         <p className="text-sm text-gray-500">
-                            Asigna cada fase a una franja horaria (ej. domingo mañana = Semifinales,
-                            domingo tarde = Final). Se aplica a <strong>todas las categorías</strong> por
-                            igual, así las rondas avanzan equilibradas. Las fases sin asignar se programan
-                            automáticamente. Luego puedes ajustar partidos sueltos a mano.
+                            Asigna cada fase a una o varias franjas horarias. Puedes añadir más de una
+                            franja por fase para cubrir varios días (ej. "Cuartos" viernes tarde + sábado
+                            mañana). Se aplica a <strong>todas las categorías</strong> por igual.
+                            Las fases sin asignar se programan automáticamente.
                         </p>
 
                         {days.length === 0 && (
@@ -328,47 +346,72 @@ export const SchedulerConfigModal = ({
                                 No hay rondas en este torneo todavía.
                             </p>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                                 {roundNames.map(name => {
-                                    const rw = roundWindows[name];
+                                    const slots = roundWindows[name] ?? [];
                                     return (
                                         <div key={name} className="border rounded-lg p-3 bg-white">
+                                            {/* Round header */}
                                             <div className="flex items-center justify-between mb-2">
-                                                <span className="font-medium text-sm">{name}</span>
-                                                {rw && (
-                                                    <button onClick={() => clearRoundWindow(name)}
-                                                        className="text-red-400 hover:text-red-600 p-1" title="Quitar franja">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
+                                                <span className="font-semibold text-sm text-gray-800">{name}</span>
+                                                <button
+                                                    onClick={() => addRoundWindowSlot(name)}
+                                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                                    title="Añadir franja"
+                                                >
+                                                    <Plus size={12} /> Añadir franja
+                                                </button>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <div>
-                                                    <label className="block text-xs text-gray-500 mb-1">Día</label>
-                                                    <select className="w-full text-sm border rounded p-1.5"
-                                                        value={rw?.date ?? ''}
-                                                        onChange={e => setRoundWindowField(name, 'date', e.target.value)}>
-                                                        <option value="">Automático</option>
-                                                        {days.map(d => (
-                                                            <option key={d.date} value={d.date}>{formatDate(d.date)}</option>
-                                                        ))}
-                                                    </select>
+
+                                            {slots.length === 0 ? (
+                                                <p className="text-xs text-gray-400 italic">
+                                                    Sin franja asignada — se programa automáticamente
+                                                </p>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {slots.map((slot, idx) => {
+                                                        const invalid = slot.date && slot.startTime && slot.endTime && slot.endTime <= slot.startTime;
+                                                        return (
+                                                            <div key={idx} className="flex items-end gap-2">
+                                                                <div className="grid grid-cols-3 gap-1.5 flex-1">
+                                                                    <div>
+                                                                        {idx === 0 && <label className="block text-xs text-gray-500 mb-1">Día</label>}
+                                                                        <select className="w-full text-xs border rounded p-1.5"
+                                                                            value={slot.date}
+                                                                            onChange={e => updateRoundWindowSlot(name, idx, 'date', e.target.value)}>
+                                                                            <option value="">Día...</option>
+                                                                            {days.map(d => (
+                                                                                <option key={d.date} value={d.date}>{formatDate(d.date)}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        {idx === 0 && <label className="block text-xs text-gray-500 mb-1">Desde</label>}
+                                                                        <input type="time" className="w-full text-xs border rounded p-1.5"
+                                                                            value={slot.startTime}
+                                                                            onChange={e => updateRoundWindowSlot(name, idx, 'startTime', e.target.value)} />
+                                                                    </div>
+                                                                    <div>
+                                                                        {idx === 0 && <label className="block text-xs text-gray-500 mb-1">Hasta</label>}
+                                                                        <input type="time" className="w-full text-xs border rounded p-1.5"
+                                                                            value={slot.endTime}
+                                                                            onChange={e => updateRoundWindowSlot(name, idx, 'endTime', e.target.value)} />
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => removeRoundWindowSlot(name, idx)}
+                                                                    className="text-red-400 hover:text-red-600 mb-1 shrink-0"
+                                                                    title="Eliminar franja"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {slots.some(s => s.date && s.startTime && s.endTime && s.endTime <= s.startTime) && (
+                                                        <p className="text-xs text-red-500">Una o más franjas tienen la hora de fin anterior al inicio.</p>
+                                                    )}
                                                 </div>
-                                                <div>
-                                                    <label className="block text-xs text-gray-500 mb-1">Desde</label>
-                                                    <input type="time" className="w-full text-sm border rounded p-1.5"
-                                                        value={rw?.startTime ?? ''}
-                                                        onChange={e => setRoundWindowField(name, 'startTime', e.target.value)} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs text-gray-500 mb-1">Hasta</label>
-                                                    <input type="time" className="w-full text-sm border rounded p-1.5"
-                                                        value={rw?.endTime ?? ''}
-                                                        onChange={e => setRoundWindowField(name, 'endTime', e.target.value)} />
-                                                </div>
-                                            </div>
-                                            {rw && rw.date && rw.startTime && rw.endTime && rw.endTime <= rw.startTime && (
-                                                <p className="text-xs text-red-500 mt-1">La hora de fin debe ser posterior al inicio.</p>
                                             )}
                                         </div>
                                     );

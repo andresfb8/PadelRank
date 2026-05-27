@@ -14,9 +14,10 @@ export interface SchedulerConfig {
     timeWindows: { start: string; end: string }[];
     /**
      * Optional per-round time windows. Matches whose round name matches (e.g.
-     * "Semifinales", "Final") are confined to the given day + time window,
-     * regardless of category/bracket size. Used to phase the tournament
-     * (e.g. "Sunday morning = semifinals, Sunday afternoon = finals").
+     * "Semifinales", "Final") are confined to the given windows,
+     * regardless of category/bracket size. Multiple entries with the same
+     * roundName are tried in order — useful when a round spans two days
+     * (e.g. "Cuartos" Friday 17:00–21:00 AND Saturday 09:00–14:00).
      */
     roundWindows?: {
         roundName: string; // normalized round name, e.g. "Final", "Semifinales"
@@ -191,44 +192,59 @@ export class SchedulerEngine {
         return (name || '').replace(/\s*\(Cons\.\)\s*$/i, '').trim();
     }
 
-    /** Returns the configured time window for a match's round, if any. */
+    /**
+     * Returns all configured windows for a round, sorted chronologically.
+     * Multiple windows allow a round to span two days
+     * (e.g. Friday 17:00–21:00 + Saturday 09:00–14:00).
+     */
+    static getRoundWindows(
+        roundName: string | undefined,
+        config: SchedulerConfig
+    ): { date: string; startTime: string; endTime: string }[] {
+        if (!config.roundWindows?.length) return [];
+        const target = this.normalizeRoundName(roundName);
+        if (!target) return [];
+        return config.roundWindows
+            .filter(rw => this.normalizeRoundName(rw.roundName) === target)
+            .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+    }
+
+    /** @deprecated use getRoundWindows */
     static getRoundWindow(
         roundName: string | undefined,
         config: SchedulerConfig
     ): { date: string; startTime: string; endTime: string } | undefined {
-        if (!config.roundWindows?.length) return undefined;
-        const target = this.normalizeRoundName(roundName);
-        if (!target) return undefined;
-        return config.roundWindows.find(rw => this.normalizeRoundName(rw.roundName) === target);
+        return this.getRoundWindows(roundName, config)[0];
     }
 
     /**
-     * Finds the next available slot for a match.
-     * If `bound` is provided, the search is confined to that single day and
-     * the intersection of its [startTime, endTime] with the operating hours.
+     * Searches for the earliest available slot within a set of ordered time
+     * windows (used for round-window bounded search). Tries each window in
+     * chronological order and returns the first hit.
      */
-    static findNextSlot(
+    private static findSlotInWindows(
         minStartTime: Date,
+        bounds: { date: string; startTime: string; endTime: string }[],
         config: SchedulerConfig,
         occupiedSlots: { start: Date; end: Date; court: number }[],
         pairConstraints?: Record<string, PairAvailability>,
-        pairKeys?: string[],
-        bound?: { date: string; startTime: string; endTime: string }
+        pairKeys?: string[]
     ): { start: Date; court: number } | null {
         const interval = 30;
-
-        // Bounded mode: confine to a single day + window (used for round windows)
-        if (bound) {
+        for (const bound of bounds) {
             const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
-            const windowEnd = this.parseTimeOnDate(bound.endTime, bound.date);
-            // Respect the day's operating hours if that day is configured
+            const windowEnd   = this.parseTimeOnDate(bound.endTime,   bound.date);
+            // Intersect with the day's operating hours when configured
             const dayCfg = config.dailySchedule?.find(d => d.date === bound.date);
             const lowerBound = dayCfg
                 ? new Date(Math.max(windowStart.getTime(), this.parseTimeOnDate(dayCfg.startTime, bound.date).getTime()))
                 : windowStart;
             const upperBound = dayCfg
-                ? new Date(Math.min(windowEnd.getTime(), this.parseTimeOnDate(dayCfg.endTime, bound.date).getTime()))
+                ? new Date(Math.min(windowEnd.getTime(),   this.parseTimeOnDate(dayCfg.endTime,   bound.date).getTime()))
                 : windowEnd;
+
+            // Skip windows that end before the earliest start
+            if (upperBound <= minStartTime) continue;
 
             let current = new Date(Math.max(lowerBound.getTime(), minStartTime.getTime()));
             const remainder = current.getMinutes() % interval;
@@ -237,13 +253,36 @@ export class SchedulerEngine {
             while (current < upperBound) {
                 const potentialEnd = this.addMinutes(current, config.slotDurationMinutes);
                 if (potentialEnd > upperBound) break;
-                // Pass a config without dailySchedule check conflicts: isValidSlot still
-                // validates operating hours, which we've already intersected above.
                 const result = this.isValidSlot(current, potentialEnd, config, occupiedSlots, pairConstraints, pairKeys);
                 if (result.valid && result.court) return { start: current, court: result.court };
                 current = this.addMinutes(current, interval);
             }
-            return null;
+        }
+        return null;
+    }
+
+    /**
+     * Finds the next available slot for a match.
+     * If `bounds` is provided, the search is confined to those windows in order.
+     * Pass a single-element array for backward compatibility.
+     */
+    static findNextSlot(
+        minStartTime: Date,
+        config: SchedulerConfig,
+        occupiedSlots: { start: Date; end: Date; court: number }[],
+        pairConstraints?: Record<string, PairAvailability>,
+        pairKeys?: string[],
+        /** @deprecated single bound, use bounds[] */ bound?: { date: string; startTime: string; endTime: string },
+        bounds?: { date: string; startTime: string; endTime: string }[]
+    ): { start: Date; court: number } | null {
+        const interval = 30; // slot search resolution in minutes
+
+        // Normalise: accept either legacy `bound` or new `bounds` array
+        const activeBounds = bounds ?? (bound ? [bound] : []);
+
+        // Bounded mode: try windows in chronological order
+        if (activeBounds.length > 0) {
+            return this.findSlotInWindows(minStartTime, activeBounds, config, occupiedSlots, pairConstraints, pairKeys);
         }
 
         // Multi-day mode: iterate through dailySchedule days in order
@@ -366,11 +405,12 @@ export class SchedulerEngine {
             const latestEnd = end1 > end2 ? end1 : end2;
             let minStartTime = this.addMinutes(latestEnd, schedulerConfig.restMinutes);
 
-            // If this round is pinned to a time window, confine the slot to it
-            const bound = this.getRoundWindow(nextMatch.roundName, schedulerConfig);
-            if (bound) {
-                const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
-                if (minStartTime < windowStart) minStartTime = windowStart;
+            // If this round is pinned to time windows, confine the slot to them
+            const roundBounds = this.getRoundWindows(nextMatch.roundName, schedulerConfig);
+            if (roundBounds.length > 0) {
+                // Advance minStartTime to the start of the first available window
+                const firstWindowStart = this.parseTimeOnDate(roundBounds[0].startTime, roundBounds[0].date);
+                if (minStartTime < firstWindowStart) minStartTime = firstWindowStart;
             }
 
             // Calculate Occupied Slots
@@ -383,7 +423,7 @@ export class SchedulerEngine {
             const pair2Key = makePairKey(nextMatch.pair2.p1Id, nextMatch.pair2.p2Id || undefined);
             const pairKeys = [pair1Key, pair2Key].filter(k => k && k !== 'BYE');
 
-            const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, pairConstraints, pairKeys, bound);
+            const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, pairConstraints, pairKeys, undefined, roundBounds.length ? roundBounds : undefined);
 
             if (slot) {
                 // Assign confirmed slot (clears any prior estimate)
@@ -470,15 +510,15 @@ export class SchedulerEngine {
                 minStart = this.addMinutes(latest, config.restMinutes);
             }
 
-            // If this round is pinned to a time window, confine the slot to it
-            const bound = this.getRoundWindow(match.roundName, config);
-            if (bound) {
-                const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
-                if (minStart < windowStart) minStart = windowStart;
+            // If this round is pinned to time windows, confine the slot to them
+            const roundBounds = this.getRoundWindows(match.roundName, config);
+            if (roundBounds.length > 0) {
+                const firstWindowStart = this.parseTimeOnDate(roundBounds[0].startTime, roundBounds[0].date);
+                if (minStart < firstWindowStart) minStart = firstWindowStart;
             }
 
             const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
-            const slot = this.findNextSlot(minStart, config, occupiedSlots, pairConstraints, pairKeys, bound);
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, pairConstraints, pairKeys, undefined, roundBounds.length ? roundBounds : undefined);
 
             if (slot) {
                 match.startTime = slot.start.toISOString();
@@ -523,14 +563,14 @@ export class SchedulerEngine {
 
             let minStart = latestEnd ? this.addMinutes(latestEnd, config.restMinutes) : this.getTournamentStart(config);
 
-            const bound = this.getRoundWindow(match.roundName, config);
-            if (bound) {
-                const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
-                if (minStart < windowStart) minStart = windowStart;
+            const roundBounds = this.getRoundWindows(match.roundName, config);
+            if (roundBounds.length > 0) {
+                const firstWindowStart = this.parseTimeOnDate(roundBounds[0].startTime, roundBounds[0].date);
+                if (minStart < firstWindowStart) minStart = firstWindowStart;
             }
 
             const occupiedSlots = this.getAllOccupiedSlots({ ...ranking, divisions: newDivisions });
-            const slot = this.findNextSlot(minStart, config, occupiedSlots, undefined, undefined, bound);
+            const slot = this.findNextSlot(minStart, config, occupiedSlots, undefined, undefined, undefined, roundBounds.length ? roundBounds : undefined);
             if (slot) {
                 match.startTime = slot.start.toISOString();
                 match.court = slot.court;
