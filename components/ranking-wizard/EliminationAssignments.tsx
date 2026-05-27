@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { UserPlus } from 'lucide-react';
 import { SearchableSelect } from '../SearchableSelect';
 import { FormatAssignmentsProps } from './types';
 
 interface EliminationAssignmentsProps extends FormatAssignmentsProps {
     categories: string[];
 }
+
+interface GuestDraft {
+    p1Name: string;
+    p1Apellidos: string;
+    p2Name: string;
+    p2Apellidos: string;
+}
+
+const emptyDraft = (): GuestDraft => ({ p1Name: '', p1Apellidos: '', p2Name: '', p2Apellidos: '' });
 
 export const EliminationAssignments = ({
     config,
@@ -15,7 +25,12 @@ export const EliminationAssignments = ({
     categories,
     categorySizes = {},
     setCategorySizes,
+    onCreateGuest,
 }: EliminationAssignmentsProps) => {
+    // Per-category guest draft forms
+    const [guestDrafts, setGuestDrafts] = useState<Record<number, GuestDraft>>({});
+    const [showGuestForm, setShowGuestForm] = useState<Record<number, boolean>>({});
+
     // Internal: self-contained assignment handler for pair slots
     const handleAssignment = (catIdx: number, pairIdx: number, val: string, slotsCount: number) => {
         const newA = { ...assignments };
@@ -26,6 +41,27 @@ export const EliminationAssignments = ({
         newA[catIdx][pairIdx] = val;
         setAssignments(newA);
     };
+
+    const handleCreateGuestPair = (catIdx: number, slotCount: number) => {
+        const draft = guestDrafts[catIdx] || emptyDraft();
+        if (!draft.p1Name.trim() || !draft.p2Name.trim()) return;
+        if (!onCreateGuest) return;
+
+        const p1Id = onCreateGuest(draft.p1Name.trim(), draft.p1Apellidos.trim() || undefined);
+        const p2Id = onCreateGuest(draft.p2Name.trim(), draft.p2Apellidos.trim() || undefined);
+
+        // Find first empty slot in this category
+        const currentList = assignments[catIdx] || [];
+        const emptyIdx = Array.from({ length: slotCount }).findIndex((_, i) => !currentList[i]);
+        const targetIdx = emptyIdx >= 0 ? emptyIdx : currentList.length;
+
+        handleAssignment(catIdx, targetIdx, `${p1Id}::${p2Id}`, slotCount);
+
+        // Reset draft
+        setGuestDrafts(d => ({ ...d, [catIdx]: emptyDraft() }));
+        setShowGuestForm(s => ({ ...s, [catIdx]: false }));
+    };
+
     // Only pairs type is fully implemented for categories
     if (config.eliminationConfig?.type !== 'pairs') {
         return (
@@ -44,6 +80,8 @@ export const EliminationAssignments = ({
             {categories.map((catName, catIdx) => {
                 const slotCount = categorySizes[catIdx] || 8;
                 const currentList = assignments[catIdx] || [];
+                const draft = guestDrafts[catIdx] || emptyDraft();
+                const isGuestFormOpen = !!showGuestForm[catIdx];
 
                 return (
                     <div key={catIdx} className="bg-gray-50 p-4 rounded-lg border mb-4">
@@ -57,7 +95,7 @@ export const EliminationAssignments = ({
                                     max="64"
                                     value={slotCount}
                                     onChange={(e) =>
-                                        setCategorySizes({ ...categorySizes, [catIdx]: parseInt(e.target.value) || 8 })
+                                        setCategorySizes?.({ ...categorySizes, [catIdx]: parseInt(e.target.value) || 8 })
                                     }
                                     className="border p-1 w-12 text-center rounded text-sm"
                                 />
@@ -92,7 +130,7 @@ export const EliminationAssignments = ({
                                             if (!aSelected && bSelected) return 1;
                                             return a.nombre.localeCompare(b.nombre);
                                         })
-                                        .map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos}` }));
+                                        .map(p => ({ id: p.id, label: `${p.nombre} ${p.apellidos || ''}`.trim() }));
                                 };
 
                                 return (
@@ -122,6 +160,88 @@ export const EliminationAssignments = ({
                                 );
                             })}
                         </div>
+
+                        {/* Guest pair creation */}
+                        {onCreateGuest && (
+                            <div className="mt-3">
+                                {!isGuestFormOpen ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowGuestForm(s => ({ ...s, [catIdx]: true }))}
+                                        className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium"
+                                    >
+                                        <UserPlus size={14} />
+                                        Añadir pareja invitada
+                                    </button>
+                                ) : (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                                        <p className="text-xs font-semibold text-blue-800 mb-2">Nueva pareja invitada</p>
+                                        <div className="grid grid-cols-2 gap-3 mb-3">
+                                            {/* Player 1 */}
+                                            <div>
+                                                <p className="text-xs text-gray-500 mb-1">Jugador A</p>
+                                                <div className="space-y-1">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nombre *"
+                                                        value={draft.p1Name}
+                                                        onChange={e => setGuestDrafts(d => ({ ...d, [catIdx]: { ...(d[catIdx] || emptyDraft()), p1Name: e.target.value } }))}
+                                                        className="w-full border rounded px-2 py-1 text-sm"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Apellidos"
+                                                        value={draft.p1Apellidos}
+                                                        onChange={e => setGuestDrafts(d => ({ ...d, [catIdx]: { ...(d[catIdx] || emptyDraft()), p1Apellidos: e.target.value } }))}
+                                                        className="w-full border rounded px-2 py-1 text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                            {/* Player 2 */}
+                                            <div>
+                                                <p className="text-xs text-gray-500 mb-1">Jugador B</p>
+                                                <div className="space-y-1">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nombre *"
+                                                        value={draft.p2Name}
+                                                        onChange={e => setGuestDrafts(d => ({ ...d, [catIdx]: { ...(d[catIdx] || emptyDraft()), p2Name: e.target.value } }))}
+                                                        className="w-full border rounded px-2 py-1 text-sm"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Apellidos"
+                                                        value={draft.p2Apellidos}
+                                                        onChange={e => setGuestDrafts(d => ({ ...d, [catIdx]: { ...(d[catIdx] || emptyDraft()), p2Apellidos: e.target.value } }))}
+                                                        className="w-full border rounded px-2 py-1 text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCreateGuestPair(catIdx, slotCount)}
+                                                disabled={!draft.p1Name.trim() || !draft.p2Name.trim()}
+                                                className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary/90 disabled:opacity-40"
+                                            >
+                                                Crear pareja
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowGuestForm(s => ({ ...s, [catIdx]: false }));
+                                                    setGuestDrafts(d => ({ ...d, [catIdx]: emptyDraft() }));
+                                                }}
+                                                className="px-3 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 );
             })}

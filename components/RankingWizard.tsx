@@ -105,6 +105,13 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
     // --- Helpers ---
     const availablePlayers = [...Object.values(players), ...guestPlayers];
 
+    /** Creates a guest player (tournament-only) and returns the new ID */
+    const handleCreateGuest = (nombre: string, apellidos?: string): string => {
+        const id = `guest-${crypto.randomUUID()}`;
+        setGuestPlayers(prev => [...prev, { id, nombre, apellidos }]);
+        return id;
+    };
+
     // --- Steps Renderers ---
 
     const renderStep1 = () => (
@@ -363,7 +370,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-800">Jugadores y Asignaciones</h3>
             {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
-            {format === 'elimination' && <EliminationAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} />}
+            {format === 'elimination' && <EliminationAssignments config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} onCreateGuest={handleCreateGuest} />}
             {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} setDrawSeed={setDrawSeed} />}
         </div>
     );

@@ -23,4 +23,6 @@ export interface FormatAssignmentsProps {
     setCategorySizes?: (sizes: Record<number, number>) => void;
     // Optional: used by hybrid format to persist the seed of the animated draw
     setDrawSeed?: (seed: number | undefined) => void;
+    // Optional: callback to create a guest player (not in DB) and return the new player ID
+    onCreateGuest?: (nombre: string, apellidos?: string) => string;
 }
