@@ -120,4 +120,43 @@ describe('SchedulerEngine.generateFullSchedule', () => {
         expect(finalSecond.startTime).toBe(finalFirst.startTime);
     });
 
+    it('reactive scheduling respects a round window (regression: result moved final off-window)', () => {
+        const [main] = TournamentEngine.generateBracket(['p1', 'p2', 'p3', 'p4'], false);
+
+        const config = makeConfig({
+            courts: 2,
+            dailySchedule: [
+                { date: '2026-06-06', startTime: '09:00', endTime: '22:00' }, // sat
+                { date: '2026-06-07', startTime: '09:00', endTime: '22:00' }, // sun
+            ],
+            roundWindows: [
+                { roundName: 'Final', date: '2026-06-07', startTime: '17:00', endTime: '20:00' },
+            ],
+        });
+
+        const semis = main.matches.filter(m => m.jornada === 1);
+        const final = main.matches.find(m => m.jornada === 2)!;
+
+        // Both semis played Saturday morning; final ready but unscheduled
+        semis.forEach((s, i) => {
+            s.status = 'finalizado';
+            s.startTime = new Date(`2026-06-06T${i === 0 ? '09' : '11'}:00:00`).toISOString();
+            s.court = i + 1;
+            // Winner advances to the final slot
+            const winner = s.pair1;
+            const slot = i === 0 ? final.pair1 : final.pair2;
+            slot.p1Id = winner.p1Id;
+            slot.p2Id = winner.p2Id;
+        });
+
+        const ranking = makeRanking([main], config);
+        const result = SchedulerEngine.scheduleNextMatches(semis[semis.length - 1], ranking, main.id);
+
+        const scheduledFinal = result[0].matches.find(m => m.jornada === 2)!;
+        expect(scheduledFinal.startTime).toBeTruthy();
+        const start = new Date(scheduledFinal.startTime!);
+        expect(start.toISOString().split('T')[0]).toBe('2026-06-07'); // sunday, not friday/saturday
+        expect(start.getTime()).toBeGreaterThanOrEqual(new Date('2026-06-07T17:00:00').getTime());
+    });
+
 });

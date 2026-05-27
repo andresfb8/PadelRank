@@ -364,7 +364,14 @@ export class SchedulerEngine {
             const end2 = getEndTime(lastMatchPair2);
 
             const latestEnd = end1 > end2 ? end1 : end2;
-            const minStartTime = this.addMinutes(latestEnd, schedulerConfig.restMinutes);
+            let minStartTime = this.addMinutes(latestEnd, schedulerConfig.restMinutes);
+
+            // If this round is pinned to a time window, confine the slot to it
+            const bound = this.getRoundWindow(nextMatch.roundName, schedulerConfig);
+            if (bound) {
+                const windowStart = this.parseTimeOnDate(bound.startTime, bound.date);
+                if (minStartTime < windowStart) minStartTime = windowStart;
+            }
 
             // Calculate Occupied Slots
             // TODO: This should be global across ALL divisions if they share courts.
@@ -376,7 +383,7 @@ export class SchedulerEngine {
             const pair2Key = makePairKey(nextMatch.pair2.p1Id, nextMatch.pair2.p2Id || undefined);
             const pairKeys = [pair1Key, pair2Key].filter(k => k && k !== 'BYE');
 
-            const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, pairConstraints, pairKeys);
+            const slot = this.findNextSlot(minStartTime, schedulerConfig, occupiedSlots, pairConstraints, pairKeys, bound);
 
             if (slot) {
                 // Assign confirmed slot (clears any prior estimate)
