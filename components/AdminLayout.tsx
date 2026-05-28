@@ -32,6 +32,7 @@ import { ClientDetailView } from './superadmin/ClientDetailView';
 import { AdminDashboard } from './AdminDashboard';
 import { StaffManagement } from './admin/StaffManagement';
 import { HelpCenter } from './HelpCenter';
+import { SupportMessageModal } from './shared/SupportMessageModal';
 import { PlanBadge } from './PlanBadge';
 import { PlayerModal } from './PlayerModal';
 import { Button } from './ui/Components';
@@ -76,6 +77,7 @@ export const AdminLayout = () => {
     const [activeRankingId, setActiveRankingId] = useState<string | null>(null);
     const [staffMembers, setStaffMembers] = useState<User[]>([]);
     const [feedback, setFeedback] = useState<any[]>([]);
+    const [selectedFeedbackMessage, setSelectedFeedbackMessage] = useState<any | null>(null);
 
     // Derived User
     // Impersonation State
@@ -752,7 +754,6 @@ export const AdminLayout = () => {
                                 feedback={feedback}
                                 onNavigate={setView}
                                 onCreateClient={async () => {
-                                    // Open the admin management view which has the create modal
                                     setView('admin_management');
                                 }}
                                 onViewClient={(userId) => {
@@ -761,6 +762,7 @@ export const AdminLayout = () => {
                                         setSelectedClientForDetail(user);
                                     }
                                 }}
+                                onOpenMessage={(msg) => setSelectedFeedbackMessage(msg)}
                             />
                         ) : (
                             <AdminDashboard
@@ -945,6 +947,12 @@ export const AdminLayout = () => {
             )}
 
             <HelpCenter />
+
+            <SupportMessageModal
+                isOpen={!!selectedFeedbackMessage}
+                onClose={() => setSelectedFeedbackMessage(null)}
+                message={selectedFeedbackMessage}
+            />
 
             {isClubSettingsOpen && effectiveUser && (
                 <ClubSettingsModal
