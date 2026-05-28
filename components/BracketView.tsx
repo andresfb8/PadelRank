@@ -24,6 +24,24 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
     const [isEditMode, setIsEditMode] = useState(false);
     const [pickerTarget, setPickerTarget] = useState<{ matchId: string; pairIndex: 1 | 2; currentId: string; currentLabel: string } | null>(null);
 
+    // For hybrid format: map pairKey → group name so we can show "(Gr. A)" labels in the bracket
+    const pairGroupMap = useMemo(() => {
+        const map = new Map<string, string>();
+        if (ranking.format !== 'hybrid') return map;
+        ranking.divisions
+            .filter(d => d.stage === 'group' && d.name)
+            .forEach(div => {
+                div.matches.forEach(m => {
+                    for (const pair of [m.pair1, m.pair2]) {
+                        if (!pair.p1Id || pair.p1Id === 'BYE') continue;
+                        const key = pair.p2Id ? `${pair.p1Id}::${pair.p2Id}` : pair.p1Id;
+                        if (!map.has(key)) map.set(key, div.name!);
+                    }
+                });
+            });
+        return map;
+    }, [ranking.divisions, ranking.format]);
+
     // Build the list of tournament participants (pairs) for the manual picker
     const participantOptions = useMemo(() => {
         const map = new Map<string, { id: string; label: string }>();
@@ -78,6 +96,12 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
         const n2 = pair.p2Id ? getPlayerName(pair.p2Id) : '';
         if (n1 === 'BYE') return 'BYE';
         return n2 ? `${n1} / ${n2}` : n1;
+    };
+
+    const getGroupLabel = (pair: { p1Id: string; p2Id?: string }) => {
+        if (!pair.p1Id || pair.p1Id === 'BYE') return null;
+        const key = pair.p2Id ? `${pair.p1Id}::${pair.p2Id}` : pair.p1Id;
+        return pairGroupMap.get(key) ?? null;
     };
 
     const handleParticipantClick = (matchId: string, pairIndex: 1 | 2, currentId: string, currentLabel: string) => {
@@ -139,9 +163,9 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                     >
                                         <div className="flex flex-col gap-3">
                                             {/* Pair 1 */}
-                                            <div className={`text-sm flex justify-between items-center transition-colors ${match.points?.p1 > match.points?.p2 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
-                                                <span
-                                                    className={`truncate font-medium ${isEditMode ? 'cursor-text hover:bg-amber-100 px-1 rounded border border-transparent hover:border-amber-300' : ''}`}
+                                            <div className={`text-sm flex justify-between items-center gap-2 transition-colors ${match.points?.p1 > match.points?.p2 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
+                                                <div
+                                                    className={`flex flex-col min-w-0 flex-1 ${isEditMode ? 'cursor-text' : ''}`}
                                                     onClick={(e) => {
                                                         if (isEditMode) {
                                                             e.stopPropagation();
@@ -150,10 +174,17 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                         }
                                                     }}
                                                 >
-                                                    {getPairName(match.pair1)}
-                                                </span>
+                                                    <span className={`truncate font-medium ${isEditMode ? 'hover:bg-amber-100 px-1 rounded border border-transparent hover:border-amber-300' : ''}`}>
+                                                        {getPairName(match.pair1)}
+                                                    </span>
+                                                    {getGroupLabel(match.pair1) && (
+                                                        <span className="text-[9px] font-bold text-indigo-400 leading-none mt-0.5">
+                                                            {getGroupLabel(match.pair1)}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {match.status === 'finalizado' && (
-                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs ml-2 font-mono ring-1 ring-gray-200">
+                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono ring-1 ring-gray-200 shrink-0">
                                                         {renderScore(match, 'p1')}
                                                     </span>
                                                 )}
@@ -164,9 +195,9 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                             </div>
 
                                             {/* Pair 2 */}
-                                            <div className={`text-sm flex justify-between items-center transition-colors ${match.points?.p2 > match.points?.p1 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
-                                                <span
-                                                    className={`truncate font-medium ${isEditMode ? 'cursor-text hover:bg-amber-100 px-1 rounded border border-transparent hover:border-amber-300' : ''}`}
+                                            <div className={`text-sm flex justify-between items-center gap-2 transition-colors ${match.points?.p2 > match.points?.p1 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
+                                                <div
+                                                    className={`flex flex-col min-w-0 flex-1 ${isEditMode ? 'cursor-text' : ''}`}
                                                     onClick={(e) => {
                                                         if (isEditMode) {
                                                             e.stopPropagation();
@@ -175,10 +206,17 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                         }
                                                     }}
                                                 >
-                                                    {getPairName(match.pair2)}
-                                                </span>
+                                                    <span className={`truncate font-medium ${isEditMode ? 'hover:bg-amber-100 px-1 rounded border border-transparent hover:border-amber-300' : ''}`}>
+                                                        {getPairName(match.pair2)}
+                                                    </span>
+                                                    {getGroupLabel(match.pair2) && (
+                                                        <span className="text-[9px] font-bold text-indigo-400 leading-none mt-0.5">
+                                                            {getGroupLabel(match.pair2)}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {match.status === 'finalizado' && (
-                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs ml-2 font-mono ring-1 ring-gray-200">
+                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono ring-1 ring-gray-200 shrink-0">
                                                         {renderScore(match, 'p2')}
                                                     </span>
                                                 )}

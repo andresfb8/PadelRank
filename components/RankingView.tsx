@@ -592,9 +592,11 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         let newDivisions = TournamentEngine.advanceWinner(updatedMatch, updatedRanking, { p1: winnerId.p1Id, p2: winnerId.p2Id });
         console.log("advanceWinner result:", newDivisions);
 
-        // Handle Consolation for First-Match Losers (only for elimination format with consolation enabled)
-        // For hybrid format, we don't use internal consolation brackets
-        if (ranking.format === 'elimination' && ranking.config?.eliminationConfig?.consolation) {
+        // Handle Consolation for First-Match Losers.
+        // Applies to elimination (when configured) and hybrid playoff (when a consolation div exists).
+        const hasElimConsolation = ranking.format === 'elimination' && ranking.config?.eliminationConfig?.consolation;
+        const hasHybridConsolation = ranking.format === 'hybrid' && ranking.divisions.some(d => d.type === 'consolation');
+        if (hasElimConsolation || hasHybridConsolation) {
           // Check if this is the loser's first REAL match (not BYE)
           const isFirstRealMatch = (pairId: { p1Id: string, p2Id: string }) => {
             // Find all matches in main bracket where this pair played
@@ -1356,25 +1358,21 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     setPlayoffsPreview(null);
 
     const allBracketDivisions: Division[] = [];
+    // When consolation qualifiers exist, generate a pre-linked consolation bracket
+    // so that main R1 losers fill it automatically (same mechanism as pure elimination).
+    const hasConsolation = consolationQualified.length >= 2;
 
     if (mainQualified.length >= 2) {
-      const mainDivs = TournamentEngine.generateBracket(mainQualified, false);
+      const mainDivs = TournamentEngine.generateBracket(mainQualified, hasConsolation);
       mainDivs.forEach(d => {
         d.stage = 'playoff' as const;
-        d.name = "Playoff Principal";
+        d.name = d.type === 'consolation' ? "Playoff Consolación" : "Playoff Principal";
       });
       allBracketDivisions.push(...mainDivs);
     }
-
-    if (consolationQualified.length >= 2) {
-      const consolationDivs = TournamentEngine.generateBracket(consolationQualified, false);
-      consolationDivs.forEach(d => {
-        d.stage = 'playoff' as const;
-        d.type = 'league-consolation-main' as any;
-        d.name = "Playoff Consolación";
-      });
-      allBracketDivisions.push(...consolationDivs);
-    }
+    // Note: consolationQualified is no longer used to seed a separate bracket.
+    // The consolation bracket is pre-linked to main R1 matches and populated
+    // automatically by moveLoserToConsolation when results are entered.
 
     const currentDivisions = ranking.divisions.map(d => ({ ...d, stage: 'group' as const }));
     const updatedRanking: Ranking = {

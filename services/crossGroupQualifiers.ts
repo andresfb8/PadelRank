@@ -118,6 +118,96 @@ export function previewBracketBreakdown(
     return result;
 }
 
+/**
+ * Selects qualifiers for a cross-group playoff AND orders them as seeds so
+ * that same-group teams cannot meet in Round 1 of the bracket.
+ *
+ * Works by:
+ * 1. Building the seed list identically to selectByCrossGroupPosition, but
+ *    keeping track of each qualifier's source group.
+ * 2. Pre-computing Round 1 pairings produced by the snake algorithm
+ *    (mirrors TournamentEngine.mapSeedsToBracket).
+ * 3. Fixing any same-group R1 pairing by swapping the lower seed with
+ *    another qualifier that does not introduce a new conflict.
+ *
+ * Returns player IDs in seed order (seed 1 first). Pass directly to
+ * TournamentEngine.generateBracket — mapSeedsToBracket will place them
+ * into the correct bracket slots.
+ */
+export function selectAndSeedForPlayoff(
+    standingsByGroup: StandingRow[][],
+    size: number,
+    excludeIds: Set<string> = new Set(),
+): string[] {
+    if (size <= 0) return [];
+
+    type Entry = { playerId: string; groupIndex: number };
+    const seeds: Entry[] = [];
+    const maxPos = standingsByGroup.reduce((m, s) => Math.max(m, s.length), 0);
+
+    for (let pos = 0; pos < maxPos && seeds.length < size; pos++) {
+        const candidates: (Entry & { row: StandingRow })[] = standingsByGroup.flatMap((s, gIdx) => {
+            const row = s[pos];
+            return row && !excludeIds.has(row.playerId)
+                ? [{ playerId: row.playerId, groupIndex: gIdx, row }]
+                : [];
+        });
+
+        candidates.sort((a, b) => {
+            if (b.row.pts !== a.row.pts) return b.row.pts - a.row.pts;
+            if (b.row.setsDiff !== a.row.setsDiff) return b.row.setsDiff - a.row.setsDiff;
+            if (b.row.gamesDiff !== a.row.gamesDiff) return b.row.gamesDiff - a.row.gamesDiff;
+            return b.row.winRate - a.row.winRate;
+        });
+
+        for (const c of candidates) {
+            if (seeds.length >= size) break;
+            seeds.push({ playerId: c.playerId, groupIndex: c.groupIndex });
+        }
+    }
+
+    // Pre-compute R1 pairings from the snake algorithm (same as mapSeedsToBracket)
+    let brackets = [1, 2];
+    for (let i = 0; i < Math.log2(size) - 1; i++) {
+        const next: number[] = [];
+        const cs = brackets.length * 2;
+        for (const s of brackets) { next.push(s); next.push(cs + 1 - s); }
+        brackets = next;
+    }
+    const r1Pairs: [number, number][] = [];
+    for (let j = 0; j < size / 2; j++) {
+        // Convert 1-indexed seed to 0-indexed position in the seeds array
+        r1Pairs.push([brackets[j * 2] - 1, brackets[j * 2 + 1] - 1]);
+    }
+
+    // Fix same-group R1 conflicts by swapping the lower seed with another qualifier
+    for (const [i1, i2] of r1Pairs) {
+        if (i1 >= seeds.length || i2 >= seeds.length) continue; // One side is BYE → no conflict
+        const q1 = seeds[i1];
+        const q2 = seeds[i2];
+        if (q1.groupIndex !== q2.groupIndex) continue;
+
+        for (let si = 0; si < seeds.length; si++) {
+            if (si === i1 || si === i2) continue;
+            const cand = seeds[si];
+            if (cand.groupIndex === q1.groupIndex) continue; // Would still conflict with q1
+
+            // Check: would swapping cand↔q2 create a NEW conflict at si's R1 partner?
+            const candPair = r1Pairs.find(([a, b]) => a === si || b === si);
+            if (candPair) {
+                const partnerIdx = candPair[0] === si ? candPair[1] : candPair[0];
+                if (partnerIdx < seeds.length && seeds[partnerIdx].groupIndex === q2.groupIndex) continue;
+            }
+
+            seeds[i2] = cand;
+            seeds[si] = q2;
+            break;
+        }
+    }
+
+    return seeds.map(q => q.playerId);
+}
+
 const ORDINAL_ES: Record<number, string> = {
     1: 'primeros', 2: 'segundos', 3: 'terceros', 4: 'cuartos',
     5: 'quintos', 6: 'sextos', 7: 'séptimos', 8: 'octavos',
