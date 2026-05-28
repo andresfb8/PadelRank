@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { Resend } from "resend";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
@@ -335,7 +336,7 @@ export const onFeedbackCreated = onDocumentCreated({
     if (!snapshot) return;
 
     const data = snapshot.data();
-    const resend = getResend();
+    const resend = new Resend(resendApiKey.value());
 
     const superAdminEmail = "andresfb8@gmail.com";
 
@@ -363,6 +364,60 @@ export const onFeedbackCreated = onDocumentCreated({
         console.log("Feedback notification email sent to", superAdminEmail);
     } catch (error) {
         console.error("Error sending feedback notification:", error);
+    }
+});
+
+export const sendSupportReply = onCall({
+    cors: true,
+    secrets: [resendApiKey],
+}, async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required.');
+
+    const db = admin.firestore();
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    if (callerDoc.data()?.role !== 'superadmin') {
+        throw new HttpsError('permission-denied', 'Only superadmins can reply to support messages.');
+    }
+
+    const { feedbackId, userEmail, userName, originalMessage, replyText } = request.data;
+    if (!feedbackId || !userEmail || !replyText) {
+        throw new HttpsError('invalid-argument', 'Missing required fields.');
+    }
+
+    const resend = new Resend(resendApiKey.value());
+
+    try {
+        await resend.emails.send({
+            from: 'RacketGrid Soporte <onboarding@resend.dev>',
+            to: userEmail,
+            subject: 'Respuesta a tu mensaje de soporte - RacketGrid',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px;">
+                    <h2 style="color: #4f46e5;">Hola, ${userName}!</h2>
+                    <p>Hemos respondido a tu mensaje de soporte:</p>
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; border-left: 4px solid #e5e7eb; margin: 16px 0;">
+                        <p style="font-style: italic; color: #6b7280; font-size: 14px;">"${originalMessage}"</p>
+                    </div>
+                    <p><strong>Nuestra respuesta:</strong></p>
+                    <div style="background: #eef2ff; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5; margin: 16px 0;">
+                        <p style="color: #1e1b4b;">${replyText}</p>
+                    </div>
+                    <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">Si tienes más preguntas, no dudes en volver a contactarnos desde la aplicación.</p>
+                    <p style="color: #6b7280; font-size: 13px;">— Equipo RacketGrid</p>
+                </div>
+            `
+        });
+
+        await db.collection('feedback').doc(feedbackId).update({
+            status: 'resolved',
+            reply: replyText,
+            repliedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error sending support reply:", error);
+        throw new HttpsError('internal', error.message);
     }
 });
 

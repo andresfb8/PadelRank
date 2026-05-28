@@ -29,6 +29,7 @@ interface Props {
     onNavigate: (view: any) => void;
     onCreateClient: () => void;
     onViewClient: (userId: string) => void;
+    onOpenMessage?: (msg: any) => void;
 }
 
 export const SuperAdminAnalytics = ({
@@ -38,7 +39,8 @@ export const SuperAdminAnalytics = ({
     feedback,
     onNavigate,
     onCreateClient,
-    onViewClient
+    onViewClient,
+    onOpenMessage,
 }: Props) => {
 
     // Filter active admins
@@ -279,8 +281,13 @@ export const SuperAdminAnalytics = ({
                     <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                         <MessageSquare size={24} className="text-indigo-600" />
                         Feedback y Soporte
+                        {feedback.filter(m => m.status !== 'resolved').length > 0 && (
+                            <span className="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                {feedback.filter(m => m.status !== 'resolved').length} abiertos
+                            </span>
+                        )}
                     </h3>
-                    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
                         {feedback.length === 0 ? (
                             <div className="text-center py-12 text-gray-400">
                                 <Activity size={32} className="mx-auto mb-2 opacity-20" />
@@ -288,16 +295,38 @@ export const SuperAdminAnalytics = ({
                             </div>
                         ) : (
                             feedback.map((msg) => (
-                                <div key={msg.id} className="p-4 bg-gray-50 rounded-2xl space-y-2 border border-gray-100">
-                                    <div className="flex justify-between items-start">
-                                        <div className="font-bold text-xs text-indigo-600 truncate max-w-[150px]">
-                                            {msg.userName} ({msg.clubName})
+                                <div
+                                    key={msg.id}
+                                    onClick={() => onOpenMessage?.(msg)}
+                                    className={`p-4 rounded-2xl space-y-2 border transition-all cursor-pointer group ${
+                                        msg.status === 'resolved'
+                                            ? 'bg-gray-50 border-gray-100 opacity-60'
+                                            : 'bg-indigo-50 border-indigo-100 hover:border-indigo-300 hover:shadow-sm'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="font-bold text-xs text-indigo-700 truncate">
+                                            {msg.userName} · {msg.clubName}
                                         </div>
-                                        <div className="text-[10px] text-gray-400 font-bold">
-                                            {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleDateString() : 'Hoy'}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase ${
+                                                msg.status === 'resolved'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-orange-100 text-orange-600'
+                                            }`}>
+                                                {msg.status === 'resolved' ? 'resuelto' : 'abierto'}
+                                            </span>
+                                            <div className="text-[10px] text-gray-400 font-bold">
+                                                {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleDateString('es-ES') : 'Hoy'}
+                                            </div>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-gray-700 leading-relaxed italic">"{msg.message}"</p>
+                                    <p className="text-xs text-gray-700 leading-relaxed line-clamp-2">"{msg.message}"</p>
+                                    {onOpenMessage && (
+                                        <p className="text-[10px] text-indigo-400 font-bold group-hover:text-indigo-600 transition-colors">
+                                            Pulsa para abrir y responder →
+                                        </p>
+                                    )}
                                 </div>
                             ))
                         )}
