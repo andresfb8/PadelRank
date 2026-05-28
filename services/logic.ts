@@ -1,6 +1,6 @@
 
 import { Match, MatchScore, Player, StandingRow, Ranking, Division, TieBreakCriterion, DEFAULT_TIE_BREAK_ORDER } from "../types";
-import { computeBracketSize, selectByCrossGroupPosition } from "./crossGroupQualifiers";
+import { computeBracketSize, selectByCrossGroupPosition, selectAndSeedForPlayoff } from "./crossGroupQualifiers";
 
 // PRD 4.4.2 & 4.6.2 Logic
 export function calculateMatchPoints(
@@ -773,7 +773,8 @@ export function getQualifiedPlayersBuckets(ranking: Ranking): { main: string[], 
   ));
 
   const mainSize = computeBracketSize(hc.playoffBracketSize, qualifiersPerGroup, divisions.length);
-  const main = selectByCrossGroupPosition(allStandings, mainSize);
+  // Use selectAndSeedForPlayoff to guarantee same-group teams cannot meet in Round 1
+  const main = selectAndSeedForPlayoff(allStandings, mainSize);
 
   const mainSet = new Set(main);
   let consolation: string[] = [];
