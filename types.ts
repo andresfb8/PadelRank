@@ -220,10 +220,27 @@ export interface TournamentRegistration {
   assignedCategory?: string; // The category assigned/modified by the admin if level doesn't match
   status: 'pending' | 'approved' | 'rejected' | 'waitlist';
   paymentStatus?: 'pending' | 'paid';
-  availabilityNotes?: string; // Schedule preferences e.g. "Viernes desde las 19:30"
+  availability?: TournamentRegistrationAvailability;
+  availabilityNotes?: string; // Human-readable summary e.g. "Viernes: Desde 19:30 | Sábado: Todo el día"
   adminNotes?: string; // Internal admin notes
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface TournamentRegistrationAvailability {
+  friday?: {
+    status: 'available' | 'from_time' | 'unavailable';
+    fromTime?: string; // e.g. "19:00", "20:00"
+  };
+  saturday?: {
+    status: 'all_day' | 'morning_only' | 'afternoon_only' | 'custom' | 'unavailable';
+    fromTime?: string;
+    untilTime?: string;
+  };
+  sunday?: {
+    status: 'all_day' | 'morning_only' | 'afternoon_only' | 'unavailable';
+  };
+  notes?: string;
 }
 
 /**

@@ -58,6 +58,14 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
     level: '3.0 - 3.5',
     shirtSize: 'L'
   });
+
+  // Weekend Availability State
+  const [fridayStatus, setFridayStatus] = useState<'available' | 'from_time' | 'unavailable'>('available');
+  const [fridayFromTime, setFridayFromTime] = useState<string>('19:00');
+  const [saturdayStatus, setSaturdayStatus] = useState<'all_day' | 'morning_only' | 'afternoon_only' | 'custom' | 'unavailable'>('all_day');
+  const [saturdayFromTime, setSaturdayFromTime] = useState<string>('10:00');
+  const [saturdayUntilTime, setSaturdayUntilTime] = useState<string>('20:00');
+  const [sundayStatus, setSundayStatus] = useState<'all_day' | 'morning_only' | 'afternoon_only' | 'unavailable'>('all_day');
   const [availabilityNotes, setAvailabilityNotes] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
 
@@ -128,6 +136,44 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
       setSubmitting(true);
       setErrorMessage(null);
 
+      // Build structured availability
+      const availability: import('../types').TournamentRegistrationAvailability = {
+        friday: {
+          status: fridayStatus,
+          fromTime: fridayStatus === 'from_time' ? fridayFromTime : undefined
+        },
+        saturday: {
+          status: saturdayStatus,
+          fromTime: saturdayStatus === 'custom' ? saturdayFromTime : undefined,
+          untilTime: saturdayStatus === 'custom' ? saturdayUntilTime : undefined
+        },
+        sunday: {
+          status: sundayStatus
+        },
+        notes: availabilityNotes.trim() || undefined
+      };
+
+      // Build readable summary for quick glance & exports
+      const parts: string[] = [];
+      if (fridayStatus === 'available') parts.push('Viernes: Disponible');
+      else if (fridayStatus === 'from_time') parts.push(`Viernes: Desde ${fridayFromTime}`);
+      else parts.push('Viernes: No disponible');
+
+      if (saturdayStatus === 'all_day') parts.push('Sábado: Todo el día');
+      else if (saturdayStatus === 'morning_only') parts.push('Sábado: Solo Mañana');
+      else if (saturdayStatus === 'afternoon_only') parts.push('Sábado: Solo Tarde');
+      else if (saturdayStatus === 'custom') parts.push(`Sábado: ${saturdayFromTime} a ${saturdayUntilTime}`);
+      else parts.push('Sábado: No disponible');
+
+      if (sundayStatus === 'all_day') parts.push('Domingo: Todo el día');
+      else if (sundayStatus === 'morning_only') parts.push('Domingo: Solo Mañana');
+      else if (sundayStatus === 'afternoon_only') parts.push('Domingo: Solo Tarde');
+      else parts.push('Domingo: No disponible');
+
+      if (availabilityNotes.trim()) parts.push(`Nota: ${availabilityNotes.trim()}`);
+
+      const readableSummary = parts.join(' • ');
+
       const registrationData: Omit<TournamentRegistration, 'id'> = {
         rankingId: ranking.id,
         ownerId: ranking.ownerId || '',
@@ -149,7 +195,8 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
         assignedCategory: selectedCategory,
         status: 'pending',
         paymentStatus: 'pending',
-        availabilityNotes: availabilityNotes.trim() || undefined,
+        availability,
+        availabilityNotes: readableSummary,
         createdAt: new Date().toISOString()
       };
 
@@ -245,6 +292,12 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
                 {player1.name} {isIndividual ? '' : `& ${player2.name}`}
               </span>
             </div>
+            <div className="pt-2 border-t border-slate-800 text-xs">
+              <span className="text-slate-400 block mb-1">Disponibilidad declarada:</span>
+              <span className="text-slate-300 font-medium text-[11px] block bg-slate-900 p-2 rounded-xl border border-slate-800">
+                {fridayStatus === 'from_time' ? `Viernes desde ${fridayFromTime}` : fridayStatus === 'available' ? 'Viernes disponible' : 'Viernes no'} • {saturdayStatus === 'all_day' ? 'Sábado todo el día' : saturdayStatus === 'morning_only' ? 'Sábado mañana' : saturdayStatus === 'afternoon_only' ? 'Sábado tarde' : saturdayStatus === 'custom' ? `Sábado ${saturdayFromTime}-${saturdayUntilTime}` : 'Sábado no'} • {sundayStatus === 'all_day' ? 'Domingo todo el día' : sundayStatus === 'morning_only' ? 'Domingo mañana' : 'Domingo tarde'}
+              </span>
+            </div>
             {ranking.registrationConfig?.pricePerPlayer && (
               <div className="flex justify-between items-center pt-2 border-t border-slate-800">
                 <span className="text-xs text-slate-400">Precio inscripción:</span>
@@ -273,6 +326,12 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
                 setSubmittedRegId(null);
                 setPlayer1({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'M' });
                 setPlayer2({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'L' });
+                setFridayStatus('available');
+                setFridayFromTime('19:00');
+                setSaturdayStatus('all_day');
+                setSaturdayFromTime('10:00');
+                setSaturdayUntilTime('20:00');
+                setSundayStatus('all_day');
                 setAvailabilityNotes('');
                 setAcceptTerms(false);
               }}
@@ -539,21 +598,227 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
             </div>
           )}
 
-          {/* Section 4: Schedule Constraints & Notes */}
-          <div className="space-y-3 pt-4 border-t border-slate-800">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              {isIndividual ? '3' : '4'}. Disponibilidad Horaria y Observaciones
-            </label>
-            <textarea
-              rows={2}
-              placeholder="Indica restricciones horarias (ej. Viernes a partir de las 19:30 o Sábado mañana disponible)..."
-              value={availabilityNotes}
-              onChange={e => setAvailabilityNotes(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
-            ></textarea>
-            <p className="text-[11px] text-slate-400">
-              * La organización intentará cuadrar los horarios respetando en la medida de lo posible las observaciones.
-            </p>
+          {/* Section 4: Weekend Schedule Availability */}
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+                <Clock className="w-4 h-4 text-emerald-400" />
+                <span>{isIndividual ? '3' : '4'}. Disponibilidad para el Torneo (Fin de Semana)</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Selecciona la franja horaria en la que podéis jugar cada día para que la organización organice los cuadros sin solapamientos.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {/* Viernes */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400">📅 Viernes (Tarde / Noche)</span>
+                  <span className="text-[10px] text-slate-400">Primera ronda / Dieciseisavos</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFridayStatus('available')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition text-left sm:text-center ${
+                      fridayStatus === 'available'
+                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400 shadow-sm ring-1 ring-emerald-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟢 Toda la tarde (17:00+)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFridayStatus('from_time')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition text-left sm:text-center ${
+                      fridayStatus === 'from_time'
+                        ? 'bg-amber-500/15 border-amber-500 text-amber-400 shadow-sm ring-1 ring-amber-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟡 A partir de las...
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFridayStatus('unavailable')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition text-left sm:text-center ${
+                      fridayStatus === 'unavailable'
+                        ? 'bg-rose-500/15 border-rose-500 text-rose-400 shadow-sm ring-1 ring-rose-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🔴 No disponible viernes
+                  </button>
+                </div>
+
+                {fridayStatus === 'from_time' && (
+                  <div className="pt-2 flex items-center gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-xs text-slate-300">Podemos jugar a partir de las:</span>
+                    <select
+                      value={fridayFromTime}
+                      onChange={e => setFridayFromTime(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 text-amber-400 font-bold text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500"
+                    >
+                      {['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30'].map(t => (
+                        <option key={t} value={t}>{t} h</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Sábado */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400">📅 Sábado (Jornada Principal)</span>
+                  <span className="text-[10px] text-slate-400">Octavos / Cuartos / Consolación</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSaturdayStatus('all_day')}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-semibold border transition text-center ${
+                      saturdayStatus === 'all_day'
+                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400 shadow-sm ring-1 ring-emerald-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟢 Todo el día
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSaturdayStatus('morning_only')}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-semibold border transition text-center ${
+                      saturdayStatus === 'morning_only'
+                        ? 'bg-amber-500/15 border-amber-500 text-amber-400 shadow-sm ring-1 ring-amber-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟡 Solo Mañana
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSaturdayStatus('afternoon_only')}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-semibold border transition text-center ${
+                      saturdayStatus === 'afternoon_only'
+                        ? 'bg-amber-500/15 border-amber-500 text-amber-400 shadow-sm ring-1 ring-amber-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟡 Solo Tarde
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSaturdayStatus('custom')}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-semibold border transition text-center ${
+                      saturdayStatus === 'custom'
+                        ? 'bg-blue-500/15 border-blue-500 text-blue-400 shadow-sm ring-1 ring-blue-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🔵 Franja específica
+                  </button>
+                </div>
+
+                {saturdayStatus === 'custom' && (
+                  <div className="pt-2 flex flex-wrap items-center gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-xs text-slate-300">Disponible desde:</span>
+                    <select
+                      value={saturdayFromTime}
+                      onChange={e => setSaturdayFromTime(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 text-blue-400 font-bold text-xs rounded-lg px-2 py-1"
+                    >
+                      {['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'].map(t => (
+                        <option key={t} value={t}>{t} h</option>
+                      ))}
+                    </select>
+
+                    <span className="text-xs text-slate-300">hasta:</span>
+                    <select
+                      value={saturdayUntilTime}
+                      onChange={e => setSaturdayUntilTime(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 text-blue-400 font-bold text-xs rounded-lg px-2 py-1"
+                    >
+                      {['13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'].map(t => (
+                        <option key={t} value={t}>{t} h</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Domingo */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400">📅 Domingo (Fases Finales)</span>
+                  <span className="text-[10px] text-slate-400">Semis, Finales y Final Consolación</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSundayStatus('all_day')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition text-left sm:text-center ${
+                      sundayStatus === 'all_day'
+                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400 shadow-sm ring-1 ring-emerald-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟢 Todo el día (Recomendado)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSundayStatus('morning_only')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition text-left sm:text-center ${
+                      sundayStatus === 'morning_only'
+                        ? 'bg-amber-500/15 border-amber-500 text-amber-400 shadow-sm ring-1 ring-amber-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟡 Solo Mañana (hasta 15:00)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSundayStatus('afternoon_only')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold border transition text-left sm:text-center ${
+                      sundayStatus === 'afternoon_only'
+                        ? 'bg-amber-500/15 border-amber-500 text-amber-400 shadow-sm ring-1 ring-amber-500/40'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    🟡 Solo Tarde (desde 15:00)
+                  </button>
+                </div>
+              </div>
+
+              {/* Textarea for additional comments */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Observaciones adicionales de horario (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej. Salgo de trabajar a las 19h, o mi compañero viene de viaje el sábado por la mañana..."
+                  value={availabilityNotes}
+                  onChange={e => setAvailabilityNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
+                ></textarea>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  * El juez árbitro y la organización tendrán en cuenta estas franjas para programar los partidos oficiales.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Section 5: Terms & Submit */}
