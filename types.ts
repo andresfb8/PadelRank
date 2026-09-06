@@ -256,6 +256,7 @@ export interface Match {
 
   // Elimination Pointers
   nextMatchId?: string; // ID of the match where the winner goes
+  nextMatchSlot?: 1 | 2; // Target slot in the next match (1 = pair1, 2 = pair2)
   consolationMatchId?: string; // ID of the consolation match this main R1 match feeds into
   consolationSlot?: 1 | 2; // Which slot (pair1=1 / pair2=2) this match feeds in the consolation match
   roundName?: string; // "Final", "Semi-Final", "Quarter-Final"

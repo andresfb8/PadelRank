@@ -100,6 +100,7 @@ export class TournamentEngine {
                     const nextMatch = matchMap.get(`${r + 1}-${nextRoundIndex}`);
                     if (nextMatch) {
                         currentMatch.nextMatchId = nextMatch.id;
+                        currentMatch.nextMatchSlot = (i % 2 === 0) ? 1 : 2;
                     }
                 }
 
@@ -152,7 +153,10 @@ export class TournamentEngine {
                     const curr = consMap.get(`${r}-${i}`);
                     if (curr && r < consRounds) {
                         const next = consMap.get(`${r + 1}-${Math.floor(i / 2)}`);
-                        if (next) curr.nextMatchId = next.id;
+                        if (next) {
+                            curr.nextMatchId = next.id;
+                            curr.nextMatchSlot = (i % 2 === 0) ? 1 : 2;
+                        }
                     }
                 }
             }
@@ -283,7 +287,16 @@ export class TournamentEngine {
         if (winner && m.nextMatchId && matchMap) {
             const nextMatch = matchMap.get(m.nextMatchId);
             if (nextMatch) {
-                if (this.isEmpty(nextMatch.pair1)) {
+                const targetSlot = m.nextMatchSlot;
+                if (targetSlot === 1) {
+                    nextMatch.pair1.p1Id = winner.p1;
+                    nextMatch.pair1.p2Id = winner.p2;
+                    delete nextMatch.pair1.placeholder;
+                } else if (targetSlot === 2) {
+                    nextMatch.pair2.p1Id = winner.p1;
+                    nextMatch.pair2.p2Id = winner.p2;
+                    delete nextMatch.pair2.placeholder;
+                } else if (this.isEmpty(nextMatch.pair1)) {
                     nextMatch.pair1.p1Id = winner.p1;
                     nextMatch.pair1.p2Id = winner.p2;
                     delete nextMatch.pair1.placeholder;
@@ -349,7 +362,16 @@ export class TournamentEngine {
         }
 
         if (nextMatch) {
-            if (this.isEmpty(nextMatch.pair1)) {
+            const targetSlot = currentMatch.nextMatchSlot;
+            if (targetSlot === 1) {
+                nextMatch.pair1.p1Id = winnerId.p1;
+                nextMatch.pair1.p2Id = winnerId.p2;
+                delete nextMatch.pair1.placeholder;
+            } else if (targetSlot === 2) {
+                nextMatch.pair2.p1Id = winnerId.p1;
+                nextMatch.pair2.p2Id = winnerId.p2;
+                delete nextMatch.pair2.placeholder;
+            } else if (this.isEmpty(nextMatch.pair1)) {
                 nextMatch.pair1.p1Id = winnerId.p1;
                 nextMatch.pair1.p2Id = winnerId.p2;
                 delete nextMatch.pair1.placeholder;
