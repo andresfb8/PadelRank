@@ -31,6 +31,8 @@ import { ExportModal } from './ExportModal';
 import { DrawReplayModal } from './DrawReplayModal';
 import { QualifiersOverrideModal } from './QualifiersOverrideModal';
 import { computeBracketSize } from '../services/crossGroupQualifiers';
+import { RegistrationManagerModal } from './admin/RegistrationManagerModal';
+import { subscribeToRegistrations } from '../services/db';
 
 interface Props {
   ranking: Ranking;
@@ -99,6 +101,19 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDrawReplayOpen, setIsDrawReplayOpen] = useState(false);
   const [playoffsPreview, setPlayoffsPreview] = useState<{ main: string[]; consolation: string[] } | null>(null);
+
+  // Tournament Registrations State
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+  const [pendingRegistrationsCount, setPendingRegistrationsCount] = useState(0);
+
+  useEffect(() => {
+    if (!ranking.id) return;
+    const unsubscribe = subscribeToRegistrations(ranking.id, (list) => {
+      const pending = list.filter(r => r.status === 'pending').length;
+      setPendingRegistrationsCount(pending);
+    });
+    return () => unsubscribe();
+  }, [ranking.id]);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc'; // Default to descending for stats (higher is better)
@@ -1416,6 +1431,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   // Calculate primary action IDs based on format
   const primaryIds = ['settings', 'share'];
 
+  if (pendingRegistrationsCount > 0) {
+    primaryIds.unshift('registrations');
+  }
+
   // Hybrid format: show "Iniciar Playoffs" if not in playoff phase
   if (ranking.format === 'hybrid' && ranking.phase !== 'playoff') {
     primaryIds.unshift('start-playoffs');
@@ -1546,6 +1565,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               variant: 'secondary',
               className: 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100',
               title: 'Generar ronda con emparejamientos aleatorios'
+            },
+            {
+              id: 'registrations',
+              icon: Users,
+              label: pendingRegistrationsCount > 0 ? `Inscripciones (${pendingRegistrationsCount})` : 'Inscripciones',
+              onClick: () => setIsRegistrationModalOpen(true),
+              visible: isAdmin,
+              variant: pendingRegistrationsCount > 0 ? 'primary' : 'secondary',
+              className: pendingRegistrationsCount > 0 ? 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse' : 'text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100',
+              title: 'Gestionar inscripciones públicas del torneo'
             },
             {
               id: 'export-advanced',
@@ -2955,6 +2984,13 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         divisions={ranking.divisions}
         players={players}
         standingsCallback={() => activeTab === 'global' ? globalStandings : standings}
+      />
+
+      <RegistrationManagerModal
+        isOpen={isRegistrationModalOpen}
+        onClose={() => setIsRegistrationModalOpen(false)}
+        ranking={ranking}
+        onUpdateRanking={onUpdateRanking || (() => {})}
       />
     </div >
   );

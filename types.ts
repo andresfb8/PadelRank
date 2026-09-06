@@ -180,8 +180,50 @@ export interface Ranking {
   manualPointsAdjustments?: Record<string, number>; // DEPRECATED: Use manualStatsAdjustments
   manualStatsAdjustments?: Record<string, ManualStatsAdjustment>; // Key: playerId
 
+  // Tournament Registrations Configuration
+  registrationConfig?: RegistrationConfig;
+
   // Soft delete: set when ranking is moved to trash; permanently deleted after 30 days
   deletedAt?: string; // ISO date string
+}
+
+export interface RegistrationConfig {
+  isOpen: boolean;
+  closeDate?: string;
+  categories: string[];
+  maxPairsPerCategory?: Record<string, number>;
+  pricePerPlayer?: number;
+  welcomePackInfo?: string;
+  contactPhone?: string;
+  notes?: string;
+}
+
+export interface TournamentRegistration {
+  id: string;
+  rankingId: string;
+  ownerId?: string;
+  player1: {
+    name: string;
+    phone: string;
+    email?: string;
+    level?: string;
+    shirtSize?: string;
+  };
+  player2?: {
+    name: string;
+    phone: string;
+    email?: string;
+    level?: string;
+    shirtSize?: string;
+  };
+  selectedCategory: string; // The category chosen by the user at sign-up
+  assignedCategory?: string; // The category assigned/modified by the admin if level doesn't match
+  status: 'pending' | 'approved' | 'rejected' | 'waitlist';
+  paymentStatus?: 'pending' | 'paid';
+  availabilityNotes?: string; // Schedule preferences e.g. "Viernes desde las 19:30"
+  adminNotes?: string; // Internal admin notes
+  createdAt: string;
+  updatedAt?: string;
 }
 
 /**

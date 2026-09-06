@@ -66,6 +66,18 @@ service cloud.firestore {
           isSuperAdmin()
         );
       }
+
+      match /registrations/{regId} {
+        // Public registration creation
+        allow create: if true;
+        
+        // Admin / Staff access to manage registrations
+        allow get, list, update, delete: if isSignedIn() && (
+          get(/databases/$(database)/documents/rankings/$(rankingId)).data.ownerId == request.auth.uid ||
+          isStaffOf(get(/databases/$(database)/documents/rankings/$(rankingId)).data.ownerId) ||
+          isSuperAdmin()
+        );
+      }
     }
 
     // 3. Players

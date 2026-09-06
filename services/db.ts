@@ -16,7 +16,7 @@ import {
     runTransaction
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Player, Ranking, User } from "../types";
+import { Player, Ranking, User, TournamentRegistration } from "../types";
 
 // --- USERS ---
 
@@ -572,3 +572,69 @@ export const clearDatabase = async () => {
     await batch.commit();
     console.log("Database cleared.");
 };
+
+// --- TOURNAMENT REGISTRATIONS ---
+
+export const subscribeToRegistrations = (
+    rankingId: string,
+    callback: (registrations: TournamentRegistration[]) => void
+) => {
+    const regRef = collection(db, "rankings", rankingId, "registrations");
+    const q = query(regRef, orderBy("createdAt", "desc"));
+    return onSnapshot(q, (snapshot) => {
+        const list: TournamentRegistration[] = [];
+        snapshot.forEach((docSnap) => {
+            list.push({ id: docSnap.id, ...docSnap.data() } as TournamentRegistration);
+        });
+        callback(list);
+    }, (error) => {
+        console.error("Error subscribing to registrations:", error);
+        callback([]);
+    });
+};
+
+export const createTournamentRegistration = async (
+    rankingId: string,
+    registration: Omit<TournamentRegistration, "id">
+): Promise<string> => {
+    const regRef = collection(db, "rankings", rankingId, "registrations");
+    const docRef = await addDoc(regRef, {
+        ...registration,
+        createdAt: registration.createdAt || new Date().toISOString()
+    });
+    return docRef.id;
+};
+
+export const updateTournamentRegistration = async (
+    rankingId: string,
+    registrationId: string,
+    data: Partial<TournamentRegistration>
+) => {
+    const docRef = doc(db, "rankings", rankingId, "registrations", registrationId);
+    return await updateDoc(docRef, {
+        ...data,
+        updatedAt: new Date().toISOString()
+    });
+};
+
+export const deleteTournamentRegistration = async (
+    rankingId: string,
+    registrationId: string
+) => {
+    const docRef = doc(db, "rankings", rankingId, "registrations", registrationId);
+    return await deleteDoc(docRef);
+};
+
+export const batchApproveRegistrations = async (
+    rankingId: string,
+    registrationIds: string[]
+) => {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    registrationIds.forEach(id => {
+        const docRef = doc(db, "rankings", rankingId, "registrations", id);
+        batch.update(docRef, { status: "approved", updatedAt: now });
+    });
+    await batch.commit();
+};
+
