@@ -13,6 +13,10 @@ interface Props {
     /** Players resting in a round (americano, mexicano) */
     restingFor?: (round: number) => string[];
     onMatchClick?: (m: Match) => void;
+    /** Organiser: opens the schedule of a match from its time */
+    onScheduleClick?: (m: Match) => void;
+    /** Organiser: why a pending match's slot does not work, if it does not */
+    conflictsOf?: (m: Match) => string[];
     /** Lay the rounds out in two columns from the tablet up */
     twoColumns?: boolean;
 }
@@ -25,7 +29,7 @@ const byTimeThenCourt = (a: Match, b: Match) => {
 };
 
 /** Matches as a scoreboard grouped by round: time and court on the left, sets aligned on the right. */
-export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firstSecondLegRound, restingFor, onMatchClick, twoColumns }: Props) => {
+export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firstSecondLegRound, restingFor, onMatchClick, onScheduleClick, conflictsOf, twoColumns }: Props) => {
     const next = nextMatchFor(followed ?? null, matches);
     const visible = onlyFollowed && followed ? matches.filter(m => followedSide(followed, m) !== 0) : matches;
 
@@ -70,6 +74,8 @@ export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firs
                                     mine={followedSide(followed ?? null, m) !== 0}
                                     isNext={next?.id === m.id}
                                     onClick={onMatchClick}
+                                    onSchedule={onScheduleClick}
+                                    conflicts={conflictsOf && m.status === 'pendiente' ? conflictsOf(m) : []}
                                 />
                             ))}
                         </ul>
@@ -85,8 +91,9 @@ export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firs
     );
 };
 
-const MatchRow = ({ match: m, players, first, mine, isNext, onClick }: {
-    match: Match; players: Record<string, Player>; first: boolean; mine: boolean; isNext: boolean; onClick?: (m: Match) => void;
+const MatchRow = ({ match: m, players, first, mine, isNext, onClick, onSchedule, conflicts = [] }: {
+    match: Match; players: Record<string, Player>; first: boolean; mine: boolean; isNext: boolean;
+    onClick?: (m: Match) => void; onSchedule?: (m: Match) => void; conflicts?: string[];
 }) => {
     const border = first ? '' : 'border-t border-rg-rule';
 
@@ -101,13 +108,15 @@ const MatchRow = ({ match: m, players, first, mine, isNext, onClick }: {
     const time = matchTime(m);
     const won = winnerSide(m);
     const score = scoreColumns(m);
-    const statusPill = isNext
-        ? <span className="pill bg-court text-white">Siguiente</span>
-        : m.status === 'no_disputado'
-            ? <span className="pill bg-rg-raised text-rg-muted">No disputado</span>
-            : m.score?.isIncomplete
-                ? <span className="pill bg-rg-raised text-rg-muted">Incompleto</span>
-                : null;
+    const statusPill = conflicts.length > 0
+        ? <span className="pill bg-[#ffedea] text-[#831c1e]" title={conflicts.join(' · ')}>Conflicto</span>
+        : isNext
+            ? <span className="pill bg-court text-white">Siguiente</span>
+            : m.status === 'no_disputado'
+                ? <span className="pill bg-rg-raised text-rg-muted">No disputado</span>
+                : m.score?.isIncomplete
+                    ? <span className="pill bg-rg-raised text-rg-muted">Incompleto</span>
+                    : null;
 
     const line = (side: 1 | 2) => {
         const isWinner = won === side;
@@ -123,23 +132,39 @@ const MatchRow = ({ match: m, players, first, mine, isNext, onClick }: {
         );
     };
 
-    const Wrapper = onClick ? 'button' : 'div';
+    // The time column: for the organiser it is its own control, separate from the result
+    const canSchedule = !!onSchedule && m.status === 'pendiente';
+    const timeContent = (
+        <>
+            {time || (m.status === 'finalizado' ? 'Jugado' : canSchedule ? 'Programar' : 'Sin hora')}
+            <span className="block font-normal text-xs text-rg-muted mt-0.5">
+                {m.court ? `Pista ${m.court}` : ''}{m.scheduleEstimated && m.status === 'pendiente' ? `${m.court ? ' · ' : ''}estimada` : ''}
+            </span>
+        </>
+    );
+    const PairsTag = onClick ? 'button' : 'div';
     return (
-        <li className={`${border} ${mine ? 'bg-court-soft' : ''}`}>
-            <Wrapper
-                {...(onClick ? { type: 'button', onClick: () => onClick(m) } : {})}
-                className="w-full text-left grid grid-cols-[52px_1fr_auto] gap-x-3 gap-y-1 px-4 py-3"
+        <li className={`${border} ${mine ? 'bg-court-soft' : ''} grid grid-cols-[64px_1fr]`}>
+            {canSchedule ? (
+                <button
+                    type="button"
+                    onClick={() => onSchedule!(m)}
+                    className={`text-left pl-4 pr-1 py-3 text-[13px] font-semibold num leading-tight transition-colors hover:bg-court-soft ${time ? '' : 'text-court'}`}
+                    title="Programar partido"
+                >
+                    {timeContent}
+                </button>
+            ) : (
+                <span className="pl-4 pr-1 py-3 text-[13px] font-semibold num leading-tight">{timeContent}</span>
+            )}
+            <PairsTag
+                {...(onClick ? { type: 'button', onClick: () => onClick(m), title: m.status === 'finalizado' ? 'Editar resultado' : 'Apuntar resultado' } : {})}
+                className={`w-full text-left grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 pl-2 pr-4 py-3 min-w-0 ${onClick ? 'hover:bg-rg-ground transition-colors' : ''}`}
             >
-                <span className="row-span-2 text-[13px] font-semibold num leading-tight">
-                    {time || (m.status === 'finalizado' ? 'Jugado' : 'Sin hora')}
-                    <span className="block font-normal text-xs text-rg-muted mt-0.5">{m.court ? `Pista ${m.court}` : ''}</span>
-                </span>
                 {line(1)}
                 {line(2)}
-            </Wrapper>
-            {score && statusPill && (
-                <div className="px-4 pb-2 -mt-1 pl-[80px]">{statusPill}</div>
-            )}
+                {score && statusPill && <span className="col-span-2 -mb-0.5">{statusPill}</span>}
+            </PairsTag>
         </li>
     );
 };

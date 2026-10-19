@@ -2636,209 +2636,36 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   const firstVueltaJornada = isDoubleLeg && maxJornada > 0 ? Math.floor(maxJornada / 2) + 1 : Infinity;
                   return (
                   <>
-                  {showPlayerMobile && (
-                    <div>
-                      {followed && (
-                        <div className="rg flex gap-2 mb-3">
-                          <button type="button" onClick={() => setOnlyMine(false)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${!onlyMine ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}>Todos</button>
-                          <button type="button" onClick={() => setOnlyMine(true)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${onlyMine ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}>Solo los míos</button>
-                        </div>
-                      )}
-                      <MobileMatchList
-                        matches={activeDivision.matches}
-                        players={players}
-                        followed={followed}
-                        onlyFollowed={onlyMine}
-                        firstSecondLegRound={isDoubleLeg && Number.isFinite(firstVueltaJornada) ? firstVueltaJornada : undefined}
-                        restingFor={ranking.format === 'americano' || ranking.format === 'mexicano'
-                          ? (round) => getRestingPlayers(activeDivision.players, activeDivision.matches, round)
-                          : undefined}
-                        twoColumns
-                      />
-                    </div>
-                  )}
-                  <div className={`space-y-8 ${showPlayerMobile ? 'hidden' : ''}`}>
-                    {Object.entries(
-                      activeDivision.matches.reduce((acc, m) => {
-                        if (!acc[m.jornada]) acc[m.jornada] = [];
-                        acc[m.jornada].push(m);
-                        return acc;
-                      }, {} as Record<number, Match[]>)
-                    ).sort((a, b) => Number(a[0]) - Number(b[0])).map(([round, matches]) => (
-                      <div key={round} className="animate-fade-in">
-                        {isDoubleLeg && Number(round) === 1 && (
-                          <div className="text-xs font-extrabold tracking-[0.3em] text-primary/70 uppercase mb-2 border-l-4 border-primary pl-3">Ida</div>
-                        )}
-                        {isDoubleLeg && Number(round) === firstVueltaJornada && (
-                          <div className="text-xs font-extrabold tracking-[0.3em] text-amber-600 uppercase mb-2 mt-6 border-l-4 border-amber-500 pl-3">Vuelta</div>
-                        )}
-                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-                          <Calendar size={20} className="text-primary" /> Jornada {round}
-                        </h3>
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                          {matches.map((m) => {
-                            const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-                            const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
-                            const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
-                            const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
-
-                            if (m.status === 'descanso') {
-                              return (
-                                <div key={m.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 opacity-75">
-                                  <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                                    <Badge type="neutral">Descanso</Badge>
-                                  </div>
-                                  <div className="text-center py-2">
-                                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pareja que descansa</div>
-                                    <div className="font-bold text-gray-700">
-                                      {p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div
-                                key={m.id}
-                                className={`bg-white p-0 rounded-xl border transition-all ${isAdmin ? 'hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
-                              >
-                                {/* Main Clickable Area -> Opens MatchModal (Score) */}
-                                <div
-                                  className={`p-4 ${isAdmin ? 'cursor-pointer' : ''}`}
-                                  onClick={() => isAdmin && handleMatchClick(m)}
-                                >
-                                  <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                                    {/* Removed Court Badge from here, moving to Schedule Area */}
-                                    {m.status === 'finalizado' ? (
-                                      <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
-                                        {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
-                                      </Badge>
-                                    ) : (
-                                      <Badge>Pendiente</Badge>
-                                    )}
-                                  </div>
-
-                                  <div className="text-center mb-2">
-                                    <div className="text-sm font-medium text-gray-900 border-b pb-2 mb-2 border-dashed border-gray-100">
-                                      <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2">
-                                        <div className="text-right pr-2">
-                                          <span className="block font-bold">{p1.nombre} {p1.apellidos}</span>
-                                          <span className="block font-bold">{p2.nombre} {p2.apellidos}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center justify-center px-1">
-                                          <div className="w-px h-3 bg-gray-100"></div>
-                                          <span className="text-[10px] font-bold text-gray-300 italic">VS</span>
-                                          <div className="w-px h-3 bg-gray-100"></div>
-                                        </div>
-                                        <div className="text-left pl-2">
-                                          <span className="block font-bold">{p3.nombre} {p3.apellidos}</span>
-                                          <span className="block font-bold">{p4.nombre} {p4.apellidos}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {m.status === 'finalizado' && (
-                                    <div className="bg-gray-50 rounded-lg p-2 text-center">
-                                      <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
-                                        {m.score?.set1 ? (
-                                          <>
-                                            {m.score.set1.p1}-{m.score.set1.p2}
-                                            {m.score.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
-                                            {m.score.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
-                                          </>
-                                        ) : (
-                                          <span>{m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
-                                        )}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Dedicated Schedule Area-Bottom of Card */}
-                                {/* Only show for formats that use scheduling */}
-                                {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
-                                  <div
-                                    className={`border-t border-gray-100 py-2 px-4 bg-gray-50 flex items-center justify-between rounded-b-xl transition-colors ${isAdmin ? 'cursor-pointer hover:bg-blue-50 group' : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Avoid opening Score Modal
-                                      if (isAdmin) setSchedulingMatch(m);
-                                    }}
-                                  >
-                                    {/* Content based on state */}
-                                    {(m.startTime || m.court) ? (
-                                      <div className="flex items-center gap-3 text-xs font-semibold text-blue-700 w-full">
-                                        <div className="flex items-center gap-1">
-                                          <Clock size={14} />
-                                          {m.startTime ? new Date(m.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                                        </div>
-                                        {m.court && (
-                                          <div className="flex items-center gap-1 border-l border-blue-200 pl-3 ml-auto">
-                                            <span>Pista {m.court}</span>
-                                          </div>
-                                        )}
-
-                                        <ScheduleStatusBadges match={m} ranking={ranking} showConflicts={!!isAdmin} />
-
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center justify-center w-full text-xs font-medium text-gray-400 group-hover:text-blue-600 gap-1">
-                                        {isAdmin ? (
-                                          <>
-                                            <Calendar size={14} /> Programar Partido
-                                          </>
-                                        ) : (
-                                          <span>Sin programar</span>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Resting Players Section-Only for Americano/Mexicano */}
-                        {(ranking.format === 'americano' || ranking.format === 'mexicano') && (() => {
-                          const restingPlayers = getRestingPlayers(activeDivision.players, activeDivision.matches, Number(round));
-
-                          if (restingPlayers.length === 0) return null;
-
-                          return (
-                            <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
-                              <div className="flex items-center gap-2 mb-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <rect x="9" y="9" width="6" height="6" />
-                                </svg>
-                                <h4 className="font-semibold text-gray-700 text-sm">
-                                  Descansan esta ronda ({restingPlayers.length})
-                                </h4>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {restingPlayers.map(playerId => {
-                                  const player = players[playerId];
-                                  if (!player) return null;
-
-                                  return (
-                                    <div
-                                      key={playerId}
-                                      className="px-3 py-1.5 bg-white rounded-md border border-gray-300 text-sm text-gray-700 font-medium shadow-sm"
-                                    >
-                                      {player.nombre} {player.apellidos}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })()}
+                  <div>
+                    {showPlayerMobile && followed && (
+                      <div className="rg flex gap-2 mb-3">
+                        <button type="button" onClick={() => setOnlyMine(false)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${!onlyMine ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}>Todos</button>
+                        <button type="button" onClick={() => setOnlyMine(true)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${onlyMine ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}>Solo los míos</button>
                       </div>
-                    ))}
+                    )}
+                    <MobileMatchList
+                      matches={activeDivision.matches}
+                      players={players}
+                      followed={showPlayerMobile ? followed : null}
+                      onlyFollowed={showPlayerMobile && onlyMine}
+                      firstSecondLegRound={isDoubleLeg && Number.isFinite(firstVueltaJornada) ? firstVueltaJornada : undefined}
+                      restingFor={ranking.format === 'americano' || ranking.format === 'mexicano'
+                        ? (round) => getRestingPlayers(activeDivision.players, activeDivision.matches, round)
+                        : undefined}
+                      onMatchClick={isAdmin ? handleMatchClick : undefined}
+                      onScheduleClick={isAdmin && ranking.format !== 'americano' && ranking.format !== 'mexicano' ? setSchedulingMatch : undefined}
+                      conflictsOf={isAdmin ? (m) => {
+                        // Same reasons the scheduler badges give: availability, windows and a court booked twice
+                        const reasons = (m.scheduleConflict ?? []).map(c => c.reason);
+                        if (m.startTime && m.court) {
+                          const start = new Date(m.startTime);
+                          const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig?.slotDurationMinutes || 90);
+                          if (SchedulerEngine.checkMatchConflict(start, end, m.court, SchedulerEngine.getAllOccupiedSlots(ranking, m.id))) reasons.push(`Pista ${m.court} ocupada`);
+                        }
+                        return reasons;
+                      } : undefined}
+                      twoColumns
+                    />
                   </div>
                   </>
                   );
