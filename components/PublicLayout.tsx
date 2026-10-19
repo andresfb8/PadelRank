@@ -88,8 +88,8 @@ export const PublicLayout = ({ rankingId }: Props) => {
     const displayLogo = branding?.logoUrl || ownerLogo;
 
     return (
-        <div className="min-h-screen bg-rg-ground md:bg-gray-50 text-gray-900 flex flex-col">
-            <header className="rg bg-white border-b border-rg-line h-14 md:h-16 flex items-center gap-3 px-4 md:px-6 sticky top-0 z-30">
+        <div className="min-h-screen bg-rg-ground text-rg-ink flex flex-col">
+            <header className="rg bg-white border-b border-rg-line h-14 md:h-[60px] flex items-center gap-3 px-4 md:px-8 sticky top-0 z-30">
                 {displayLogo ? (
                     <img src={displayLogo} alt="Logo del club" className="h-8 md:h-10 max-w-[120px] object-contain" />
                 ) : (
@@ -107,7 +107,7 @@ export const PublicLayout = ({ rankingId }: Props) => {
                 )}
             </header>
 
-            <main className="px-4 pt-5 pb-4 md:p-8 flex-1 w-full">
+            <main className="px-4 pt-5 pb-4 md:px-8 md:py-8 flex-1 w-full md:max-w-[1280px] md:mx-auto">
                 {selectedPlayerId && isPairSelection ? (
                     <PairDetailView
                         pairId={selectedPlayerId}

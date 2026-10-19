@@ -1,8 +1,9 @@
 import React from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Trophy, Medal, Award, Edit2, AlertCircle } from 'lucide-react';
+import { ArrowUp, ArrowDown, Trophy, Edit2 } from 'lucide-react';
 import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender, createColumnHelper, SortingState, ColumnDef } from '@tanstack/react-table';
 import { StandingRow, Player } from '../../types';
 import { StandingsColumn, FORMAT_COLUMN_PRESETS } from '../../types/StandingsColumn';
+import { signed, zoneFor, ZoneKind } from '../public/playerMobile';
 
 interface StandingsTableProps {
     /** Standings data to display */
@@ -33,7 +34,23 @@ interface StandingsTableProps {
     relegationCount?: number;
     qualifiersCount?: number;
     consolationCount?: number;
+
+    /** The pair or player this visitor follows: its row is tinted */
+    highlightEntry?: string | null;
 }
+
+const ZONE_LABEL: Record<ZoneKind, string> = {
+    up: 'Suben de división',
+    down: 'Bajan de división',
+    qualified: 'Pasan al cuadro principal',
+    consolation: 'Van al cuadro de consolación',
+    none: 'Sin cambio de división',
+};
+
+// Columns that hold figures: right-aligned, tabular
+const TEXT_COLUMNS = new Set(['pos', 'playerId']);
+// Won and lost sets and games only from wide screens; their differences stay at every width
+const WIDE_ONLY = new Set(['setsWon', 'setsLost', 'gamesWon', 'gamesLost']);
 
 export const StandingsTable: React.FC<StandingsTableProps> = ({
     standings,
@@ -47,7 +64,8 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
     promotionCount = 0,
     relegationCount = 0,
     qualifiersCount = 0,
-    consolationCount = 0
+    consolationCount = 0,
+    highlightEntry,
 }) => {
     const [sorting, setSorting] = React.useState<SortingState>([]);
     const isPairFormat = standings.length > 0 && standings[0].playerId.includes('::');
@@ -63,220 +81,187 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
         return player ? `${player.nombre} ${player.apellidos}` : 'Desconocido';
     };
 
-    const getPositionIcon = (pos: number) => {
-        if (!isAmericanoOrMexicano) return null;
-        if (pos === 1) return <Trophy size={14} className="text-yellow-500" />;
-        if (pos === 2) return <Medal size={14} className="text-gray-400" />;
-        if (pos === 3) return <Award size={14} className="text-amber-600" />;
-        return null;
-    };
-
-    const getRowClassName = (row: StandingRow) => {
-        const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
-        const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
-        const isQualified = isHybrid && row.pos <= qualifiersCount;
-        const isConsolation = isHybrid && row.pos > qualifiersCount && row.pos <= (qualifiersCount + consolationCount);
-
-        if (isPromoted || isQualified) return 'bg-green-50/50 hover:bg-green-100/50';
-        if (isConsolation || isRelegated) return 'bg-red-50/50 hover:bg-red-100/50';
-        return 'hover:bg-gray-50';
-    };
+    const format = isHybrid ? 'hybrid' : isAmericanoOrMexicano ? 'americano' : 'classic';
+    const zoneOf = (row: StandingRow) => zoneFor(row, standings.length, {
+        format, promotionCount, relegationCount,
+        qualifiersCount: isHybrid ? qualifiersCount : undefined,
+        consolationCount: isHybrid ? consolationCount : undefined,
+    });
 
     const columnHelper = createColumnHelper<StandingRow>();
 
-    // Helper to colorize headers
-    const getHeaderContent = (col: StandingsColumn) => {
-        const isWonStat = ['pg', 'setsWon', 'gamesWon'].includes(col.key);
-        const isLostStat = ['pp', 'setsLost', 'gamesLost'].includes(col.key);
-
-        if (isWonStat) return <span className="text-green-600">{col.label}</span>;
-        if (isLostStat) return <span className="text-red-500">{col.label}</span>;
-        return col.label;
-    };
-
-    // Build table columns from StandingsColumn definitions
     const tableColumns: ColumnDef<StandingRow, any>[] = columns.map(col => {
-        // Special handling for common columns
+        const header = col.key === 'playerId' && isPairFormat ? 'Pareja' : col.label;
+
         if (col.key === 'pos') {
             return columnHelper.accessor('pos', {
-                header: col.label,
-                cell: info => (
-                    <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900 w-4 text-center">{info.getValue()}</span>
-                        {getPositionIcon(info.getValue())}
-                    </div>
-                ),
+                header,
+                cell: info => <span className="font-semibold text-rg-muted">{info.getValue()}</span>,
                 enableSorting: col.sortable ?? true,
-                meta: { className: col.className }
+                meta: { className: col.className },
             });
         }
 
         if (col.key === 'playerId') {
             return columnHelper.accessor('playerId', {
-                header: col.label,
+                header,
                 cell: info => {
                     const row = info.row.original;
-                    const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
-                    const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
-                    const isQualified = isHybrid && row.pos <= qualifiersCount;
-                    const isConsolation = isHybrid && row.pos > qualifiersCount && row.pos <= (qualifiersCount + consolationCount);
-
+                    const name = getPlayerName(info.getValue());
                     return (
-                        <div className="flex items-center gap-2">
-                            <span
-                                className={`font-medium text-gray-900 truncate max-w-[100px] sm:max-w-[200px] ${onPlayerClick ? 'cursor-pointer hover:text-primary' : ''}`}
-                                onClick={() => {
-                                    if (onPlayerClick) {
-                                        onPlayerClick(info.getValue());
-                                    }
-                                }}
-                            >
-                                {getPlayerName(info.getValue())}
-                            </span>
-                            <div className="flex gap-1">
-                                {isPromoted && <span className="text-[8px] sm:text-[10px] bg-green-100 text-green-700 px-1 rounded font-bold">ASC</span>}
-                                {isRelegated && <span className="text-[8px] sm:text-[10px] bg-red-100 text-red-700 px-1 rounded font-bold">DESC</span>}
-                                {isQualified && <span className="text-[8px] sm:text-[10px] bg-green-100 text-green-700 px-1 rounded font-bold">Q</span>}
-                                {isConsolation && <span className="text-[8px] sm:text-[10px] bg-red-100 text-red-700 px-1 rounded font-bold">C</span>}
-                                {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
-                                    <span className="text-[8px] sm:text-[10px] bg-amber-100 text-amber-700 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
-                                        <AlertCircle size={10} />
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                        <span className="flex items-center gap-2 min-w-0">
+                            {onPlayerClick ? (
+                                <button type="button" onClick={() => onPlayerClick(info.getValue())} className="font-semibold text-left truncate hover:text-court transition-colors">
+                                    {name}
+                                </button>
+                            ) : <span className="font-semibold truncate">{name}</span>}
+                            {row.manualAdjustment ? (
+                                <span className="pill bg-[#fffbeb] text-[#92400e]" title="Ajuste manual de puntos">ajuste {signed(row.manualAdjustment)}</span>
+                            ) : null}
+                        </span>
                     );
                 },
                 enableSorting: col.sortable ?? false,
-                meta: { className: col.className }
+                meta: { className: col.className },
             });
         }
 
         if (col.key === 'pts') {
             return columnHelper.accessor('pts', {
-                header: col.label,
-                cell: info => <span className="font-bold text-primary">{info.getValue()}</span>,
+                header,
+                cell: info => <span className="font-bold text-[15px]">{info.getValue()}</span>,
                 enableSorting: col.sortable ?? true,
-                meta: { className: col.className }
-            });
-        }
-
-        if (col.key === 'pg') {
-            return columnHelper.accessor('pg', {
-                header: () => getHeaderContent(col),
-                cell: info => <span className="text-green-600 font-semibold">{info.getValue()}</span>,
-                enableSorting: col.sortable ?? true,
-                meta: { className: col.className }
+                meta: { className: col.className },
             });
         }
 
         if (col.key === 'winRate') {
             return columnHelper.accessor('winRate', {
-                header: col.label,
-                cell: info => <span className="font-semibold text-gray-900">{Math.round(info.getValue())}%</span>,
+                header,
+                cell: info => <span>{Math.round(info.getValue())} %</span>,
                 enableSorting: col.sortable ?? true,
-                meta: { className: col.className }
+                meta: { className: col.className },
             });
         }
 
         if (col.key === 'setsDiff' || col.key === 'gamesDiff') {
             return columnHelper.accessor(col.key as any, {
-                header: col.label,
-                cell: info => {
-                    const val = info.getValue() as number;
-                    return (
-                        <span className={`font-medium ${val > 0 ? 'text-green-600' : val < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                            {val > 0 ? '+' : ''}{val}
-                        </span>
-                    );
-                },
+                header,
+                cell: info => <span>{signed(info.getValue() as number)}</span>,
                 enableSorting: col.sortable ?? true,
-                meta: { className: col.className }
+                meta: { className: col.className },
             });
         }
 
-        // Generic column (includes pp, setsWon, setsLost, gamesWon, gamesLost)
+        // Generic column (pj, pg, pp, sets and games won and lost)
         return columnHelper.accessor(col.key as any, {
-            header: () => getHeaderContent(col),
-            cell: col.render ? (info => col.render!(info.getValue(), info.row.original)) : (info => <span className="text-gray-600">{info.getValue()}</span>),
+            header,
+            cell: col.render ? (info => col.render!(info.getValue(), info.row.original)) : (info => <span>{info.getValue()}</span>),
             enableSorting: col.sortable ?? true,
-            meta: { className: col.className }
+            meta: { className: col.className },
         });
     });
 
     const table = useReactTable({
         data: standings,
         columns: tableColumns,
-        state: {
-            sorting,
-        },
+        state: { sorting },
         onSortingChange: setSorting,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
     });
 
-    const getSortIcon = (isSorted: false | 'asc' | 'desc') => {
-        if (!isSorted) return <ArrowUpDown size={14} className="opacity-30" />;
-        return isSorted === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />;
-    };
+    const sorted = sorting.length > 0;
+    const rows = table.getRowModel().rows;
+    const zones = rows.map(r => zoneOf(r.original));
+    const hasZones = !sorted && zones.some(z => z !== 'none');
+    const colCount = columns.length + (isAdmin && onEditStats ? 1 : 0); // a colSpan wider than the visible columns is harmless
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto overflow-y-hidden">
-                <table className="w-full border-collapse">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                        {table.getHeaderGroups().map(headerGroup => (
-                            <tr key={headerGroup.id}>
-                                {headerGroup.headers.map(header => {
-                                    const meta = header.column.columnDef.meta as any;
-                                    return (
-                                        <th
-                                            key={header.id}
-                                            className={`px-2 sm:px-4 lg:px-6 py-4 text-left text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider ${header.column.getCanSort() ? 'cursor-pointer select-none hover:bg-gray-100' : ''} ${meta?.className || ''}`}
-                                            onClick={header.column.getToggleSortingHandler()}
-                                        >
-                                            <div className="flex items-center gap-1">
+        <div className="rg">
+            <table className="w-full border-collapse num">
+                <thead>
+                    {table.getHeaderGroups().map(headerGroup => (
+                        <tr key={headerGroup.id}>
+                            {headerGroup.headers.map(header => {
+                                const key = (header.column.columnDef as any).accessorKey as string;
+                                const numeric = !TEXT_COLUMNS.has(key);
+                                const isSorted = header.column.getIsSorted();
+                                return (
+                                    <th
+                                        key={header.id}
+                                        scope="col"
+                                        aria-sort={isSorted === 'asc' ? 'ascending' : isSorted === 'desc' ? 'descending' : undefined}
+                                        className={`px-2.5 first:pl-4 last:pr-4 pt-1 pb-2 text-[12.5px] font-normal text-rg-muted whitespace-nowrap ${numeric ? 'text-right' : 'text-left'} ${key === 'pos' ? 'w-12' : ''} ${WIDE_ONLY.has(key) ? 'hidden xl:table-cell' : ''}`}
+                                    >
+                                        {header.column.getCanSort() ? (
+                                            <button
+                                                type="button"
+                                                onClick={header.column.getToggleSortingHandler()}
+                                                className={`inline-flex items-center gap-1 hover:text-rg-ink transition-colors ${numeric ? 'flex-row-reverse' : ''} ${isSorted ? 'text-rg-ink' : ''}`}
+                                            >
                                                 {flexRender(header.column.columnDef.header, header.getContext())}
-                                                {header.column.getCanSort() && getSortIcon(header.column.getIsSorted())}
-                                            </div>
-                                        </th>
-                                    );
-                                })}
-                                {isAdmin && onEditStats && <th className="px-4 py-4"></th>}
-                            </tr>
-                        ))}
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {table.getRowModel().rows.map(row => (
-                            <tr key={row.id} className={`transition-colors ${getRowClassName(row.original)}`}>
-                                {row.getVisibleCells().map(cell => {
-                                    const meta = cell.column.columnDef.meta as any;
-                                    return (
-                                        <td key={cell.id} className={`px-2 sm:px-4 lg:px-6 py-3 text-[11px] sm:text-sm font-medium text-gray-900 ${meta?.className || ''}`}>
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                {isSorted === 'asc' && <ArrowUp size={12} />}
+                                                {isSorted === 'desc' && <ArrowDown size={12} />}
+                                            </button>
+                                        ) : flexRender(header.column.columnDef.header, header.getContext())}
+                                    </th>
+                                );
+                            })}
+                            {isAdmin && onEditStats && <th className="w-10"><span className="sr-only">Acciones</span></th>}
+                        </tr>
+                    ))}
+                </thead>
+                <tbody>
+                    {rows.map((row, i) => {
+                        const zone = zones[i];
+                        const showZone = hasZones && (i === 0 ? zone !== 'none' : zone !== zones[i - 1]);
+                        const mine = highlightEntry === row.original.playerId;
+                        return (
+                            <React.Fragment key={row.id}>
+                                {showZone && (
+                                    <tr>
+                                        <td colSpan={colCount} className={`px-4 pt-3 pb-1 text-[12.5px] border-t border-rg-rule ${zone === 'down' ? 'text-rg-negative' : zone === 'up' || zone === 'qualified' ? 'text-rg-positive' : 'text-rg-muted'}`}>
+                                            {ZONE_LABEL[zone]}
                                         </td>
-                                    );
-                                })}
-                                {isAdmin && onEditStats && (
-                                    <td className="px-4 py-3 text-right">
-                                        <button
-                                            onClick={() => onEditStats(row.original)}
-                                            className="p-1.5 hover:bg-amber-100 rounded-lg text-amber-600 transition-colors"
-                                            title="Editar estadísticas"
-                                        >
-                                            <Edit2 size={14} />
-                                        </button>
-                                    </td>
+                                    </tr>
                                 )}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                                <tr className={`transition-colors ${mine ? 'bg-court-soft' : 'hover:bg-rg-ground'}`}>
+                                    {row.getVisibleCells().map(cell => {
+                                        const key = (cell.column.columnDef as any).accessorKey as string;
+                                        const numeric = !TEXT_COLUMNS.has(key);
+                                        return (
+                                            <td
+                                                key={cell.id}
+                                                className={`px-2.5 first:pl-4 last:pr-4 py-2.5 text-[14px] border-t border-rg-rule ${numeric ? 'text-right whitespace-nowrap' : ''} ${WIDE_ONLY.has(key) ? 'hidden xl:table-cell' : ''} ${key === 'playerId' ? 'max-w-[320px]' : ''} ${mine && (key === 'pos' || key === 'pts' || key === 'playerId') ? '[&_*]:text-court-ink' : ''}`}
+                                            >
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </td>
+                                        );
+                                    })}
+                                    {isAdmin && onEditStats && (
+                                        <td className="pr-3 py-2.5 text-right border-t border-rg-rule">
+                                            <button
+                                                type="button"
+                                                onClick={() => onEditStats(row.original)}
+                                                className="w-8 h-8 inline-grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised transition-colors"
+                                                title="Ajustar estadísticas"
+                                                aria-label={`Ajustar estadísticas de ${getPlayerName(row.original.playerId)}`}
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                        </td>
+                                    )}
+                                </tr>
+                            </React.Fragment>
+                        );
+                    })}
+                </tbody>
+            </table>
             {standings.length === 0 && (
-                <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-2">
-                    <Trophy size={32} className="text-gray-200" />
-                    <p className="font-medium text-sm">No hay datos de clasificación disponibles</p>
+                <div className="px-4 py-10 text-center text-rg-muted flex flex-col items-center gap-2">
+                    <Trophy size={24} className="text-rg-control" />
+                    <p className="text-sm">Aún no hay partidos jugados para calcular la clasificación.</p>
                 </div>
             )}
         </div>

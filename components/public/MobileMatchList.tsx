@@ -13,6 +13,8 @@ interface Props {
     /** Players resting in a round (americano, mexicano) */
     restingFor?: (round: number) => string[];
     onMatchClick?: (m: Match) => void;
+    /** Lay the rounds out in two columns from the tablet up */
+    twoColumns?: boolean;
 }
 
 const byTimeThenCourt = (a: Match, b: Match) => {
@@ -23,7 +25,7 @@ const byTimeThenCourt = (a: Match, b: Match) => {
 };
 
 /** Matches as a scoreboard grouped by round: time and court on the left, sets aligned on the right. */
-export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firstSecondLegRound, restingFor, onMatchClick }: Props) => {
+export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firstSecondLegRound, restingFor, onMatchClick, twoColumns }: Props) => {
     const next = nextMatchFor(followed ?? null, matches);
     const visible = onlyFollowed && followed ? matches.filter(m => followedSide(followed, m) !== 0) : matches;
 
@@ -44,7 +46,7 @@ export const MobileMatchList = ({ matches, players, followed, onlyFollowed, firs
     }
 
     return (
-        <div className="rg space-y-5">
+        <div className={`rg ${twoColumns ? 'space-y-5 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-6 md:gap-y-6 md:items-start' : 'space-y-5'}`}>
             {ordered.map(([round, list]) => {
                 const sorted = list.slice().sort(byTimeThenCourt);
                 const days = Array.from(new Set(sorted.map(matchDay).filter(Boolean)));

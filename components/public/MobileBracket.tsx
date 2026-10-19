@@ -75,7 +75,7 @@ export const MobileBracket = ({ divisions, players, bracketType = 'main', follow
 
     return (
         <div className="rg">
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 mb-3" role="tablist" aria-label="Rondas">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 mb-3 md:hidden" role="tablist" aria-label="Rondas">
                 {rounds.map((r, i) => (
                     <button
                         key={r.round}
@@ -93,16 +93,16 @@ export const MobileBracket = ({ divisions, players, bracketType = 'main', follow
             <div
                 ref={scroller}
                 onScroll={onScroll}
-                className="flex items-start gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4 pb-2 scroll-px-4"
+                className="flex items-start gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4 pb-2 scroll-px-4 md:mx-0 md:px-0 md:gap-4 md:items-stretch"
             >
                 {rounds.map(r => {
                     const days = Array.from(new Set(r.list.map(matchDay).filter(Boolean)));
                     return (
-                        <section key={r.round} className="snap-start flex-none w-[78vw] max-w-[300px] grid grid-rows-[auto_1fr] gap-2.5">
+                        <section key={r.round} className="snap-start flex-none w-[78vw] max-w-[300px] md:flex-1 md:w-auto md:max-w-[380px] md:min-w-[240px] grid grid-rows-[auto_1fr] gap-2.5">
                             <h3 className="text-[13px] font-semibold text-rg-muted">
                                 {r.name}{days.length === 1 ? ` · ${days[0]}` : ''}
                             </h3>
-                            <div className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-3 md:justify-around">
                                 {r.list.map(m => (
                                     <BracketMatch
                                         key={m.id}
@@ -120,7 +120,7 @@ export const MobileBracket = ({ divisions, players, bracketType = 'main', follow
                 })}
             </div>
             {rounds.length > 1 && active < rounds.length - 1 && (
-                <p className="text-xs text-rg-muted mt-2">Desliza para ver {rounds[active + 1].name.toLowerCase()}</p>
+                <p className="text-xs text-rg-muted mt-2 md:hidden">Desliza para ver {rounds[active + 1].name.toLowerCase()}</p>
             )}
         </div>
     );
