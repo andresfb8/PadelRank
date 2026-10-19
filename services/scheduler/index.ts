@@ -104,8 +104,9 @@ export class SchedulerEngine {
             if (pending && m.startTime && m.scheduleLocked === undefined && !m.scheduleEstimated) m.scheduleLocked = true;
             // A locked match on a day that is no longer part of the tournament has to move
             if (pending && m.scheduleLocked && m.startTime && !tournamentDays.has(localDateKey(new Date(m.startTime)))) m.scheduleLocked = false;
-            // A stale estimate on a match that will never be played is dropped
-            if (m.scheduleEstimated && !isSchedulable(m)) {
+            // A played match keeps its slot; a stale estimate on a match that will never be played is dropped
+            if (m.scheduleEstimated && !pending) m.scheduleEstimated = false;
+            if (pending && m.scheduleEstimated && !isSchedulable(m)) {
                 delete m.startTime;
                 delete m.court;
                 m.scheduleEstimated = false;

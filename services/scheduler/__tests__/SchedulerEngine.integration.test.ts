@@ -214,6 +214,22 @@ describe('SchedulerEngine (integration)', () => {
         expect(f.startTime).toBeUndefined();
         expect(f.court).toBeUndefined();
         expect(f.scheduleEstimated).toBeFalsy();
-        expect(semi2.id).toBeTruthy();
+        expect(div.matches.find(m => m.id === semi2.id)!.startTime).toBeTruthy();
+    });
+
+    it('an estimated match that was played keeps its slot after regenerating and after lockNextDay', () => {
+        const ranking = makeRanking(makeCategory('A', 16), weekend({ mode: 'daily' }));
+        const divisions = SchedulerEngine.generateSchedule(ranking, { now: at('2026-06-01', '10:00') });
+        const played = allMatches(divisions).find(m => m.scheduleEstimated && m.pair1.p1Id && m.pair2.p1Id)
+            ?? allMatches(divisions).find(m => m.scheduleEstimated)!;
+        played.status = 'finalizado';
+        const slot = `${played.startTime}|${played.court}`;
+        const check = (divs: Division[]) => {
+            const m = allMatches(divs).find(x => x.id === played.id)!;
+            expect(`${m.startTime}|${m.court}`).toBe(slot);
+            expect(m.scheduleEstimated).toBe(false);
+        };
+        check(SchedulerEngine.generateSchedule({ ...ranking, divisions }, { now: at('2026-06-01', '10:00') }));
+        check(SchedulerEngine.lockNextDay({ ...ranking, divisions }));
     });
 });
