@@ -35,29 +35,29 @@ export const Drawer = ({ isOpen, onClose, children, title, size = 'lg' }: Drawer
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-fade-in"
+                className="fixed inset-0 bg-[#0F1729]/40 z-40 animate-fade-in"
                 onClick={onClose}
             />
 
             {/* Drawer Panel */}
             <div
-                className={`fixed right-0 top-0 bottom-0 ${sizeClasses[size]} w-full bg-white shadow-2xl z-50 overflow-y-auto animate-slide-in-right`}
+                className={`fixed right-0 top-0 bottom-0 ${sizeClasses[size]} w-full bg-rg-ground shadow-[0_12px_40px_rgba(15,23,41,0.2)] z-50 overflow-y-auto animate-slide-in-right rg`}
             >
                 {/* Header */}
                 {title && (
-                    <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                        <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+                    <div className="sticky top-0 bg-white border-b border-rg-line px-5 h-14 flex items-center justify-between z-10">
+                        <p className="text-[15px] font-semibold">{title}</p>
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                            className="w-9 h-9 grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised transition-colors" aria-label="Cerrar"
                         >
-                            <X size={24} className="text-gray-500" />
+                            <X size={20} />
                         </button>
                     </div>
                 )}
 
                 {/* Content */}
-                <div className="p-6">
+                <div className="p-5">
                     {children}
                 </div>
             </div>

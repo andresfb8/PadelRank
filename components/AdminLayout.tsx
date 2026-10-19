@@ -18,7 +18,6 @@ import { RankingView } from './RankingView';
 import { RankingList } from './RankingList';
 import { RankingWizard } from './RankingWizard';
 import { MatchModal } from './MatchModal';
-import { PlayerList } from './PlayerList';
 import { PlayerDatabaseView } from './players/PlayerDatabaseView';
 import { PlayerDetailView } from './PlayerDetailView';
 import { PairDetailView } from './PairDetailView';
