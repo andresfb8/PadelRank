@@ -4,5 +4,6 @@ import { Player } from '../../types';
 export const pairLabel = (pairKey: string, players: Record<string, Player>): string =>
     pairKey.split('::').filter(Boolean).map(id => {
         const p = players[id];
-        return p ? `${p.nombre} ${(p.apellidos || '').charAt(0)}.`.trim() : id;
+        if (!p) return id;
+        return p.apellidos ? `${p.nombre} ${p.apellidos.charAt(0)}.` : p.nombre;
     }).join(' / ');

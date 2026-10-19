@@ -5,6 +5,7 @@ import type { Match, Ranking } from '../../../types';
 import { ScheduleStatusBadges } from '../ScheduleStatusBadges';
 import { ScheduleConflictsModal, getConflictMatches } from '../ScheduleConflictsModal';
 import { GenerateScheduleModal } from '../GenerateScheduleModal';
+import { pairLabel } from '../pairLabel';
 
 const match = (overrides: Partial<Match> = {}): Match => ({
     id: 'm1', jornada: 1, roundName: 'Cuartos',
@@ -37,6 +38,16 @@ describe('scheduler UI', () => {
         const m = match({ scheduleConflict: [{ pairKey: 'a::b', reason: 'X' }] });
         const { container } = render(<ScheduleStatusBadges match={m} ranking={ranking([m])} showConflicts={false} />);
         expect(container.querySelector('[title="X"]')).toBeNull();
+    });
+
+    it('ScheduleStatusBadges shows nothing for a played match', () => {
+        const m = match({ status: 'finalizado', scheduleEstimated: true, scheduleConflict: [{ pairKey: 'a::b', reason: 'X' }] });
+        const { container } = render(<ScheduleStatusBadges match={m} ranking={ranking([m])} showConflicts />);
+        expect(container.innerHTML).toBe('');
+    });
+
+    it('pairLabel omits the initial when there is no surname', () => {
+        expect(pairLabel('a::z', { ...players, z: { id: 'z', nombre: 'Zoe', apellidos: '' } })).toBe('Ana G. / Zoe');
     });
 
     it('ScheduleConflictsModal lists conflicts with pair names and opens the move dialog', () => {

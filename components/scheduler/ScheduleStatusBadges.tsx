@@ -12,7 +12,8 @@ interface Props {
 
 /** "· estimado" label for projected slots + red icon for availability, window or court conflicts. */
 export const ScheduleStatusBadges = ({ match, ranking, showConflicts, size = 14 }: Props) => {
-    if (!match.startTime) return null;
+    // Played matches no longer need schedule warnings
+    if (!match.startTime || match.status !== 'pendiente') return null;
     const reasons = (match.scheduleConflict ?? []).map(c => c.reason);
     if (showConflicts && match.court) {
         const start = new Date(match.startTime);
