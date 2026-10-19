@@ -220,8 +220,10 @@ export interface TournamentRegistration {
   assignedCategory?: string; // The category assigned/modified by the admin if level doesn't match
   status: 'pending' | 'approved' | 'rejected' | 'waitlist';
   paymentStatus?: 'pending' | 'paid';
-  availability?: TournamentRegistrationAvailability;
-  availabilityNotes?: string; // Human-readable summary e.g. "Viernes: Desde 19:30 | Sábado: Todo el día"
+  /** Ranges in which the pair can NOT play. Same shape as PairAvailability.unavailableRanges. */
+  blockedRanges?: { date: string; startTime: string; endTime: string }[];
+  availability?: TournamentRegistrationAvailability; // Legacy Friday/Saturday/Sunday format, read-only
+  availabilityNotes?: string; // Human-readable summary e.g. "Sáb 24: no 09:00–10:30 • Nota: ..."
   adminNotes?: string; // Internal admin notes
   createdAt: string;
   updatedAt?: string;
