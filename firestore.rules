@@ -68,8 +68,9 @@ service cloud.firestore {
       }
 
       match /registrations/{regId} {
-        // Public registration creation
-        allow create: if true;
+        // Public registration creation (blockedRanges, if present, is capped to keep documents small)
+        allow create: if !('blockedRanges' in request.resource.data)
+          || (request.resource.data.blockedRanges is list && request.resource.data.blockedRanges.size() <= 100);
         
         // Admin / Staff access to manage registrations
         allow get, list, update, delete: if isSignedIn() && (

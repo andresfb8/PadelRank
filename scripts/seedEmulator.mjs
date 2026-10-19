@@ -67,7 +67,23 @@ const main = async () => {
             stats: { pj: 0, pg: 0, pp: 0, winrate: 0 }, ownerId: uid,
         });
     }
-    console.log(`Seeded admin ${TEST_EMAIL} (uid ${uid}) and ${NAMES.length} players.`);
+    // An elimination tournament with its days configured and public registration open
+    // (public link: /?inscripcion=test-registration-tournament)
+    await setDoc('rankings/test-registration-tournament', {
+        id: 'test-registration-tournament', nombre: 'Torneo Inscripciones', categoria: 'Mixto',
+        fechaInicio: '2026-10-23', status: 'activo', format: 'elimination', ownerId: uid,
+        divisions: [],
+        schedulerConfig: {
+            courts: 3, slotDurationMinutes: 90, restMinutes: 60, mode: 'full', timeWindows: [],
+            dailySchedule: [
+                { date: '2026-10-23', startTime: '17:00', endTime: '22:00' },
+                { date: '2026-10-24', startTime: '09:00', endTime: '22:00' },
+                { date: '2026-10-25', startTime: '09:00', endTime: '14:00' },
+            ],
+        },
+        registrationConfig: { isOpen: true, categories: ['Primera', 'Segunda'] },
+    });
+    console.log(`Seeded admin ${TEST_EMAIL} (uid ${uid}), ${NAMES.length} players and the tournament test-registration-tournament.`);
 };
 
 main().catch(err => {
