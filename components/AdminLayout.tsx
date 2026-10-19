@@ -710,44 +710,45 @@ export const AdminLayout = () => {
             </aside>
 
             {/* Main Content */}
-            <div className={`flex-1 flex flex-col min-w-0 pb-24 lg:pb-0 ${impersonatedUserId ? 'mt-10' : ''}`}>
-                <header className="lg:hidden bg-white border-b border-rg-line h-14 flex items-center justify-between px-4 sticky top-0 z-20">
-                    <div className="lg:hidden text-primary font-bold flex items-center gap-2">
-                        <Trophy size={24} /> Racket Grid
-                    </div>
-                    <div className="flex items-center gap-3 ml-auto">
-                        {(effectiveUser?.plan === 'pro' || effectiveUser?.plan === 'star' || effectiveUser?.plan === 'weekend') && (
+            <div className={`flex-1 flex flex-col min-w-0 pb-20 lg:pb-0 ${impersonatedUserId ? 'mt-10' : ''}`}>
+                <header className="lg:hidden bg-white border-b border-rg-line h-14 flex items-center gap-3 px-4 sticky top-0 z-20">
+                    {(() => {
+                        const isSuperView = currentUser?.role === 'superadmin' && !impersonatedUserId;
+                        const clubName = (isSuperView ? 'Racket Grid' : effectiveUser?.clubName || effectiveUser?.name) || 'Racket Grid';
+                        const initials = clubName.split(/\s+/).filter(w => /[a-zA-ZÀ-ÿ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'RG';
+                        return (
+                            <span className="flex items-center gap-2.5 min-w-0">
+                                {effectiveUser?.branding?.logoUrl && !isSuperView ? (
+                                    <img src={effectiveUser.branding.logoUrl} alt="" className="w-7 h-7 rounded-md object-contain flex-none" />
+                                ) : (
+                                    <span className="w-7 h-7 rounded-md bg-court text-white grid place-items-center text-[12px] font-bold flex-none">{initials}</span>
+                                )}
+                                <span className="text-[15px] font-semibold truncate">{clubName}</span>
+                            </span>
+                        );
+                    })()}
+                    <div className="flex items-center gap-1 ml-auto">
+                        {!isPublicUser && (effectiveUser?.plan === 'pro' || effectiveUser?.plan === 'star' || effectiveUser?.plan === 'weekend') && (
                             <button
-                                onClick={() => {
-                                    console.log("Opening Club Settings...");
-                                    setIsClubSettingsOpen(true);
-                                }}
-                                className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors flex items-center gap-2 px-3"
-                                title="Configuración de Club y Marca"
+                                type="button"
+                                onClick={() => setIsClubSettingsOpen(true)}
+                                className="w-10 h-10 grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised transition-colors"
+                                title="Club y marca"
+                                aria-label="Club y marca"
                             >
                                 <Building2 size={18} />
-                                <span className="hidden md:inline text-xs font-semibold uppercase tracking-wide">Mi Club</span>
                             </button>
                         )}
                         <button
+                            type="button"
                             onClick={() => !isPublicUser && setView('profile')}
-                            className={`flex items-center gap-4 ${!isPublicUser ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
                             disabled={isPublicUser}
+                            className="w-10 h-10 grid place-items-center rounded-full disabled:cursor-default"
+                            aria-label="Mi cuenta"
                         >
-                            <div className="text-right hidden md:block">
-                                <div className="text-sm font-bold text-gray-900">{effectiveUser?.name || effectiveUser?.email}</div>
-                                <div className="mt-0.5 flex justify-end">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${effectiveUser?.role === 'superadmin' ? 'bg-purple-100/50 text-purple-700 border-purple-200' :
-                                        effectiveUser?.role === 'admin' ? 'bg-blue-100/50 text-blue-700 border-blue-200' :
-                                            'bg-gray-100/50 text-gray-600 border-gray-200'
-                                        }`}>
-                                        {isPublicUser ? 'Jugador' : effectiveUser?.role}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${isPublicUser ? 'bg-gray-100 text-gray-500' : 'bg-primary text-white shadow-md hover:shadow-lg'}`}>
-                                {effectiveUser?.role === 'superadmin' ? 'SA' : isPublicUser ? <UserIcon size={20} /> : 'A'}
-                            </div>
+                            <span className="w-8 h-8 rounded-full bg-court-soft text-court-ink grid place-items-center text-[13px] font-semibold">
+                                {isPublicUser ? <UserIcon size={16} /> : (effectiveUser?.name || effectiveUser?.email || '?').charAt(0).toUpperCase()}
+                            </span>
                         </button>
                     </div>
                 </header>

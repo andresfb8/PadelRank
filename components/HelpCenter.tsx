@@ -50,7 +50,7 @@ export const HelpCenter = () => {
             {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
-                    className="fixed bottom-24 md:bottom-6 right-6 z-50 h-14 w-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 animate-bounce-subtle"
+                    className="fixed bottom-20 lg:bottom-6 right-4 lg:right-6 z-50 h-12 w-12 bg-court hover:bg-[#174CB0] text-white rounded-full shadow-[0_4px_14px_rgba(15,23,41,0.2)] flex items-center justify-center transition-transform active:scale-95"
                     title="Centro de Ayuda"
                 >
                     <HelpCircle size={28} />
