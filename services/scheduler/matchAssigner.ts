@@ -61,6 +61,7 @@ export interface AssignInput {
     constraints: Record<string, PairAvailability>;
     plans: Map<string, RoundPlan>;
     toSchedule: Set<string>;                     // ids of matches to place (their startTime must be cleared)
+    notBefore?: Date;                            // no match may start before this instant (e.g. now)
 }
 
 interface Booking { start: Date; end: Date; }
@@ -86,7 +87,7 @@ interface Info {
  * A match that can no longer find a compatible slot before its deadline is placed in the
  * least-violating slot and flagged with scheduleConflict.
  */
-export const assignMatches = ({ divisions, config, constraints, plans, toSchedule }: AssignInput): void => {
+export const assignMatches = ({ divisions, config, constraints, plans, toSchedule, notBefore }: AssignInput): void => {
     const D = config.slotDurationMinutes;
     const rest = config.restMinutes;
     const index = buildMatchIndex(divisions);
@@ -125,7 +126,8 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
         const div = index.divisionOf.get(id);
         if (!match || !div) return;
         const plan = plans.get(roundKeyOf(div.id, match.jornada));
-        const starts = getStartTimes(plan?.intervals ?? getRoundIntervals(match.roundName, config), D);
+        const starts = getStartTimes(plan?.intervals ?? getRoundIntervals(match.roundName, config), D)
+            .filter(s => !notBefore || s >= notBefore);
         const known = knownPairKeys(match);
         const candidates = getCandidatePairs(match, index, candidateMemo);
         const keys = known.length === 2 ? known : Array.from(candidates);
@@ -176,7 +178,8 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
 
     const placeFallback = (info: Info, from: Date) => {
         const ready = readyTime(info) ?? from;
-        const t0 = ready > from ? ready : from;
+        let t0 = ready > from ? ready : from;
+        if (notBefore && notBefore > t0) t0 = notBefore;
         const free = (s: Date) => s >= t0 && anyCourtFree(s);
         const within = info.starts.filter(s => free(s) && (!info.lastStart || s <= info.lastStart));
         const pool = within.length ? within : info.starts.filter(free);

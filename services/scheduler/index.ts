@@ -31,20 +31,27 @@ export class SchedulerEngine {
     /**
      * Generates the schedule. Locked or played matches stay where they are unless includeLocked.
      * Mode 'full' locks everything; mode 'daily' locks the current tournament day and estimates the rest.
+     * `notBefore` (the UI passes the current time) keeps every placed match from starting in the past.
      */
-    static generateSchedule(ranking: Ranking, opts: { includeLocked?: boolean; now?: Date } = {}): Division[] {
+    static generateSchedule(
+        ranking: Ranking,
+        opts: { includeLocked?: boolean; now?: Date; notBefore?: Date } = {}
+    ): Division[] {
         const config = ranking.schedulerConfig;
         if (!config?.dailySchedule?.length) return ranking.divisions;
         const lockUntil = (config.mode ?? 'full') === 'full' ? null : SchedulerEngine.currentDayKey(config, opts.now ?? new Date());
-        return SchedulerEngine.run(ranking, !!opts.includeLocked, lockUntil);
+        return SchedulerEngine.run(ranking, !!opts.includeLocked, lockUntil, opts.notBefore);
     }
 
-    /** Mode 'daily': recomputes unlocked matches and locks the first day that still has estimates. */
-    static lockNextDay(ranking: Ranking): Division[] {
+    /**
+     * Mode 'daily': recomputes unlocked matches and locks the first day that still has estimates.
+     * `notBefore` (the UI passes the current time) keeps every placed match from starting in the past.
+     */
+    static lockNextDay(ranking: Ranking, opts: { notBefore?: Date } = {}): Division[] {
         const config = ranking.schedulerConfig;
         if (!config?.dailySchedule?.length) return ranking.divisions;
         const day = SchedulerEngine.firstEstimatedDay(ranking.divisions);
-        return day ? SchedulerEngine.run(ranking, false, day) : ranking.divisions;
+        return day ? SchedulerEngine.run(ranking, false, day, opts.notBefore) : ranking.divisions;
     }
 
     static firstEstimatedDay(divisions: Division[]): string | null {
@@ -84,7 +91,7 @@ export class SchedulerEngine {
         return evaluateConflicts(match, ranking.schedulerConfig, normalizePairConstraints(ranking.pairConstraints));
     }
 
-    private static run(ranking: Ranking, includeLocked: boolean, lockUntil: string | null): Division[] {
+    private static run(ranking: Ranking, includeLocked: boolean, lockUntil: string | null, notBefore?: Date): Division[] {
         const config = ranking.schedulerConfig!;
         const divisions: Division[] = clone(ranking.divisions);
         const constraints = normalizePairConstraints(ranking.pairConstraints);
@@ -92,10 +99,17 @@ export class SchedulerEngine {
         const toSchedule = new Set<string>();
 
         divisions.forEach(d => d.matches.forEach(m => {
+            const pending = m.status === 'pendiente';
             // Legacy data: a confirmed (non-estimated) slot counts as locked
-            if (m.startTime && m.scheduleLocked === undefined && !m.scheduleEstimated) m.scheduleLocked = true;
+            if (pending && m.startTime && m.scheduleLocked === undefined && !m.scheduleEstimated) m.scheduleLocked = true;
             // A locked match on a day that is no longer part of the tournament has to move
-            if (m.scheduleLocked && m.startTime && !tournamentDays.has(localDateKey(new Date(m.startTime)))) m.scheduleLocked = false;
+            if (pending && m.scheduleLocked && m.startTime && !tournamentDays.has(localDateKey(new Date(m.startTime)))) m.scheduleLocked = false;
+            // A stale estimate on a match that will never be played is dropped
+            if (m.scheduleEstimated && !isSchedulable(m)) {
+                delete m.startTime;
+                delete m.court;
+                m.scheduleEstimated = false;
+            }
             if (!isSchedulable(m) || (m.scheduleLocked && !includeLocked)) return;
             delete m.startTime;
             delete m.court;
@@ -106,7 +120,7 @@ export class SchedulerEngine {
         }));
 
         const { plans } = planRounds(divisions, config);
-        assignMatches({ divisions, config, constraints, plans, toSchedule });
+        assignMatches({ divisions, config, constraints, plans, toSchedule, notBefore });
 
         divisions.forEach(d => d.matches.forEach(m => {
             if (!toSchedule.has(m.id) || !m.startTime) return;

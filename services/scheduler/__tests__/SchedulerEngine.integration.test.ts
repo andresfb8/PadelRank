@@ -178,4 +178,42 @@ describe('SchedulerEngine (integration)', () => {
         expect(allMatches(result).filter(m => m.status === 'pendiente').every(m => m.startTime)).toBe(true);
         expect(elapsed).toBeLessThan(1000);
     });
+
+    it('notBefore keeps regenerated matches out of the past', () => {
+        const ranking = makeRanking(makeCategory('A', 8), weekend());
+        const floor = at('2026-06-06', '12:00');
+        const result = SchedulerEngine.generateSchedule(ranking, { notBefore: floor });
+        const placed = allMatches(result).filter(m => m.startTime);
+        expect(placed.length).toBeGreaterThan(0);
+        placed.forEach(m => expect(new Date(m.startTime!).getTime()).toBeGreaterThanOrEqual(floor.getTime()));
+    });
+
+    it('lockNextDay honours notBefore', () => {
+        const ranking = makeRanking(makeCategory('A', 16), weekend({ mode: 'daily' }));
+        const divisions = SchedulerEngine.generateSchedule(ranking, { now: at('2026-06-01', '10:00') });
+        const floor = at('2026-06-06', '15:00');
+        const next = SchedulerEngine.lockNextDay({ ...ranking, divisions }, { notBefore: floor });
+        allMatches(next).filter(m => m.startTime && m.scheduleLocked && new Date(m.startTime).getDate() >= 6)
+            .forEach(m => expect(new Date(m.startTime!).getTime()).toBeGreaterThanOrEqual(floor.getTime()));
+    });
+
+    it('legacy/removed-day rules only touch pending matches, and stale estimates on unplayable matches are cleared', () => {
+        const [main] = makeCategory('A', 4);
+        const [semi1, semi2, final] = [main.matches[0], main.matches[1], main.matches.find(m => m.roundName === 'Final')!];
+        semi1.status = 'finalizado';
+        semi1.startTime = at('2026-06-05', '18:00').toISOString();
+        semi1.court = 1;
+        final.pair1 = { p1Id: 'BYE', p2Id: '' };
+        final.startTime = at('2026-06-07', '12:00').toISOString();
+        final.court = 2;
+        final.scheduleEstimated = true;
+        const [div] = SchedulerEngine.generateSchedule(makeRanking([main], weekend()));
+        const s1 = div.matches.find(m => m.id === semi1.id)!;
+        const f = div.matches.find(m => m.id === final.id)!;
+        expect(s1.scheduleLocked).toBeUndefined();
+        expect(f.startTime).toBeUndefined();
+        expect(f.court).toBeUndefined();
+        expect(f.scheduleEstimated).toBeFalsy();
+        expect(semi2.id).toBeTruthy();
+    });
 });
