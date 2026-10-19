@@ -2767,7 +2767,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             onSave={handleSaveSchedule}
             schedulerConfig={ranking.schedulerConfig}
             occupationSlots={SchedulerEngine.getAllOccupiedSlots(ranking, schedulingMatch.id)}
-            playerConstraints={ranking.playerConstraints}
+            ranking={ranking}
             players={players}
           />
         )

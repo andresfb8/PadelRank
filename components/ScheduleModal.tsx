@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, AlertTriangle, Clock } from 'lucide-react';
 import { Modal, Button } from './ui/Components';
-import { Match, RankingConfig } from '../types';
-import { SchedulerEngine } from '../services/SchedulerEngine';
+import { Match, Ranking } from '../types';
+import { SchedulerEngine, ANY_PAIR } from '../services/SchedulerEngine';
+import { pairLabel } from './scheduler/pairLabel';
 
 interface Props {
     isOpen: boolean;
@@ -11,32 +12,32 @@ interface Props {
     onSave: (matchId: string, schedule: { startTime?: string, court?: number }) => void;
     schedulerConfig?: import('../services/SchedulerEngine').SchedulerConfig;
     occupationSlots?: { start: Date; end: Date; court: number }[];
-    playerConstraints?: Record<string, import('../services/SchedulerEngine').PlayerAvailability>;
+    ranking?: Ranking; // Needed to check pair availability and phase windows
     players?: Record<string, import('../types').Player>; // Needed to show names in conflict
 }
 
-export const ScheduleModal = ({ isOpen, onClose, match, onSave, schedulerConfig, occupationSlots, playerConstraints, players }: Props) => {
+const pad = (n: number) => String(n).padStart(2, '0');
+/** ISO string → value for <input type="datetime-local"> in local time. */
+const toLocalInput = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+export const ScheduleModal = ({ isOpen, onClose, match, onSave, schedulerConfig, occupationSlots, ranking, players }: Props) => {
     const [startTime, setStartTime] = useState('');
     const [court, setCourt] = useState('');
 
     useEffect(() => {
-        if (match) {
-            if (match.startTime) setStartTime(match.startTime);
-            else setStartTime('');
-
-            if (match.court) setCourt(match.court.toString());
-            else setCourt('');
-        } else {
-            setStartTime('');
-            setCourt('');
-        }
+        setStartTime(toLocalInput(match?.startTime));
+        setCourt(match?.court ? match.court.toString() : '');
     }, [match]);
 
     const handleSave = () => {
         if (!match) return;
 
         onSave(match.id, {
-            startTime: startTime || undefined,
+            startTime: startTime ? new Date(startTime).toISOString() : undefined,
             court: court ? parseInt(court) : undefined
         });
         onClose();
@@ -74,13 +75,11 @@ export const ScheduleModal = ({ isOpen, onClose, match, onSave, schedulerConfig,
                             />
                         </div>
                     </div>
-                    {/* Conflict Warning */}
-                    {match.startTime && startTime !== match.startTime && (
+                    {match.startTime && startTime !== toLocalInput(match.startTime) && (
                         <div className="text-xs text-blue-600 italic mt-1">
                             Cambiar el horario notificará a los jugadores
                         </div>
                     )}
-                    {/* Real Conflict Check */}
                     {/* Real Conflict Check */}
                     {(() => {
                         if (!startTime || !schedulerConfig) return null;
@@ -89,34 +88,25 @@ export const ScheduleModal = ({ isOpen, onClose, match, onSave, schedulerConfig,
 
                         const alerts = [];
 
-                        // 1. Check Court Conflict
-                        if (court && occupationSlots) {
-                            // Assuming occupationSlots handles exclusion of current match or we ignore self overlap loosely
-                            const hasCourtConflict = SchedulerEngine.checkMatchConflict(start, end, parseInt(court), occupationSlots);
-                            if (hasCourtConflict) {
-                                alerts.push(
-                                    <div key="court" className="flex items-center gap-2 p-2 bg-red-100 text-red-700 rounded text-xs font-bold animate-pulse">
-                                        <AlertTriangle size={14} />
-                                        <span>¡Conflicto! Pista {court} ocupada.</span>
-                                    </div>
-                                );
-                            }
+                        // 1. Court conflict
+                        if (court && occupationSlots && SchedulerEngine.checkMatchConflict(start, end, parseInt(court), occupationSlots)) {
+                            alerts.push(
+                                <div key="court" className="flex items-center gap-2 p-2 bg-red-100 text-red-700 rounded text-xs font-bold animate-pulse">
+                                    <AlertTriangle size={14} />
+                                    <span>¡Conflicto! Pista {court} ocupada.</span>
+                                </div>
+                            );
                         }
 
-                        // 2. Check Player Availability
-                        if (playerConstraints && match) {
-                            const pIds = [match.pair1.p1Id, match.pair1.p2Id, match.pair2.p1Id, match.pair2.p2Id].filter(Boolean) as string[];
-                            const availability = SchedulerEngine.checkPlayerAvailability(start, end, pIds, playerConstraints);
-
-                            if (!availability.valid && availability.conflictPlayerId) {
-                                const pName = players?.[availability.conflictPlayerId]?.nombre || 'Jugador';
-                                alerts.push(
-                                    <div key="player" className="flex items-center gap-2 p-2 bg-orange-100 text-orange-800 rounded text-xs font-bold">
-                                        <Clock size={14} />
-                                        <span>¡Aviso! {pName} tiene restricción horaria.</span>
-                                    </div>
-                                );
-                            }
+                        // 2. Pair availability and phase window
+                        if (ranking) {
+                            const conflicts = SchedulerEngine.computeConflicts({ ...match, startTime: start.toISOString() }, ranking) ?? [];
+                            conflicts.forEach((c, i) => alerts.push(
+                                <div key={`c${i}`} className="flex items-center gap-2 p-2 bg-orange-100 text-orange-800 rounded text-xs font-bold">
+                                    <Clock size={14} />
+                                    <span>{c.pairKey === ANY_PAIR ? c.reason : `${pairLabel(c.pairKey, players ?? {})}: ${c.reason}`}</span>
+                                </div>
+                            ));
                         }
 
                         return alerts.length > 0 ? <div className="space-y-2 mt-2">{alerts}</div> : null;
