@@ -22,6 +22,10 @@ import { SchedulerEngine } from '../services/SchedulerEngine';
 import { SchedulerConfigModal } from './SchedulerConfigModal';
 import { ScheduleModal } from './ScheduleModal';
 import { ScheduleGridModal } from './ScheduleGridModal';
+import { ScheduleStatusBadges } from './scheduler/ScheduleStatusBadges';
+import { ScheduleConflictsModal, getConflictMatches } from './scheduler/ScheduleConflictsModal';
+import { GenerateScheduleModal } from './scheduler/GenerateScheduleModal';
+import { pairLabel } from './scheduler/pairLabel';
 import { RankingSettingsModal } from './RankingSettingsModal';
 
 import { StatsAdjustmentModal } from './StatsAdjustmentModal';
@@ -186,7 +190,13 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
     const targetDivision = ranking.divisions[targetDivIndex];
     const oldMatch = targetDivision.matches[matchIndex];
-    const updatedMatch = { ...oldMatch, ...schedule };
+    const updatedMatch: Match = { ...oldMatch, ...schedule };
+    // A manual move locks the slot and re-evaluates its conflicts
+    updatedMatch.scheduleLocked = !!updatedMatch.startTime;
+    updatedMatch.scheduleEstimated = false;
+    const conflicts = SchedulerEngine.computeConflicts(updatedMatch, ranking);
+    if (conflicts) updatedMatch.scheduleConflict = conflicts;
+    else delete updatedMatch.scheduleConflict;
 
     const updatedMatches = [...targetDivision.matches];
     updatedMatches[matchIndex] = updatedMatch;
@@ -230,6 +240,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [isAddPairModalOpen, setIsAddPairModalOpen] = useState(false);
   const [promotionOverrides, setPromotionOverrides] = useState<{ playerId: string, forceDiv: number }[]>([]);
   const [isSchedulerConfigModalOpen, setIsSchedulerConfigModalOpen] = useState(false);
+  const [generateDialog, setGenerateDialog] = useState<{ warnings: import('../services/SchedulerEngine').FeasibilityWarning[]; hasLocked: boolean } | null>(null);
+  const [isConflictsModalOpen, setIsConflictsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   // History and stats tab
   const [historyPhaseIndex, setHistoryPhaseIndex] = useState<number | null>(null); // null = current phase
@@ -647,10 +659,14 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           newDivisions = TournamentEngine.tryResolveConsolationDeferred({ divisions: newDivisions });
         }
 
-        // Reactive Scheduler Hook
+        // Scheduler: slots never move after a result; only re-check availability of the pairs that advanced
         if (ranking.schedulerConfig && isEliminationContext) {
-          const tempRanking = { ...updatedRanking, divisions: newDivisions };
-          newDivisions = SchedulerEngine.onResultEntered(tempRanking).divisions;
+          const check = SchedulerEngine.onResultEntered({ ...updatedRanking, divisions: newDivisions });
+          newDivisions = check.divisions;
+          if (check.newConflicts.length) {
+            const lines = check.newConflicts.flatMap(c => c.conflicts.map(x => `• ${pairLabel(x.pairKey, players)}: ${x.reason}`));
+            alert(`Conflicto de horario en el siguiente partido:\n${lines.join('\n')}\n\nRevísalo en "Conflictos".`);
+          }
         }
 
         updatedRanking.divisions = newDivisions;
@@ -1347,8 +1363,24 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       return;
     }
     if (!onUpdateRanking) return;
-    const newDivisions = SchedulerEngine.generateSchedule(ranking);
-    onUpdateRanking({ ...ranking, divisions: newDivisions });
+    const warnings = SchedulerEngine.checkFeasibility(ranking);
+    const hasLocked = ranking.divisions.some(d => d.matches.some(m =>
+      m.status === 'pendiente' && m.startTime && !m.scheduleEstimated && m.scheduleLocked !== false));
+    if (warnings.length || hasLocked) {
+      setGenerateDialog({ warnings, hasLocked });
+      return;
+    }
+    runGenerateSchedule(false);
+  };
+
+  const runGenerateSchedule = (includeLocked: boolean) => {
+    if (!onUpdateRanking) return;
+    onUpdateRanking({ ...ranking, divisions: SchedulerEngine.generateSchedule(ranking, { includeLocked, notBefore: new Date() }) });
+  };
+
+  const handleLockNextDay = () => {
+    if (!onUpdateRanking) return;
+    onUpdateRanking({ ...ranking, divisions: SchedulerEngine.lockNextDay(ranking, { notBefore: new Date() }) });
   };
 
   const handleSaveSchedulerConfig = (config: import('../services/SchedulerEngine').SchedulerConfig, pairConstraints: Record<string, import('../services/SchedulerEngine').PairAvailability>) => {
@@ -1602,8 +1634,26 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               onClick: handleGenerateFullSchedule,
               visible: isAdmin && (ranking.format === 'elimination' || ranking.format === 'hybrid'),
               variant: 'secondary',
-              title: 'Asignar automáticamente horarios y pistas a todos los partidos listos',
+              title: 'Asignar automáticamente horarios y pistas a todos los partidos',
               className: 'text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-100'
+            },
+            {
+              id: 'lock-next-day',
+              label: 'Fijar día siguiente',
+              icon: Calendar,
+              onClick: handleLockNextDay,
+              visible: isAdmin && ranking.schedulerConfig?.mode === 'daily' && !!SchedulerEngine.firstEstimatedDay(ranking.divisions),
+              variant: 'secondary',
+              title: 'Recalcular y fijar los horarios del siguiente día con partidos estimados'
+            },
+            {
+              id: 'schedule-conflicts',
+              label: `Conflictos (${getConflictMatches(ranking).length})`,
+              icon: AlertTriangle,
+              onClick: () => setIsConflictsModalOpen(true),
+              visible: isAdmin && getConflictMatches(ranking).length > 0,
+              variant: 'secondary',
+              className: 'text-red-600 bg-red-50 border-red-100 hover:bg-red-100'
             },
 
             {
@@ -2654,26 +2704,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                           </div>
                                         )}
 
-                                        {/* Conflict Indicator */}
-                                        {isAdmin && ranking.schedulerConfig && ranking.playerConstraints && (() => {
-                                          const start = new Date(m.startTime!);
-                                          const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig.slotDurationMinutes);
-                                          const occupied = SchedulerEngine.getAllOccupiedSlots(ranking, m.id);
-
-                                          const courtConflict = m.court && SchedulerEngine.checkMatchConflict(start, end, m.court, occupied);
-
-                                          const pIds = [m.pair1.p1Id, m.pair1.p2Id, m.pair2.p1Id, m.pair2.p2Id].filter(Boolean) as string[];
-                                          const playerConflict = SchedulerEngine.checkPlayerAvailability(start, end, pIds, ranking.playerConstraints || {});
-
-                                          if (courtConflict || !playerConflict.valid) {
-                                            return (
-                                              <div className="ml-2 text-red-500 animate-pulse" title="Conflicto de horario detectado">
-                                                <AlertTriangle size={14} />
-                                              </div>
-                                            );
-                                          }
-                                          return null;
-                                        })()}
+                                        <ScheduleStatusBadges match={m} ranking={ranking} showConflicts={!!isAdmin} />
 
                                       </div>
                                     ) : (
@@ -2772,6 +2803,25 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           />
         )
       }
+
+      {generateDialog && (
+        <GenerateScheduleModal
+          isOpen={!!generateDialog}
+          onClose={() => setGenerateDialog(null)}
+          warnings={generateDialog.warnings}
+          hasLocked={generateDialog.hasLocked}
+          onGenerate={runGenerateSchedule}
+          onConfigure={() => setIsSchedulerConfigModalOpen(true)}
+        />
+      )}
+
+      <ScheduleConflictsModal
+        isOpen={isConflictsModalOpen}
+        onClose={() => setIsConflictsModalOpen(false)}
+        ranking={ranking}
+        players={players}
+        onMove={(m) => { setIsConflictsModalOpen(false); setSchedulingMatch(m); }}
+      />
 
       {/* Add Division Modal */}
       {

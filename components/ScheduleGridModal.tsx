@@ -190,6 +190,7 @@ export const ScheduleGridModal = ({ isOpen, onClose, matches, players, divisions
                                                                     <div className={`
                                                                     rounded-lg p-3 text-sm border shadow-sm h-full
                                                                     ${match.scheduleEstimated ? 'border-dashed opacity-70 ' : ''}
+                                                                    ${match.scheduleConflict?.length ? 'ring-2 ring-red-400 ' : ''}
                                                                     ${match.roundName?.includes('(Cons.)')
                                                                             ? 'bg-orange-50 border-orange-100 text-orange-800' // Consolacion
                                                                             : 'bg-blue-50 border-blue-100 text-blue-900'} // Principal

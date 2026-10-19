@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Match, Division, Player, Ranking } from '../types';
-import { Trophy, Calendar, Clock, AlertTriangle, Edit2, Lock, Unlock } from 'lucide-react';
-import { SchedulerEngine } from '../services/SchedulerEngine';
+import { Trophy, Calendar, Clock, Edit2, Lock, Unlock } from 'lucide-react';
+import { ScheduleStatusBadges } from './scheduler/ScheduleStatusBadges';
 import { updateMatchParticipant } from '../services/logic';
 import { ParticipantPickerModal } from './ParticipantPickerModal';
 
@@ -247,26 +247,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                     </div>
                                                     {match.court && <div className="ml-auto border-l border-blue-200 pl-2">Pista {match.court}</div>}
 
-                                                    {/* Conflict Indicator (Admin Only) */}
-                                                    {onScheduleClick && ranking.schedulerConfig && ranking.playerConstraints && (() => {
-                                                        const start = new Date(match.startTime!);
-                                                        const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig!.slotDurationMinutes || 90);
-                                                        const occupied = SchedulerEngine.getAllOccupiedSlots(ranking, match.id);
-
-                                                        const courtConflict = match.court && SchedulerEngine.checkMatchConflict(start, end, match.court, occupied);
-
-                                                        const pIds = [match.pair1.p1Id, match.pair1.p2Id, match.pair2.p1Id, match.pair2.p2Id].filter(Boolean) as string[];
-                                                        const playerConflict = SchedulerEngine.checkPlayerAvailability(start, end, pIds, ranking.playerConstraints || {});
-
-                                                        if (courtConflict || !playerConflict.valid) {
-                                                            return (
-                                                                <div className="ml-2 text-red-500 animate-pulse" title="Conflicto de horario detectado">
-                                                                    <AlertTriangle size={14} />
-                                                                </div>
-                                                            );
-                                                        }
-                                                        return null;
-                                                    })()}
+                                                    <ScheduleStatusBadges match={match} ranking={ranking} showConflicts={!!onScheduleClick} size={12} />
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center justify-center w-full text-[10px] font-medium text-gray-400 group-hover:text-blue-600 gap-1">
