@@ -181,16 +181,18 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
         const within = info.starts.filter(s => free(s) && (!info.lastStart || s <= info.lastStart));
         const pool = within.length ? within : info.starts.filter(free);
         if (pool.length) {
-            // Slots that overlap the only/any compatible slot of another pending match rank last.
-            const reserved: number[] = [];
+            // Slots overlapping the compatible slots of other pending matches rank last, but only when
+            // that overlapping demand would use up the courts still free at the slot.
+            const others: number[][] = [];
             pending.forEach(id => {
                 if (id === info.match.id) return;
-                infos.get(id)!.compatible.forEach(s => reserved.push(s.getTime()));
+                others.push(infos.get(id)!.compatible.map(s => s.getTime()));
             });
             const rank = (s: Date): [number, number, number] => {
                 const c = cost(info, s);
-                const overlaps = reserved.some(r => Math.abs(r - s.getTime()) < D * 60000);
-                return [overlaps ? 1 : 0, c[0], c[1]];
+                const demand = others.filter(times => times.some(t => Math.abs(t - s.getTime()) < D * 60000)).length;
+                const free = courts.filter((_, k) => isFree(k, s)).length;
+                return [demand >= free ? 1 : 0, c[0], c[1]];
             };
             const better = (x: [number, number, number], y: [number, number, number]) =>
                 x[0] !== y[0] ? x[0] < y[0] : x[1] !== y[1] ? x[1] < y[1] : x[2] < y[2];

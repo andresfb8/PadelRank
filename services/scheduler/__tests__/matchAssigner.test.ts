@@ -174,4 +174,22 @@ describe('matchAssigner', () => {
         expect(conflicts.find(c => c.pairKey === 'k1::k2')!.reason.startsWith('Posible')).toBe(false);
         expect(conflicts.find(c => c.pairKey === 'c1::c2')!.reason.startsWith('Posible pareja: ')).toBe(true);
     });
+
+    it('the reservation penalty only applies when courts would actually run out', () => {
+        const [a] = makeCategory('A', 2);
+        const [b] = makeCategory('B', 2);
+        const day = '2026-06-06';
+        const onlyBetween = (from: string, to: string) => ({ unavailableRanges: [
+            { date: day, startTime: '00:00', endTime: from },
+            { date: day, startTime: to, endTime: '23:59' },
+        ] });
+        run([a, b], makeConfig({ courts: 2, dailySchedule: oneDay() }), {
+            [pairIds('A', 2)[0]]: onlyBetween('18:00', '19:15'),
+            [pairIds('B', 2)[0]]: onlyBetween('18:00', '19:30'),
+        });
+        const aStart = new Date(a.matches[0].startTime!).getTime();
+        expect([at(day, '17:45').getTime(), at(day, '18:00').getTime()]).toContain(aStart);
+        expect(new Date(b.matches[0].startTime!).getTime()).toBe(at(day, '18:00').getTime());
+        expect(b.matches[0].scheduleConflict).toBeUndefined();
+    });
 });
