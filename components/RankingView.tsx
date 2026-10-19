@@ -40,6 +40,7 @@ import { subscribeToRegistrations } from '../services/db';
 import { MobileStandingsList } from './public/MobileStandingsList';
 import { MobileMatchList } from './public/MobileMatchList';
 import { FollowCard } from './public/FollowCard';
+import { MobileBracket } from './public/MobileBracket';
 import { entryLabel, nextMatchFor, pairKey, useFollowedEntry } from './public/playerMobile';
 
 interface Props {
@@ -819,6 +820,16 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
     return row ? { pos: row.pos, pts: row.pts, division: div.category || div.name || `División ${div.numero}` } : null;
   }, [followed, ranking]);
   const showPlayerMobile = !isAdmin && ranking.format !== 'pozo';
+  const groupOfPair = useMemo(() => {
+    const map = new Map<string, string>();
+    if (ranking.format !== 'hybrid') return map;
+    ranking.divisions.filter(d => d.stage === 'group' && d.name).forEach(div => {
+      div.matches.forEach(m => [m.pair1, m.pair2].forEach(pair => {
+        if (pair?.p1Id && pair.p1Id !== 'BYE' && !map.has(pairKey(pair))) map.set(pairKey(pair), div.name!);
+      }));
+    });
+    return map;
+  }, [ranking.divisions, ranking.format]);
 
   // Calculate players already in the tournament to prevent duplicates in new divisions
   const occupiedPlayerIds = new Set<string>();
@@ -1814,7 +1825,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           ranking.format === 'hybrid' && ranking.phase === 'playoff' && viewMode === 'playoff' ? (
             <div className="space-y-4">
               {/* Playoff Bracket Tabs */}
-              <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 bg-white sticky top-[60px] z-30">
+              <div className={`${showPlayerMobile ? 'hidden md:flex' : 'flex'} overflow-x-auto pb-2 gap-2 border-b border-gray-200 bg-white sticky top-[60px] z-30`}>
                 {/* Main Bracket Tab */}
                 {ranking.divisions.some(d => d.type === 'main' || (d.stage === 'playoff' && !d.type.toString().includes('consolation'))) && (
                   <button
@@ -1841,7 +1852,35 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 )}
               </div>
 
+              {showPlayerMobile && (
+                <div className="md:hidden">
+                  {ranking.divisions.some(d => d.type === 'league-consolation-main') && (
+                    <div className="rg flex gap-2 mb-3">
+                      {(['main', 'consolation'] as const).map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setPlayoffBracketView(type)}
+                          className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${playoffBracketView === type ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}
+                        >
+                          {type === 'main' ? 'Principal' : 'Consolación'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <MobileBracket
+                    divisions={ranking.divisions.filter(d => playoffBracketView === 'main'
+                      ? (d.type === 'main' || d.type === 'consolation') && d.stage === 'playoff'
+                      : d.type === 'league-consolation-main')}
+                    players={players}
+                    bracketType={bracketType}
+                    followed={followed}
+                    groupOf={groupOfPair}
+                  />
+                </div>
+              )}
               {/* Bracket View - Filtered by Active Tab */}
+              <div className={showPlayerMobile ? 'hidden md:block' : ''}>
               <BracketView
                 divisions={ranking.divisions.filter(d => {
                   if (playoffBracketView === 'main') {
@@ -1857,6 +1896,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 ranking={ranking}
                 bracketType={bracketType}
               />
+              </div>
             </div>
           ) : (
             <>
@@ -2352,7 +2392,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               {/* Category Header for Elimination-shows category name */}
               {
                 ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
-                  <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+                  <div className={`mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm ${showPlayerMobile ? 'hidden md:flex' : 'flex'} items-center justify-between`}>
                     {isEditingCategory ? (
                       <div className="flex items-center gap-2 w-full">
                         <input
@@ -2441,7 +2481,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
               {
                 activeTab === 'standings' && (
-                  <Card className={`overflow-hidden !p-0 ${ranking.format !== 'elimination' ? 'max-md:!bg-transparent max-md:!border-0 max-md:!shadow-none max-md:!rounded-none' : ''}`}>
+                  <Card className={`overflow-hidden !p-0 ${ranking.format !== 'elimination' || showPlayerMobile ? 'max-md:!bg-transparent max-md:!border-0 max-md:!shadow-none max-md:!rounded-none' : ''}`}>
                     {ranking.format !== 'elimination' && (
                       <div className="p-4 border-b hidden md:flex justify-between items-center bg-gray-50">
                         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
@@ -2453,8 +2493,38 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
                     {ranking.format === 'elimination' ? (
                       <>
+                        {/* Player-facing mobile bracket: the one view that scrolls sideways */}
+                        {showPlayerMobile && (
+                          <div className="md:hidden">
+                            {ranking.config?.eliminationConfig?.consolation && (
+                              <div className="rg flex gap-2 mb-3">
+                                {(['main', 'consolation'] as const).map(type => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setBracketType(type)}
+                                    className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${bracketType === type ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}
+                                  >
+                                    {type === 'main' ? 'Principal' : 'Consolación'}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {activeDivision ? (
+                              <MobileBracket
+                                divisions={categoryDivisions}
+                                players={players}
+                                bracketType={bracketType}
+                                followed={followed}
+                              />
+                            ) : (
+                              <p className="rg text-sm text-rg-muted">Elige una categoría.</p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Sub-tabs for Main and Consolation brackets */}
-                        <div className="flex gap-2 p-3 border-b bg-gray-50">
+                        <div className={`${showPlayerMobile ? 'hidden md:flex' : 'flex'} gap-2 p-3 border-b bg-gray-50`}>
                           <button
                             onClick={() => setBracketType('main')}
                             className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${bracketType === 'main'
@@ -2486,7 +2556,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           </button>
                         </div>
                         {activeDivision ? (
-                          <div className="p-4 bg-gray-50/50 min-h-[400px]">
+                          <div className={`p-4 bg-gray-50/50 min-h-[400px] ${showPlayerMobile ? 'hidden md:block' : ''}`}>
                             <BracketView
                               divisions={categoryDivisions}
                               players={players}

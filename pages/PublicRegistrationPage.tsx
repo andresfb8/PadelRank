@@ -1,29 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Trophy, 
-  Calendar, 
-  Phone, 
-  Mail, 
-  User, 
-  Users, 
-  CheckCircle2, 
-  AlertCircle, 
-  Send, 
-  Share2, 
-  Clock, 
-  Gift, 
-  ShieldCheck,
-  ChevronRight,
-  ArrowLeft,
-  Sparkles
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Clock, Phone, Share2, Trophy } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { createTournamentRegistration } from '../services/db';
 import { Ranking, TournamentRegistration, User as ClubUser } from '../types';
 import type { DaySchedule } from '../services/scheduler/types';
 import { BlockedTimesPicker } from '../components/registration/BlockedTimesPicker';
-import { blocksWholeTournament, notesWithSummary, sortDays, summarize } from '../services/registration/blockedTimes';
+import { blocksWholeTournament, dayLabel, notesWithSummary, sortDays, summarize } from '../services/registration/blockedTimes';
 
 interface PublicRegistrationPageProps {
   rankingId: string;
@@ -32,10 +15,101 @@ interface PublicRegistrationPageProps {
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const LEVEL_OPTIONS = [
   { value: '1.0 - 2.5', label: 'Iniciación (1.0 - 2.5)' },
-  { value: '3.0 - 3.5', label: 'Intermedio Bajo (3.0 - 3.5)' },
-  { value: '4.0 - 4.5', label: 'Intermedio Alto (4.0 - 4.5)' },
+  { value: '3.0 - 3.5', label: 'Intermedio bajo (3.0 - 3.5)' },
+  { value: '4.0 - 4.5', label: 'Intermedio alto (4.0 - 4.5)' },
   { value: '5.0+', label: 'Avanzado / Primera (5.0+)' },
 ];
+const DEFAULT_CATEGORIES = ['1ª Masculina', '2ª Masculina', '3ª Masculina', '1ª Femenina', '2ª Femenina', '3ª Femenina', 'Mixto A', 'Mixto B'];
+
+type PlayerForm = { name: string; phone: string; email: string; level: string; shirtSize: string };
+type Step = 'contact' | 'partner' | 'schedule' | 'confirm';
+
+const STEP_TITLE: Record<Step, string> = {
+  contact: 'Categoría y contacto',
+  partner: 'Compañero o compañera',
+  schedule: '¿Cuándo no podéis jugar?',
+  confirm: 'Revisa y envía',
+};
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ---------- small building blocks in the player-facing style ----------
+
+const Field = ({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) => (
+  <div>
+    <label htmlFor={id} className="block text-[13px] font-medium text-rg-ink mb-1.5">{label}</label>
+    {children}
+    {hint && <p className="text-xs text-rg-muted mt-1">{hint}</p>}
+  </div>
+);
+
+const inputClass = 'w-full h-11 rounded-lg border border-rg-control bg-white px-3 text-[15px] text-rg-ink placeholder:text-rg-muted focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track';
+
+const PlayerFields = ({ prefix, value, onChange, namePlaceholder, phonePlaceholder }: {
+  prefix: string; value: PlayerForm; onChange: (v: PlayerForm) => void; namePlaceholder: string; phonePlaceholder: string;
+}) => (
+  <div className="space-y-4">
+    <Field id={`${prefix}-name`} label="Nombre y apellidos">
+      <input id={`${prefix}-name`} type="text" autoComplete="name" required placeholder={namePlaceholder}
+        value={value.name} onChange={e => onChange({ ...value, name: e.target.value })} className={inputClass} />
+    </Field>
+    <Field id={`${prefix}-phone`} label="Móvil (WhatsApp)">
+      <input id={`${prefix}-phone`} type="tel" inputMode="tel" autoComplete="tel" required placeholder={phonePlaceholder}
+        value={value.phone} onChange={e => onChange({ ...value, phone: e.target.value })} className={`${inputClass} num`} />
+    </Field>
+    <Field id={`${prefix}-email`} label="Email (opcional)">
+      <input id={`${prefix}-email`} type="email" inputMode="email" autoComplete="email" placeholder="nombre@correo.com"
+        value={value.email} onChange={e => onChange({ ...value, email: e.target.value })} className={inputClass} />
+    </Field>
+    <div className="grid grid-cols-[1fr_2fr] gap-3">
+      <Field id={`${prefix}-shirt`} label="Talla">
+        <select id={`${prefix}-shirt`} value={value.shirtSize} onChange={e => onChange({ ...value, shirtSize: e.target.value })} className={inputClass}>
+          {SHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </Field>
+      <Field id={`${prefix}-level`} label="Nivel">
+        <select id={`${prefix}-level`} value={value.level} onChange={e => onChange({ ...value, level: e.target.value })} className={inputClass}>
+          {LEVEL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      </Field>
+    </div>
+  </div>
+);
+
+const Shell = ({ clubName, logoUrl, onBack, children, dock }: {
+  clubName?: string; logoUrl?: string; onBack?: () => void; children: React.ReactNode; dock?: React.ReactNode;
+}) => (
+  <div className="rg min-h-screen bg-rg-ground flex flex-col">
+    <header className="bg-white border-b border-rg-line h-14 flex items-center gap-3 px-4 sticky top-0 z-30">
+      {onBack ? (
+        <button type="button" onClick={onBack} className="w-10 h-10 -ml-2 grid place-items-center text-rg-muted" aria-label="Paso anterior">
+          <ArrowLeft size={20} />
+        </button>
+      ) : logoUrl ? (
+        <img src={logoUrl} alt={clubName || 'Logo del club'} className="h-8 max-w-[120px] object-contain" />
+      ) : (
+        <span className="w-7 h-7 rounded-lg bg-court text-white grid place-items-center flex-none"><Trophy size={15} /></span>
+      )}
+      <span className="font-semibold text-[15px] truncate">{clubName || 'Inscripción'}</span>
+    </header>
+    <main className="flex-1 w-full max-w-xl mx-auto px-4 pt-5 pb-6">{children}</main>
+    {dock && (
+      <div className="sticky bottom-0 z-30 bg-white border-t border-rg-line" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="max-w-xl mx-auto px-4 py-3">{dock}</div>
+      </div>
+    )}
+  </div>
+);
+
+const Notice = ({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) => (
+  <div className="rg min-h-screen bg-rg-ground flex items-center justify-center p-4">
+    <div className="bg-white border border-rg-line rounded-xl p-6 max-w-md w-full space-y-3">
+      <div className="text-rg-muted">{icon}</div>
+      <h1 className="text-xl font-bold tracking-[-0.01em]">{title}</h1>
+      <div className="text-[15px] text-rg-muted space-y-3">{children}</div>
+    </div>
+  </div>
+);
 
 export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ rankingId }) => {
   const [ranking, setRanking] = useState<Ranking | null>(null);
@@ -44,23 +118,12 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
   const [submitting, setSubmitting] = useState(false);
   const [submittedRegId, setSubmittedRegId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stepIndex, setStepIndex] = useState(0);
 
   // Form State
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [player1, setPlayer1] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    level: '3.0 - 3.5',
-    shirtSize: 'M'
-  });
-  const [player2, setPlayer2] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    level: '3.0 - 3.5',
-    shirtSize: 'L'
-  });
+  const [player1, setPlayer1] = useState<PlayerForm>({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'M' });
+  const [player2, setPlayer2] = useState<PlayerForm>({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'L' });
 
   // Availability: ranges in which the pair can NOT play
   const [blockedRanges, setBlockedRanges] = useState<DaySchedule[]>([]);
@@ -76,26 +139,20 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
           const rankData = { id: rankDoc.id, ...rankDoc.data() } as Ranking;
           setRanking(rankData);
 
-          // Default categories
-          const categories = rankData.registrationConfig?.categories || [
-            '1ª Masculina',
-            '2ª Masculina',
-            '3ª Masculina',
-            '1ª Femenina',
-            '2ª Femenina',
-            '3ª Femenina',
-            'Mixto A',
-            'Mixto B'
-          ];
+          const categories = rankData.registrationConfig?.categories || DEFAULT_CATEGORIES;
           if (categories.length > 0) {
             setSelectedCategory(categories[0]);
           }
 
-          // Fetch Club Details if ownerId exists
+          // The club's name and logo are a nicety: a failed read must not block the form
           if (rankData.ownerId) {
-            const clubDoc = await getDoc(doc(db, 'users', rankData.ownerId));
-            if (clubDoc.exists()) {
-              setClub({ id: clubDoc.id, ...clubDoc.data() } as ClubUser);
+            try {
+              const clubDoc = await getDoc(doc(db, 'users', rankData.ownerId));
+              if (clubDoc.exists()) {
+                setClub({ id: clubDoc.id, ...clubDoc.data() } as ClubUser);
+              }
+            } catch (clubErr) {
+              console.warn('Club details unavailable for the registration page:', clubErr);
             }
           }
         }
@@ -110,23 +167,44 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
     fetchTournament();
   }, [rankingId]);
 
+  const isIndividual = ranking?.format === 'individual';
+  const steps: Step[] = isIndividual ? ['contact', 'schedule', 'confirm'] : ['contact', 'partner', 'schedule', 'confirm'];
+  const step = steps[Math.min(stepIndex, steps.length - 1)];
+
+  const goTo = (i: number) => {
+    setErrorMessage(null);
+    setStepIndex(i);
+    window.scrollTo({ top: 0 });
+  };
+
+  // Validates the visible step; returns the problem in words, or null
+  const stepProblem = (s: Step): string | null => {
+    if (s === 'contact' && (!player1.name.trim() || !player1.phone.trim())) return 'Escribe tu nombre y tu móvil para seguir.';
+    if (s === 'partner' && (!player2.name.trim() || !player2.phone.trim())) return 'Escribe el nombre y el móvil de tu pareja para seguir.';
+    if (s === 'confirm' && !acceptTerms) return 'Acepta las condiciones para enviar la inscripción.';
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ranking) return;
+
+    const problem = stepProblem(step);
+    if (problem) {
+      setErrorMessage(problem);
+      return;
+    }
+    if (step !== 'confirm') {
+      goTo(stepIndex + 1);
+      return;
+    }
 
     if (!player1.name.trim() || !player1.phone.trim()) {
       setErrorMessage('Por favor completa el nombre y teléfono del Jugador 1.');
       return;
     }
-
-    const isIndividual = ranking.format === 'individual';
     if (!isIndividual && (!player2.name.trim() || !player2.phone.trim())) {
       setErrorMessage('Por favor completa el nombre y teléfono del Jugador 2.');
-      return;
-    }
-
-    if (!acceptTerms) {
-      setErrorMessage('Debes aceptar las condiciones de participación.');
       return;
     }
 
@@ -140,20 +218,23 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
       const registrationData: Omit<TournamentRegistration, 'id'> = {
         rankingId: ranking.id,
         ownerId: ranking.ownerId || '',
+        // Firestore rejects undefined fields: an empty email is left out, not sent as undefined
         player1: {
           name: player1.name.trim(),
           phone: player1.phone.trim(),
-          email: player1.email.trim() || undefined,
+          ...(player1.email.trim() ? { email: player1.email.trim() } : {}),
           level: player1.level,
           shirtSize: player1.shirtSize
         },
-        player2: isIndividual ? undefined : {
-          name: player2.name.trim(),
-          phone: player2.phone.trim(),
-          email: player2.email.trim() || undefined,
-          level: player2.level,
-          shirtSize: player2.shirtSize
-        },
+        ...(isIndividual ? {} : {
+          player2: {
+            name: player2.name.trim(),
+            phone: player2.phone.trim(),
+            ...(player2.email.trim() ? { email: player2.email.trim() } : {}),
+            level: player2.level,
+            shirtSize: player2.shirtSize
+          }
+        }),
         selectedCategory,
         assignedCategory: selectedCategory,
         status: 'pending',
@@ -165,6 +246,7 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
 
       const docId = await createTournamentRegistration(ranking.id, registrationData);
       setSubmittedRegId(docId);
+      window.scrollTo({ top: 0 });
     } catch (err: any) {
       console.error('Error submitting registration:', err);
       setErrorMessage('Error al enviar la inscripción: ' + (err.message || 'Inténtalo de nuevo.'));
@@ -175,7 +257,6 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
 
   const handleShareWhatsApp = () => {
     if (!ranking) return;
-    const isIndividual = ranking.format === 'individual';
     const text = isIndividual
       ? `🎾 ¡Me he inscrito al torneo "${ranking.nombre}" en la categoría ${selectedCategory}! Localizador: #${submittedRegId?.substring(0, 6).toUpperCase()}`
       : `🎾 ¡Pareja inscrita al torneo "${ranking.nombre}"!\n🏆 Categoría: ${selectedCategory}\n👥 ${player1.name} y ${player2.name}\n🔖 Localizador: #${submittedRegId?.substring(0, 6).toUpperCase()}`;
@@ -185,107 +266,56 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-400 font-medium">Cargando formulario de inscripción...</p>
-        </div>
-      </div>
-    );
+    return <div className="rg min-h-screen bg-rg-ground flex items-center justify-center text-rg-muted">Cargando la inscripción…</div>;
   }
 
   if (!ranking) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
-          <h2 className="text-xl font-bold">Torneo no encontrado</h2>
-          <p className="text-slate-400 text-sm">El enlace proporcionado no es válido o el torneo ha sido archivado.</p>
-        </div>
-      </div>
+      <Notice icon={<AlertCircle size={28} />} title="Torneo no encontrado">
+        <p>El enlace no es válido o el torneo se ha archivado. Pide al club el enlace correcto.</p>
+      </Notice>
     );
   }
 
-  const isRegistrationOpen = ranking.registrationConfig?.isOpen !== false;
-  const categories = ranking.registrationConfig?.categories?.length 
-    ? ranking.registrationConfig.categories 
-    : ['1ª Masculina', '2ª Masculina', '3ª Masculina', '1ª Femenina', '2ª Femenina', '3ª Femenina', 'Mixto A', 'Mixto B'];
-
-  const isIndividual = ranking.format === 'individual';
+  const config = ranking.registrationConfig;
+  const isRegistrationOpen = config?.isOpen !== false;
+  const categories = config?.categories?.length ? config.categories : DEFAULT_CATEGORIES;
   const days = sortDays(ranking.schedulerConfig?.dailySchedule ?? []);
+  const datesText = days.length
+    ? days.length === 1 ? capitalize(dayLabel(days[0].date)) : `${capitalize(dayLabel(days[0].date))} – ${dayLabel(days[days.length - 1].date)}`
+    : ranking.fechaInicio ? new Date(ranking.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'Por anunciar';
+  const monthText = (days[0]?.date || ranking.fechaInicio)
+    ? new Date(`${days[0]?.date || ranking.fechaInicio}T12:00:00`).toLocaleDateString('es-ES', { month: 'long' })
+    : '';
+  const clubName = club?.clubName;
+  const logoUrl = club?.branding?.logoUrl;
 
-  // Pantalla de Confirmación
   if (submittedRegId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white flex items-center justify-center p-4">
-        <div className="bg-slate-900/90 border border-emerald-500/30 backdrop-blur-xl rounded-3xl p-8 max-w-lg w-full text-center space-y-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
-
-          <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400">
-            <CheckCircle2 className="w-10 h-10" />
-          </div>
-
-          <div className="space-y-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Sparkles className="w-3.5 h-3.5" /> Inscripción Recibida
-            </span>
-            <h2 className="text-2xl font-bold tracking-tight text-white">¡Inscripción Confirmada!</h2>
-            <p className="text-slate-400 text-sm">
-              Tu solicitud para <strong className="text-slate-200">{ranking.nombre}</strong> ha sido registrada con éxito.
+      <Shell clubName={clubName} logoUrl={logoUrl}>
+        <div className="space-y-5">
+          <div>
+            <span className="w-10 h-10 rounded-full bg-[#dcfce7] text-rg-positive grid place-items-center mb-3"><Check size={22} /></span>
+            <h1 className="text-[22px] font-bold tracking-[-0.015em] leading-tight">Inscripción enviada</h1>
+            <p className="text-[15px] text-rg-muted mt-1">
+              {ranking.nombre}. El club revisará la inscripción y os contactará por WhatsApp.
             </p>
           </div>
-
-          {/* Resumen Card */}
-          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 text-left space-y-3">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <span className="text-xs text-slate-400">Localizador:</span>
-              <span className="text-xs font-mono font-bold text-emerald-400 uppercase">
-                #{submittedRegId.substring(0, 8)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400">Categoría:</span>
-              <span className="text-xs font-bold text-slate-200 bg-slate-800 px-2 py-0.5 rounded">
-                {selectedCategory}
-              </span>
-            </div>
-            <div className="flex justify-between items-start">
-              <span className="text-xs text-slate-400">Participante(s):</span>
-              <span className="text-xs font-semibold text-slate-200 text-right">
-                {player1.name} {isIndividual ? '' : `& ${player2.name}`}
-              </span>
-            </div>
-            <div className="pt-2 border-t border-slate-800 text-xs">
-              <span className="text-slate-400 block mb-1">Bloqueos declarados:</span>
-              <span className="text-slate-300 font-medium text-[11px] block bg-slate-900 p-2 rounded-xl border border-slate-800">
-                {summarize(blockedRanges, days)}
-              </span>
-            </div>
-            {ranking.registrationConfig?.pricePerPlayer && (
-              <div className="flex justify-between items-center pt-2 border-t border-slate-800">
-                <span className="text-xs text-slate-400">Precio inscripción:</span>
-                <span className="text-xs font-bold text-emerald-400">
-                  {ranking.registrationConfig.pricePerPlayer}€ / jugador
-                </span>
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs text-slate-400">
-            El club organizador revisará tu inscripción. Si necesitas comunicar algún cambio, contacta directamente con el club.
-          </p>
-
-          <div className="flex flex-col gap-3 pt-2">
-            <button
-              onClick={handleShareWhatsApp}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg shadow-emerald-900/30"
-            >
-              <Share2 className="w-4 h-4" />
-              Compartir Confirmación por WhatsApp
+          <dl className="bg-white border border-rg-line rounded-xl divide-y divide-rg-rule text-[14px]">
+            <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">Localizador</dt><dd className="font-semibold num">#{submittedRegId.substring(0, 8).toUpperCase()}</dd></div>
+            <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">Categoría</dt><dd className="font-semibold text-right">{selectedCategory}</dd></div>
+            <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">{isIndividual ? 'Jugador' : 'Pareja'}</dt><dd className="font-semibold text-right">{player1.name}{isIndividual ? '' : ` y ${player2.name}`}</dd></div>
+            <div className="px-4 py-3"><dt className="text-rg-muted">Horario</dt><dd className="mt-0.5">{summarize(blockedRanges, days)}</dd></div>
+            {config?.pricePerPlayer ? (
+              <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">Precio</dt><dd className="font-semibold num">{config.pricePerPlayer} € por jugador</dd></div>
+            ) : null}
+          </dl>
+          <div className="space-y-2">
+            <button type="button" onClick={handleShareWhatsApp} className="w-full h-12 rounded-lg bg-court text-white font-semibold text-[15px] flex items-center justify-center gap-2 active:opacity-90">
+              <Share2 size={18} /> Compartir por WhatsApp
             </button>
-
             <button
+              type="button"
               onClick={() => {
                 setSubmittedRegId(null);
                 setPlayer1({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'M' });
@@ -293,367 +323,201 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
                 setBlockedRanges([]);
                 setAvailabilityNotes('');
                 setAcceptTerms(false);
+                setStepIndex(0);
               }}
-              className="w-full text-slate-400 hover:text-slate-200 text-xs font-medium py-2 transition"
+              className="w-full h-11 text-[15px] font-medium text-court"
             >
-              Inscribir otra pareja
+              {isIndividual ? 'Inscribir a otra persona' : 'Inscribir otra pareja'}
             </button>
           </div>
         </div>
-      </div>
+      </Shell>
     );
   }
 
-  // Inscripciones Cerradas
   if (!isRegistrationOpen) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
-          <Clock className="w-12 h-12 text-amber-500 mx-auto" />
-          <h2 className="text-2xl font-bold">Inscripciones Cerradas</h2>
-          <p className="text-slate-400 text-sm">
-            El plazo de inscripción para <strong className="text-white">{ranking.nombre}</strong> ha finalizado o se encuentra pausado temporalmente.
+      <Notice icon={<Clock size={28} />} title="Inscripciones cerradas">
+        <p>El plazo para <strong className="text-rg-ink font-semibold">{ranking.nombre}</strong> ha terminado o está en pausa.</p>
+        {config?.contactPhone && (
+          <p>
+            Para la lista de espera llama al club:{' '}
+            <a href={`tel:${config.contactPhone}`} className="text-court font-semibold inline-flex items-center gap-1 num">
+              <Phone size={14} /> {config.contactPhone}
+            </a>
           </p>
-          {ranking.registrationConfig?.contactPhone && (
-            <div className="pt-4 border-t border-slate-800 text-xs text-slate-400">
-              Para consultas de última hora o lista de espera:<br />
-              <a href={`tel:${ranking.registrationConfig.contactPhone}`} className="text-emerald-400 font-bold inline-flex items-center gap-1 mt-1">
-                <Phone className="w-3.5 h-3.5" /> {ranking.registrationConfig.contactPhone}
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </Notice>
     );
   }
 
-  // Sin días configurados no hay rejilla de bloqueos: la inscripción todavía no admite parejas
+  // Without tournament days there is no blocked-times grid: registration is not ready yet
   if (days.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
-          <Clock className="w-12 h-12 text-amber-500 mx-auto" />
-          <h2 className="text-2xl font-bold">La inscripción todavía no está disponible</h2>
-          <p className="text-slate-400 text-sm">
-            La organización de <strong className="text-white">{ranking.nombre}</strong> aún está preparando los horarios del torneo. Vuelve a intentarlo más tarde.
-          </p>
-        </div>
-      </div>
+      <Notice icon={<Clock size={28} />} title="La inscripción aún no está disponible">
+        <p>El club todavía está preparando los horarios de <strong className="text-rg-ink font-semibold">{ranking.nombre}</strong>. Vuelve a intentarlo más tarde.</p>
+      </Notice>
     );
   }
 
+  const isLast = step === 'confirm';
+  const nextLabel = step === 'contact'
+    ? (isIndividual ? 'Continuar con el horario' : 'Continuar con tu pareja')
+    : step === 'partner' ? 'Continuar con el horario'
+      : step === 'schedule' ? 'Revisar la inscripción'
+        : submitting ? 'Enviando…' : 'Enviar inscripción';
+
+  const facts: { label: string; value: string }[] = [
+    { label: 'Fechas', value: `${datesText}${monthText ? ` ${monthText}` : ''}` },
+    ...(config?.pricePerPlayer ? [{ label: 'Precio', value: `${config.pricePerPlayer} € por jugador` }] : []),
+    ...(config?.closeDate ? [{ label: 'Cierre', value: new Date(config.closeDate).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) }] : []),
+    { label: 'Categorías', value: categories.join(', ') },
+    ...(config?.welcomePackInfo ? [{ label: 'Regalo', value: config.welcomePackInfo }] : []),
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-10 px-4 sm:px-6 flex flex-col justify-center items-center">
-      {/* Container */}
-      <div className="max-w-2xl w-full space-y-6">
-
-        {/* Tournament Header Card */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3">
-                <Trophy className="w-3.5 h-3.5" /> Inscripción Abierta
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                {ranking.nombre}
-              </h1>
-              {club?.clubName && (
-                <p className="text-slate-400 font-medium text-sm mt-1">
-                  Organizado por <span className="text-emerald-400 font-semibold">{club.clubName}</span>
-                </p>
-              )}
-            </div>
-
-            {club?.branding?.logoUrl && (
-              <img
-                src={club.branding.logoUrl}
-                alt={club.clubName || 'Club Logo'}
-                className="w-16 h-16 rounded-2xl object-cover bg-slate-950 border border-slate-800 shadow-md flex-shrink-0"
-              />
-            )}
-          </div>
-
-          {/* Key Info Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-slate-800/80">
-            <div className="flex items-center gap-2.5 text-xs text-slate-300">
-              <Calendar className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>{ranking.fechaInicio ? new Date(ranking.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'Próximamente'}</span>
-            </div>
-
-            {ranking.registrationConfig?.pricePerPlayer && (
-              <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                <span className="font-bold text-emerald-400">€</span>
-                <span>{ranking.registrationConfig.pricePerPlayer}€ / jugador</span>
-              </div>
-            )}
-
-            {ranking.registrationConfig?.welcomePackInfo && (
-              <div className="flex items-center gap-2.5 text-xs text-slate-300 col-span-2 sm:col-span-1">
-                <Gift className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="truncate" title={ranking.registrationConfig.welcomePackInfo}>{ranking.registrationConfig.welcomePackInfo}</span>
-              </div>
-            )}
-          </div>
+    <form onSubmit={handleSubmit} noValidate>
+      <Shell
+        clubName={clubName}
+        logoUrl={logoUrl}
+        onBack={stepIndex > 0 ? () => goTo(stepIndex - 1) : undefined}
+        dock={
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full h-12 rounded-lg bg-court text-white font-semibold text-[15px] disabled:opacity-60 active:opacity-90"
+          >
+            {nextLabel}
+          </button>
+        }
+      >
+        <div className="mb-4">
+          <h1 className="text-[22px] font-bold tracking-[-0.015em] leading-tight">{ranking.nombre}</h1>
+          <p className="text-[13px] text-rg-muted mt-1 num">
+            Inscripción abierta{clubName ? ` · ${clubName}` : ''}
+          </p>
         </div>
 
-        {/* Form Card */}
-        <form onSubmit={handleSubmit} className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
+        {stepIndex === 0 && (
+          <dl className="bg-white border border-rg-line rounded-xl grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 mb-5">
+            {facts.map(f => (
+              <div key={f.label} className={f.label === 'Precio' || f.label === 'Cierre' ? '' : 'col-span-2'}>
+                <dt className="text-xs text-rg-muted">{f.label}</dt>
+                <dd className="text-[14px] font-semibold num">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
 
-          {errorMessage && (
-            <div className="flex items-center gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <p>{errorMessage}</p>
-            </div>
-          )}
+        <div className="flex gap-1.5 mb-1" aria-hidden="true">
+          {steps.map((s, i) => (
+            <span key={s} className={`h-1 flex-1 rounded-full ${i <= stepIndex ? 'bg-court' : 'bg-court-track'}`} />
+          ))}
+        </div>
+        <p className="text-xs text-rg-muted mb-4 num">Paso {stepIndex + 1} de {steps.length}</p>
+        <h2 className="text-[17px] font-semibold mb-4">{STEP_TITLE[step]}</h2>
 
-          {/* Section 1: Category Selection */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              1. Selecciona la Categoría
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {categories.map(cat => (
-                <button
-                  type="button"
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`p-3 rounded-2xl border text-xs font-bold transition flex items-center justify-between ${
-                    selectedCategory === cat
-                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-md shadow-emerald-950/40 ring-1 ring-emerald-500'
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                  }`}
-                >
-                  <span className="truncate">{cat}</span>
-                  {selectedCategory === cat && <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 ml-1" />}
-                </button>
-              ))}
-            </div>
+        {errorMessage && (
+          <div role="alert" className="flex items-start gap-2.5 p-3 mb-4 rounded-lg bg-[#ffedea] text-[#831c1e] text-[14px]">
+            <AlertCircle size={18} className="flex-none mt-0.5" />
+            <p>{errorMessage}</p>
           </div>
+        )}
 
-          {/* Section 2: Player 1 Data */}
-          <div className="space-y-4 pt-4 border-t border-slate-800">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
-              <User className="w-4 h-4 text-emerald-400" />
-              <span>2. Datos del Jugador 1 (Capitán / Contacto)</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1 font-medium">Nombre y Apellidos *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. Alejandro Galán"
-                  value={player1.name}
-                  onChange={e => setPlayer1({ ...player1, name: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1 font-medium">Teléfono Móvil (WhatsApp) *</label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="Ej. 612 345 678"
-                  value={player1.phone}
-                  onChange={e => setPlayer1({ ...player1, phone: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1 font-medium">Email (Opcional)</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  value={player1.email}
-                  onChange={e => setPlayer1({ ...player1, email: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-
+        {step === 'contact' && (
+          <div className="space-y-5">
+            <fieldset>
+              <legend className="text-[13px] font-medium mb-1.5">Categoría</legend>
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 font-medium">Talla Camiseta</label>
-                  <select
-                    value={player1.shirtSize}
-                    onChange={e => setPlayer1({ ...player1, shirtSize: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+                {categories.map(cat => (
+                  <button
+                    type="button"
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    aria-pressed={selectedCategory === cat}
+                    className={`min-h-11 px-3 py-2 rounded-lg text-[14px] font-medium text-left transition-colors ${selectedCategory === cat
+                      ? 'border-2 border-court bg-court-soft text-court-ink'
+                      : 'border border-rg-control bg-white text-rg-ink'}`}
                   >
-                    {SHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 font-medium">Nivel</label>
-                  <select
-                    value={player1.level}
-                    onChange={e => setPlayer1({ ...player1, level: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    {LEVEL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.value}</option>)}
-                  </select>
-                </div>
+                    {cat}
+                  </button>
+                ))}
               </div>
-            </div>
-          </div>
-
-          {/* Section 3: Player 2 Data (Pairs format) */}
-          {!isIndividual && (
-            <div className="space-y-4 pt-4 border-t border-slate-800">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
-                <Users className="w-4 h-4 text-emerald-400" />
-                <span>3. Datos del Jugador 2 (Compañero/a)</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 font-medium">Nombre y Apellidos *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. Federico Chingotto"
-                    value={player2.name}
-                    onChange={e => setPlayer2({ ...player2, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 font-medium">Teléfono Móvil *</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="Ej. 689 012 345"
-                    value={player2.phone}
-                    onChange={e => setPlayer2({ ...player2, phone: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1 font-medium">Email (Opcional)</label>
-                  <input
-                    type="email"
-                    placeholder="ejemplo@correo.com"
-                    value={player2.email}
-                    onChange={e => setPlayer2({ ...player2, email: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1 font-medium">Talla Camiseta</label>
-                    <select
-                      value={player2.shirtSize}
-                      onChange={e => setPlayer2({ ...player2, shirtSize: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      {SHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1 font-medium">Nivel</label>
-                    <select
-                      value={player2.level}
-                      onChange={e => setPlayer2({ ...player2, level: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      {LEVEL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.value}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 4: Weekend Schedule Availability */}
-          <div className="space-y-4 pt-4 border-t border-slate-800">
+            </fieldset>
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
-                <Clock className="w-4 h-4 text-emerald-400" />
-                <span>{isIndividual ? '3' : '4'}. ¿Cuándo NO podéis jugar?</span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Marcad las medias horas en las que no podéis jugar. Si podéis jugar siempre, no marquéis nada.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <BlockedTimesPicker days={days} value={blockedRanges} onChange={setBlockedRanges} />
-
-              {blocksWholeTournament(blockedRanges, days) && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  Habéis bloqueado todo el torneo y no podremos daros hora.
-                </div>
-              )}
-
-              {/* Textarea for additional comments */}
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
-                  Observaciones adicionales de horario (Opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ej. Salgo de trabajar a las 19h, o mi compañero viene de viaje el sábado por la mañana..."
-                  value={availabilityNotes}
-                  onChange={e => setAvailabilityNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
-                ></textarea>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  * El juez árbitro y la organización tendrán en cuenta estas franjas para programar los partidos oficiales.
-                </p>
-              </div>
+              <p className="text-[15px] font-semibold mb-3">{isIndividual ? 'Tus datos' : 'Tus datos (contacto de la pareja)'}</p>
+              <PlayerFields prefix="p1" value={player1} onChange={setPlayer1} namePlaceholder="Nombre y apellidos" phonePlaceholder="612 345 678" />
             </div>
           </div>
+        )}
 
-          {/* Section 5: Terms & Submit */}
-          <div className="pt-4 border-t border-slate-800 space-y-4">
-            <label className="flex items-start gap-3 cursor-pointer group">
+        {step === 'partner' && (
+          <PlayerFields prefix="p2" value={player2} onChange={setPlayer2} namePlaceholder="Nombre y apellidos" phonePlaceholder="689 012 345" />
+        )}
+
+        {step === 'schedule' && (
+          <div className="space-y-4">
+            <p className="text-[14px] text-rg-muted">
+              Toca las medias horas en las que no podéis jugar. Si podéis a cualquier hora, no marquéis nada.
+            </p>
+            <BlockedTimesPicker days={days} value={blockedRanges} onChange={setBlockedRanges} tone="light" />
+            {blocksWholeTournament(blockedRanges, days) && (
+              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-[#fffbeb] border border-[#fde68a] text-[#92400e] text-[14px]">
+                <AlertCircle size={18} className="flex-none mt-0.5" />
+                Habéis bloqueado todo el torneo y no podremos daros hora.
+              </div>
+            )}
+            <Field id="notes" label="Algo más sobre el horario (opcional)" hint="La organización lo tendrá en cuenta al programar los partidos.">
+              <textarea
+                id="notes"
+                rows={3}
+                placeholder="Por ejemplo: salgo de trabajar a las 19:00"
+                value={availabilityNotes}
+                onChange={e => setAvailabilityNotes(e.target.value)}
+                className="w-full rounded-lg border border-rg-control bg-white px-3 py-2.5 text-[15px] text-rg-ink placeholder:text-rg-muted focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track resize-none"
+              />
+            </Field>
+          </div>
+        )}
+
+        {step === 'confirm' && (
+          <div className="space-y-4">
+            <dl className="bg-white border border-rg-line rounded-xl divide-y divide-rg-rule text-[14px]">
+              {[
+                { label: 'Categoría', value: selectedCategory, edit: 0 },
+                { label: isIndividual ? 'Jugador' : 'Jugador 1', value: `${player1.name} · ${player1.phone}`, edit: 0 },
+                ...(isIndividual ? [] : [{ label: 'Jugador 2', value: `${player2.name} · ${player2.phone}`, edit: 1 }]),
+                { label: 'Horario', value: summarize(blockedRanges, days), edit: steps.indexOf('schedule') },
+              ].map(row => (
+                <div key={row.label} className="flex items-start justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <dt className="text-xs text-rg-muted">{row.label}</dt>
+                    <dd className="font-medium break-words num">{row.value}</dd>
+                  </div>
+                  <button type="button" onClick={() => goTo(row.edit)} className="text-court text-[14px] font-medium py-1 flex-none">Cambiar</button>
+                </div>
+              ))}
+            </dl>
+            <label className="flex items-start gap-3 p-3 bg-white border border-rg-line rounded-xl cursor-pointer">
               <input
                 type="checkbox"
-                required
                 checked={acceptTerms}
                 onChange={e => setAcceptTerms(e.target.checked)}
-                className="mt-1 w-4 h-4 text-emerald-500 rounded border-slate-800 bg-slate-950 focus:ring-emerald-500"
+                className="mt-0.5 w-5 h-5 flex-none accent-[#1F5FD6]"
               />
-              <span className="text-xs text-slate-400 group-hover:text-slate-300 leading-relaxed">
-                Acepto el reglamento del torneo y autorizo al club a contactarme por teléfono o WhatsApp para la coordinación de horarios y partidos.
+              <span className="text-[14px] leading-relaxed">
+                Acepto el reglamento del torneo y que el club me contacte por teléfono o WhatsApp para coordinar horarios y partidos.
               </span>
             </label>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 text-white font-bold py-3.5 px-6 rounded-2xl shadow-xl shadow-emerald-950/40 transition duration-150 transform active:scale-[0.99]"
-            >
-              {submitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Enviando inscripción...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>Confirmar Inscripción</span>
-                </>
-              )}
-            </button>
           </div>
-        </form>
+        )}
 
-        {/* Footer */}
-        <div className="text-center text-xs text-slate-400 space-y-1">
-          <p>Potenciado por <strong className="text-slate-300">PadelRank Pro</strong></p>
-        </div>
-
-      </div>
-    </div>
+        {isLast && config?.contactPhone && (
+          <p className="text-[13px] text-rg-muted mt-5">
+            ¿Dudas? Llama al club: <a href={`tel:${config.contactPhone}`} className="text-court font-medium num">{config.contactPhone}</a>
+          </p>
+        )}
+      </Shell>
+    </form>
   );
 };
