@@ -312,6 +312,8 @@ export interface Match {
   court?: number;
   startTime?: string; // ISO string for scheduling
   scheduleEstimated?: boolean; // true when startTime is a projection (pairs not yet decided), not a confirmed slot
+  scheduleLocked?: boolean; // locked slot: the scheduler never moves it on its own
+  scheduleConflict?: import('./services/scheduler/types').ScheduleConflict[]; // availability / window problems of the current slot
 
   // Elimination Pointers
   nextMatchId?: string; // ID of the match where the winner goes
