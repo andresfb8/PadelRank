@@ -32,7 +32,7 @@ export const SchedulerConfigModal = ({
     const [activeTab, setActiveTab] = useState<'resources' | 'days' | 'phases' | 'availability'>('resources');
 
     // Resources
-    const [courts, setCourts] = useState(initialConfig?.courts || 4);
+    const [courts, setCourts] = useState(initialConfig?.courts || tournament.config?.courts || 4);
     const [slotDuration, setSlotDuration] = useState(initialConfig?.slotDurationMinutes || 90);
     const [restMinutes, setRestMinutes] = useState(initialConfig?.restMinutes || 60);
     const [mode, setMode] = useState<'full' | 'daily'>(initialConfig?.mode ?? 'full');

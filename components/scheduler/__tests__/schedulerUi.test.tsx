@@ -6,6 +6,7 @@ import { ScheduleStatusBadges } from '../ScheduleStatusBadges';
 import { ScheduleConflictsModal, getConflictMatches } from '../ScheduleConflictsModal';
 import { GenerateScheduleModal } from '../GenerateScheduleModal';
 import { pairLabel } from '../pairLabel';
+import { SchedulerConfigModal } from '../../SchedulerConfigModal';
 
 const match = (overrides: Partial<Match> = {}): Match => ({
     id: 'm1', jornada: 1, roundName: 'Cuartos',
@@ -68,5 +69,26 @@ describe('scheduler UI', () => {
         expect(screen.getByText('Semifinales no cabe')).toBeInTheDocument();
         fireEvent.click(screen.getByText('Generar igualmente'));
         expect(onGenerate).toHaveBeenCalledWith(false);
+    });
+
+    const courtsInput = () =>
+        screen.getByText('Número de Pistas').parentElement!.querySelector('input') as HTMLInputElement;
+
+    it('SchedulerConfigModal defaults to the wizard courts when there is no scheduler config yet', () => {
+        const r: Ranking = { ...ranking([]), schedulerConfig: undefined, config: { courts: 3 } };
+        render(<SchedulerConfigModal isOpen onClose={() => {}} tournament={r} players={players} onSave={() => {}}
+            initialConfig={r.schedulerConfig} />);
+        expect(courtsInput().value).toBe('3');
+    });
+
+    it('SchedulerConfigModal keeps the saved scheduler courts and falls back to 4', () => {
+        const r = ranking([]);
+        const { unmount } = render(<SchedulerConfigModal isOpen onClose={() => {}} tournament={{ ...r, config: { courts: 3 } }}
+            players={players} onSave={() => {}} initialConfig={r.schedulerConfig} />);
+        expect(courtsInput().value).toBe('2');
+        unmount();
+        render(<SchedulerConfigModal isOpen onClose={() => {}} tournament={{ ...r, schedulerConfig: undefined }}
+            players={players} onSave={() => {}} />);
+        expect(courtsInput().value).toBe('4');
     });
 });
