@@ -650,7 +650,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         // Reactive Scheduler Hook
         if (ranking.schedulerConfig && isEliminationContext) {
           const tempRanking = { ...updatedRanking, divisions: newDivisions };
-          newDivisions = SchedulerEngine.scheduleNextMatches(updatedMatch, tempRanking, activeDivision.id);
+          newDivisions = SchedulerEngine.onResultEntered(tempRanking).divisions;
         }
 
         updatedRanking.divisions = newDivisions;
@@ -1347,7 +1347,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       return;
     }
     if (!onUpdateRanking) return;
-    const newDivisions = SchedulerEngine.generateFullSchedule(ranking);
+    const newDivisions = SchedulerEngine.generateSchedule(ranking);
     onUpdateRanking({ ...ranking, divisions: newDivisions });
   };
 
