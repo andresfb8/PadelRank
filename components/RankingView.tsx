@@ -2126,7 +2126,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   {activeTab !== 'global' && activeDivision && (() => {
                     const played = activeDivision.matches.filter(m => m.status === 'finalizado').length;
                     const total = activeDivision.matches.filter(m => m.status !== 'descanso').length;
-                    return total > 0 ? <span className="text-[13px] text-rg-muted num">{played} de {total} partidos jugados</span> : null;
+                    return total > 0 ? <span className="hidden md:inline text-[13px] text-rg-muted num">{played} de {total} partidos jugados</span> : null;
                   })()}
                 </div>
               )}
