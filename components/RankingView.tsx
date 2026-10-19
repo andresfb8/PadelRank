@@ -3041,6 +3041,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         onClose={() => setIsRegistrationModalOpen(false)}
         ranking={ranking}
         onUpdateRanking={onUpdateRanking || (() => {})}
+        onConfigureDays={() => {
+          setIsRegistrationModalOpen(false);
+          setIsSchedulerConfigModalOpen(true);
+        }}
       />
     </div >
   );

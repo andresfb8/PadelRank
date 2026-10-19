@@ -39,21 +39,35 @@ import {
   batchApproveRegistrations,
   updateRanking
 } from '../../services/db';
-import { Ranking, TournamentRegistration, TournamentRegistrationAvailability } from '../../types';
-import { makePairKey, PairAvailability } from '../../services/SchedulerEngine';
+import { Ranking, TournamentRegistration } from '../../types';
+import type { DaySchedule } from '../../services/scheduler/types';
+import { BlockedTimesPicker } from '../registration/BlockedTimesPicker';
+import { pairLabel } from '../scheduler/pairLabel';
+import {
+  clipToDays,
+  effectiveBlockedRanges,
+  notesWithSummary,
+  registrationNote,
+  sortDays,
+  summarize
+} from '../../services/registration/blockedTimes';
+import { applyRegistrationBlocks, importRegistrations, isImported } from '../../services/registration/syncRegistration';
 
 interface RegistrationManagerModalProps {
   ranking: Ranking;
   isOpen: boolean;
   onClose: () => void;
   onUpdateRanking: (updated: Ranking) => void;
+  /** Opens "Disponibilidad" so the admin can configure the tournament days. */
+  onConfigureDays?: () => void;
 }
 
 export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> = ({
   ranking,
   isOpen,
   onClose,
-  onUpdateRanking
+  onUpdateRanking,
+  onConfigureDays
 }) => {
   const [registrations, setRegistrations] = useState<TournamentRegistration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +80,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
   const [copySuccess, setCopySuccess] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
+  const [manualBlocked, setManualBlocked] = useState<DaySchedule[]>([]);
+  const [editingBlocks, setEditingBlocks] = useState<DaySchedule[]>([]);
+  const [savingBlocks, setSavingBlocks] = useState(false);
+
+  const days = sortDays(ranking.schedulerConfig?.dailySchedule ?? []);
+  const hasDays = days.length > 0;
 
   // Manual Form State
   const [manualData, setManualData] = useState({
@@ -80,12 +100,6 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
     p2Level: '3.0 - 3.5',
     p2Shirt: 'L',
     category: '',
-    fridayStatus: 'available' as 'available' | 'from_time' | 'unavailable',
-    fridayFromTime: '19:00',
-    saturdayStatus: 'all_day' as 'all_day' | 'morning_only' | 'afternoon_only' | 'custom' | 'unavailable',
-    saturdayFromTime: '10:00',
-    saturdayUntilTime: '20:00',
-    sundayStatus: 'all_day' as 'all_day' | 'morning_only' | 'afternoon_only' | 'unavailable',
     notes: '',
     status: 'approved' as const,
     paymentStatus: 'paid' as const
@@ -175,6 +189,11 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
   };
 
   const handleToggleRegistrationOpen = async () => {
+    // Without tournament days there is no blocked-times grid: send the admin to configure them
+    if (!hasDays) {
+      onConfigureDays?.();
+      return;
+    }
     const isCurrentlyOpen = ranking.registrationConfig?.isOpen !== false;
     const updatedConfig = {
       ...ranking.registrationConfig,
@@ -211,43 +230,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
     const cat = manualData.category || availableCategories[0];
 
-    // Structured availability
-    const availability: TournamentRegistrationAvailability = {
-      friday: {
-        status: manualData.fridayStatus,
-        fromTime: manualData.fridayStatus === 'from_time' ? manualData.fridayFromTime : undefined
-      },
-      saturday: {
-        status: manualData.saturdayStatus,
-        fromTime: manualData.saturdayStatus === 'custom' ? manualData.saturdayFromTime : undefined,
-        untilTime: manualData.saturdayStatus === 'custom' ? manualData.saturdayUntilTime : undefined
-      },
-      sunday: {
-        status: manualData.sundayStatus
-      },
-      notes: manualData.notes.trim() || undefined
-    };
-
-    // Readable summary
-    const parts: string[] = [];
-    if (manualData.fridayStatus === 'available') parts.push('Viernes: Disponible');
-    else if (manualData.fridayStatus === 'from_time') parts.push(`Viernes: Desde ${manualData.fridayFromTime}`);
-    else parts.push('Viernes: No disponible');
-
-    if (manualData.saturdayStatus === 'all_day') parts.push('Sábado: Todo el día');
-    else if (manualData.saturdayStatus === 'morning_only') parts.push('Sábado: Solo Mañana');
-    else if (manualData.saturdayStatus === 'afternoon_only') parts.push('Sábado: Solo Tarde');
-    else if (manualData.saturdayStatus === 'custom') parts.push(`Sábado: ${manualData.saturdayFromTime} a ${manualData.saturdayUntilTime}`);
-    else parts.push('Sábado: No disponible');
-
-    if (manualData.sundayStatus === 'all_day') parts.push('Domingo: Todo el día');
-    else if (manualData.sundayStatus === 'morning_only') parts.push('Domingo: Solo Mañana');
-    else if (manualData.sundayStatus === 'afternoon_only') parts.push('Domingo: Solo Tarde');
-    else parts.push('Domingo: No disponible');
-
-    if (manualData.notes.trim()) parts.push(`Nota: ${manualData.notes.trim()}`);
-
-    const readableSummary = parts.join(' • ');
+    const readableSummary = notesWithSummary(summarize(manualBlocked, days), manualData.notes);
 
     const newReg: Omit<TournamentRegistration, 'id'> = {
       rankingId: ranking.id,
@@ -270,7 +253,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
       assignedCategory: cat,
       status: manualData.status,
       paymentStatus: manualData.paymentStatus,
-      availability,
+      blockedRanges: manualBlocked,
       availabilityNotes: readableSummary,
       createdAt: new Date().toISOString()
     };
@@ -290,109 +273,14 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
         p2Level: '3.0 - 3.5',
         p2Shirt: 'L',
         category: '',
-        fridayStatus: 'available',
-        fridayFromTime: '19:00',
-        saturdayStatus: 'all_day',
-        saturdayFromTime: '10:00',
-        saturdayUntilTime: '20:00',
-        sundayStatus: 'all_day',
         notes: '',
         status: 'approved',
         paymentStatus: 'paid'
       });
+      setManualBlocked([]);
     } catch (err) {
       console.error('Error creating manual registration:', err);
     }
-  };
-
-  // Helper to map availability to pairConstraints
-  const buildPairConstraintsForRegistration = (
-    reg: TournamentRegistration,
-    p1Id: string,
-    p2Id?: string
-  ): { pairKey: string; constraint: PairAvailability } | null => {
-    if (!reg.availability) return null;
-    const pairKey = makePairKey(p1Id, p2Id);
-    const unavailableRanges: { date: string; startTime: string; endTime: string }[] = [];
-
-    // Determine dates for Friday, Saturday, Sunday
-    let fridayDate = '';
-    let saturdayDate = '';
-    let sundayDate = '';
-
-    if (ranking.schedulerConfig?.dailySchedule?.length) {
-      ranking.schedulerConfig.dailySchedule.forEach(day => {
-        const d = new Date(day.date + 'T12:00:00');
-        const dayOfWeek = d.getDay(); // 5 = Friday, 6 = Saturday, 0 = Sunday
-        if (dayOfWeek === 5) fridayDate = day.date;
-        else if (dayOfWeek === 6) saturdayDate = day.date;
-        else if (dayOfWeek === 0) sundayDate = day.date;
-      });
-    }
-
-    if (!fridayDate && ranking.fechaInicio) {
-      const start = new Date(ranking.fechaInicio + 'T12:00:00');
-      const dayOfWeek = start.getDay();
-      const diffToFriday = (5 - dayOfWeek + 7) % 7;
-      const fri = new Date(start);
-      fri.setDate(start.getDate() + (diffToFriday > 3 ? diffToFriday - 7 : diffToFriday));
-
-      const sat = new Date(fri);
-      sat.setDate(fri.getDate() + 1);
-
-      const sun = new Date(fri);
-      sun.setDate(fri.getDate() + 2);
-
-      const fmt = (d: Date) => d.toISOString().split('T')[0];
-      fridayDate = fmt(fri);
-      saturdayDate = fmt(sat);
-      sundayDate = fmt(sun);
-    }
-
-    const { friday, saturday, sunday } = reg.availability;
-
-    // Friday constraints
-    if (fridayDate && friday) {
-      if (friday.status === 'unavailable') {
-        unavailableRanges.push({ date: fridayDate, startTime: '00:00', endTime: '23:59' });
-      } else if (friday.status === 'from_time' && friday.fromTime) {
-        unavailableRanges.push({ date: fridayDate, startTime: '00:00', endTime: friday.fromTime });
-      }
-    }
-
-    // Saturday constraints
-    if (saturdayDate && saturday) {
-      if (saturday.status === 'unavailable') {
-        unavailableRanges.push({ date: saturdayDate, startTime: '00:00', endTime: '23:59' });
-      } else if (saturday.status === 'morning_only') {
-        unavailableRanges.push({ date: saturdayDate, startTime: '15:00', endTime: '23:59' });
-      } else if (saturday.status === 'afternoon_only') {
-        unavailableRanges.push({ date: saturdayDate, startTime: '00:00', endTime: '15:00' });
-      } else if (saturday.status === 'custom') {
-        if (saturday.fromTime) {
-          unavailableRanges.push({ date: saturdayDate, startTime: '00:00', endTime: saturday.fromTime });
-        }
-        if (saturday.untilTime) {
-          unavailableRanges.push({ date: saturdayDate, startTime: saturday.untilTime, endTime: '23:59' });
-        }
-      }
-    }
-
-    // Sunday constraints
-    if (sundayDate && sunday) {
-      if (sunday.status === 'unavailable') {
-        unavailableRanges.push({ date: sundayDate, startTime: '00:00', endTime: '23:59' });
-      } else if (sunday.status === 'morning_only') {
-        unavailableRanges.push({ date: sundayDate, startTime: '15:00', endTime: '23:59' });
-      } else if (sunday.status === 'afternoon_only') {
-        unavailableRanges.push({ date: sundayDate, startTime: '00:00', endTime: '15:00' });
-      }
-    }
-
-    if (unavailableRanges.length > 0) {
-      return { pairKey, constraint: { unavailableRanges } };
-    }
-    return null;
   };
 
   // Import approved pairs into tournament guest players and divisions
@@ -405,46 +293,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
     setImporting(true);
     try {
-      const existingGuestPlayers = [...(ranking.guestPlayers || [])];
-      const newGuestPlayers = [...existingGuestPlayers];
-      const pairConstraints = { ...(ranking.pairConstraints || {}) };
-
-      approvedList.forEach(reg => {
-        // Player 1
-        const p1Id = `guest_reg_${reg.id}_1`;
-        if (!newGuestPlayers.some(p => p.id === p1Id)) {
-          newGuestPlayers.push({
-            id: p1Id,
-            nombre: reg.player1.name,
-            apellidos: `(${reg.assignedCategory || reg.selectedCategory})`
-          });
-        }
-
-        // Player 2
-        let p2Id: string | undefined = undefined;
-        if (reg.player2) {
-          p2Id = `guest_reg_${reg.id}_2`;
-          if (!newGuestPlayers.some(p => p.id === p2Id)) {
-            newGuestPlayers.push({
-              id: p2Id,
-              nombre: reg.player2.name,
-              apellidos: `(${reg.assignedCategory || reg.selectedCategory})`
-            });
-          }
-        }
-
-        // Map Pair Availability Constraints for Automatic Scheduling
-        const constraintData = buildPairConstraintsForRegistration(reg, p1Id, p2Id);
-        if (constraintData) {
-          pairConstraints[constraintData.pairKey] = constraintData.constraint;
-        }
-      });
-
-      const updatedRanking: Ranking = {
-        ...ranking,
-        guestPlayers: newGuestPlayers,
-        pairConstraints
-      };
+      const updatedRanking = importRegistrations(ranking, approvedList);
 
       await updateRanking(updatedRanking);
       onUpdateRanking(updatedRanking);
@@ -458,6 +307,51 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
       alert('Error al importar jugadores: ' + err.message);
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleOpenBlocksEditor = (reg: TournamentRegistration) => {
+    setSelectedReg(reg);
+    setEditingBlocks(clipToDays(effectiveBlockedRanges(reg, days, ranking.fechaInicio), days).kept);
+  };
+
+  /** Saves the blocks; an imported registration also updates the tournament and re-checks its conflicts. */
+  const handleSaveBlocks = async () => {
+    if (!selectedReg) return;
+    const updatedReg: TournamentRegistration = {
+      ...selectedReg,
+      blockedRanges: editingBlocks,
+      availabilityNotes: notesWithSummary(summarize(editingBlocks, days), registrationNote(selectedReg))
+    };
+    setSavingBlocks(true);
+    try {
+      await updateTournamentRegistration(ranking.id, selectedReg.id, {
+        blockedRanges: updatedReg.blockedRanges,
+        availabilityNotes: updatedReg.availabilityNotes
+      });
+    } catch (err) {
+      console.error('Error saving blocked times:', err);
+      alert('No se pudieron guardar los bloqueos. Inténtalo de nuevo.');
+      setSavingBlocks(false);
+      return;
+    }
+    try {
+      if (isImported(ranking, updatedReg)) {
+        const { ranking: updatedRanking, newConflicts } = applyRegistrationBlocks(ranking, updatedReg);
+        await updateRanking(updatedRanking);
+        onUpdateRanking(updatedRanking);
+        if (newConflicts.length) {
+          const players = Object.fromEntries((updatedRanking.guestPlayers ?? []).map(p => [p.id, p])) as any;
+          const lines = newConflicts.flatMap(c => c.conflicts.map(x => `• ${pairLabel(x.pairKey, players)}: ${x.reason}`));
+          alert(`Conflicto de horario en el siguiente partido:\n${lines.join('\n')}\n\nRevísalo en "Conflictos".`);
+        }
+      }
+      setSelectedReg(null);
+    } catch (err) {
+      console.error('Error syncing blocked times to the tournament:', err);
+      alert('Inscripción guardada, pero no se pudo actualizar el torneo. Vuelve a guardar para reintentarlo.');
+    } finally {
+      setSavingBlocks(false);
     }
   };
 
@@ -528,7 +422,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
     doc.save(`Inscripciones_${ranking.nombre.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const isRegistrationOpen = ranking.registrationConfig?.isOpen !== false;
+  const isRegistrationOpen = hasDays && ranking.registrationConfig?.isOpen !== false;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -556,6 +450,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
           <div className="flex items-center gap-2">
             <button
               onClick={handleToggleRegistrationOpen}
+              title={hasDays ? undefined : 'Configura los días del torneo en «Disponibilidad»'}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 isRegistrationOpen
                   ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
@@ -563,7 +458,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               }`}
             >
               <div className={`w-2 h-2 rounded-full ${isRegistrationOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></div>
-              {isRegistrationOpen ? 'Inscripciones Abiertas' : 'Inscripciones Cerradas'}
+              {isRegistrationOpen ? 'Inscripciones Abiertas' : hasDays ? 'Inscripciones Cerradas' : 'Cerradas: faltan los días del torneo'}
             </button>
 
             <button
@@ -854,75 +749,22 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                       )}
                     </div>
 
-                    {/* Schedule availability badges & notes */}
-                    {reg.availability ? (
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        {/* Friday */}
-                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border flex items-center gap-1 ${
-                          reg.availability.friday?.status === 'available'
-                            ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40'
-                            : reg.availability.friday?.status === 'from_time'
-                            ? 'bg-amber-950/40 text-amber-300 border-amber-800/40'
-                            : 'bg-rose-950/40 text-rose-300 border-rose-800/40'
-                        }`}>
-                          <span>V:</span>
-                          <span>{reg.availability.friday?.status === 'available' ? 'Tarde' : reg.availability.friday?.status === 'from_time' ? `>${reg.availability.friday.fromTime}` : 'No'}</span>
-                        </span>
-
-                        {/* Saturday */}
-                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border flex items-center gap-1 ${
-                          reg.availability.saturday?.status === 'all_day'
-                            ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40'
-                            : reg.availability.saturday?.status === 'unavailable'
-                            ? 'bg-rose-950/40 text-rose-300 border-rose-800/40'
-                            : 'bg-amber-950/40 text-amber-300 border-amber-800/40'
-                        }`}>
-                          <span>S:</span>
-                          <span>
-                            {reg.availability.saturday?.status === 'all_day'
-                              ? 'Todo el día'
-                              : reg.availability.saturday?.status === 'morning_only'
-                              ? 'Mañana'
-                              : reg.availability.saturday?.status === 'afternoon_only'
-                              ? 'Tarde'
-                              : reg.availability.saturday?.status === 'custom'
-                              ? `${reg.availability.saturday.fromTime}-${reg.availability.saturday.untilTime}`
-                              : 'No'}
-                          </span>
-                        </span>
-
-                        {/* Sunday */}
-                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border flex items-center gap-1 ${
-                          reg.availability.sunday?.status === 'all_day'
-                            ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40'
-                            : reg.availability.sunday?.status === 'unavailable'
-                            ? 'bg-rose-950/40 text-rose-300 border-rose-800/40'
-                            : 'bg-amber-950/40 text-amber-300 border-amber-800/40'
-                        }`}>
-                          <span>D:</span>
-                          <span>
-                            {reg.availability.sunday?.status === 'all_day'
-                              ? 'Todo el día'
-                              : reg.availability.sunday?.status === 'morning_only'
-                              ? 'Mañana'
-                              : reg.availability.sunday?.status === 'afternoon_only'
-                              ? 'Tarde'
-                              : 'No'}
-                          </span>
-                        </span>
-
-                        {reg.availability.notes && (
-                          <span className="text-[10px] text-slate-400 italic truncate max-w-xs" title={reg.availability.notes}>
-                            💬 {reg.availability.notes}
-                          </span>
-                        )}
-                      </div>
-                    ) : reg.availabilityNotes ? (
-                      <div className="text-[11px] bg-slate-900/90 border border-slate-800/80 rounded-xl px-2.5 py-1 text-slate-300 flex items-start gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                        <span><strong>Disponibilidad:</strong> {reg.availabilityNotes}</span>
-                      </div>
-                    ) : null}
+                    {/* Blocked times */}
+                    <div className="text-[11px] bg-slate-900/90 border border-slate-800/80 rounded-xl px-2.5 py-1 text-slate-300 flex items-start gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                      <span className="flex-1">
+                        <strong>Bloqueos:</strong> {notesWithSummary(summarize(effectiveBlockedRanges(reg, days, ranking.fechaInicio), days), registrationNote(reg))}
+                      </span>
+                      {hasDays && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBlocksEditor(reg)}
+                          className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 flex-shrink-0"
+                        >
+                          <Edit2 className="w-3 h-3" /> Editar bloqueos
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Right Column: Category Reassignment & Actions */}
@@ -1031,6 +873,59 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
         </div>
       )}
 
+      {/* Blocked Times Editor */}
+      {selectedReg && (
+        <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-emerald-400" />
+                Bloqueos de {selectedReg.player1.name}{selectedReg.player2 ? ` / ${selectedReg.player2.name}` : ''}
+              </h3>
+              <button onClick={() => setSelectedReg(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const dropped = clipToDays(effectiveBlockedRanges(selectedReg, days, ranking.fechaInicio), days).droppedCount;
+              return dropped > 0 ? (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {dropped} franja{dropped > 1 ? 's' : ''} fuera de los días del torneo; no se tendrán en cuenta.
+                </div>
+              ) : null;
+            })()}
+
+            <BlockedTimesPicker days={days} value={editingBlocks} onChange={setEditingBlocks} />
+
+            {isImported(ranking, selectedReg) && (
+              <p className="text-[11px] text-slate-400">
+                Esta pareja ya está en el torneo: al guardar se actualizan sus restricciones y se revisan sus partidos (no se mueve ninguno).
+              </p>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedReg(null)}
+                className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBlocks}
+                disabled={savingBlocks}
+                className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold rounded-xl text-xs transition"
+              >
+                {savingBlocks ? 'Guardando…' : 'Guardar bloqueos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Manual Registration Modal */}
       {showManualModal && (
         <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
@@ -1117,134 +1012,14 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                 </div>
               </div>
 
-              {/* Weekend Availability in Manual Modal */}
+              {/* Blocked times in Manual Modal */}
               <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-emerald-400">Disponibilidad Fin de Semana</span>
-                
-                {/* Viernes */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-300 block">Viernes:</label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, fridayStatus: 'available' })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.fridayStatus === 'available' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Disponible (17h+)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, fridayStatus: 'from_time' })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.fridayStatus === 'from_time' ? 'bg-amber-500/20 text-amber-300 border-amber-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      A partir de...
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, fridayStatus: 'unavailable' })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.fridayStatus === 'unavailable' ? 'bg-rose-500/20 text-rose-300 border-rose-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      No disponible
-                    </button>
-                  </div>
-                  {manualData.fridayStatus === 'from_time' && (
-                    <div className="pt-1 flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400">Desde las:</span>
-                      <select
-                        value={manualData.fridayFromTime}
-                        onChange={e => setManualData({ ...manualData, fridayFromTime: e.target.value })}
-                        className="bg-slate-900 border border-slate-700 text-amber-300 text-[10px] font-bold rounded px-2 py-0.5"
-                      >
-                        {['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'].map(t => (
-                          <option key={t} value={t}>{t} h</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sábado */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-300 block">Sábado:</label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, saturdayStatus: 'all_day' })}
-                      className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.saturdayStatus === 'all_day' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Todo el día
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, saturdayStatus: 'morning_only' })}
-                      className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.saturdayStatus === 'morning_only' ? 'bg-amber-500/20 text-amber-300 border-amber-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Solo Mañana
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, saturdayStatus: 'afternoon_only' })}
-                      className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.saturdayStatus === 'afternoon_only' ? 'bg-amber-500/20 text-amber-300 border-amber-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Solo Tarde
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, saturdayStatus: 'unavailable' })}
-                      className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.saturdayStatus === 'unavailable' ? 'bg-rose-500/20 text-rose-300 border-rose-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      No disp.
-                    </button>
-                  </div>
-                </div>
-
-                {/* Domingo */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-300 block">Domingo:</label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, sundayStatus: 'all_day' })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.sundayStatus === 'all_day' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Todo el día
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, sundayStatus: 'morning_only' })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.sundayStatus === 'morning_only' ? 'bg-amber-500/20 text-amber-300 border-amber-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Solo Mañana
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setManualData({ ...manualData, sundayStatus: 'afternoon_only' })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border ${
-                        manualData.sundayStatus === 'afternoon_only' ? 'bg-amber-500/20 text-amber-300 border-amber-500' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      Solo Tarde
-                    </button>
-                  </div>
-                </div>
+                <span className="text-xs font-bold text-emerald-400">¿Cuándo NO pueden jugar? (opcional)</span>
+                {hasDays ? (
+                  <BlockedTimesPicker days={days} value={manualBlocked} onChange={setManualBlocked} />
+                ) : (
+                  <p className="text-[11px] text-slate-400">Configura los días del torneo en «Disponibilidad» para indicar bloqueos.</p>
+                )}
               </div>
 
               <div>
