@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Modal, Button } from './ui/Components';
 import { Save, Plus, Trash2, Calendar, Clock, Users, Layers } from 'lucide-react';
 import { Ranking, Player } from '../types';
-import { SchedulerConfig, PairAvailability, makePairKey, SchedulerEngine } from '../services/SchedulerEngine';
+import { SchedulerConfig, PairAvailability, makePairKey, SchedulerEngine, normalizePairConstraints, roundRank } from '../services/SchedulerEngine';
 
 interface RoundWindowSlot {
     date: string;
@@ -35,6 +35,7 @@ export const SchedulerConfigModal = ({
     const [courts, setCourts] = useState(initialConfig?.courts || 4);
     const [slotDuration, setSlotDuration] = useState(initialConfig?.slotDurationMinutes || 90);
     const [restMinutes, setRestMinutes] = useState(initialConfig?.restMinutes || 60);
+    const [mode, setMode] = useState<'full' | 'daily'>(initialConfig?.mode ?? 'full');
 
     // Tournament days
     const [days, setDays] = useState<TournamentDay[]>(
@@ -58,7 +59,7 @@ export const SchedulerConfigModal = ({
 
     // Pair availability
     const [pairConstraints, setPairConstraints] = useState<Record<string, PairAvailability>>(
-        initialPairConstraints ?? {}
+        () => normalizePairConstraints(initialPairConstraints)
     );
     const [selectedPairKey, setSelectedPairKey] = useState('');
     const [blockDate, setBlockDate] = useState('');
@@ -95,16 +96,7 @@ export const SchedulerConfigModal = ({
             const name = SchedulerEngine.normalizeRoundName(m.roundName);
             if (name) set.add(name);
         }));
-        const rank = (name: string): number => {
-            if (name === 'Final') return 5000;
-            if (name === 'Semifinales') return 4000;
-            if (name === 'Cuartos') return 3000;
-            if (name === 'Octavos') return 2000;
-            const m = name.match(/Ronda de (\d+)/);
-            if (m) return 1000 - Number(m[1]); // larger bracket plays earlier
-            return 0;
-        };
-        return Array.from(set).sort((a, b) => rank(a) - rank(b));
+        return Array.from(set).sort((a, b) => roundRank(a) - roundRank(b));
     }, [tournament]);
 
     const addRoundWindowSlot = (roundName: string) => {
@@ -188,6 +180,10 @@ export const SchedulerConfigModal = ({
             courts,
             slotDurationMinutes: slotDuration,
             restMinutes,
+            mode,
+            ...(initialConfig?.strictAvailabilityUntilRound
+                ? { strictAvailabilityUntilRound: initialConfig.strictAvailabilityUntilRound }
+                : {}),
             timeWindows: days.length > 0
                 ? [{ start: days[0]?.startTime ?? '09:00', end: days[0]?.endTime ?? '22:00' }]
                 : [{ start: '09:00', end: '22:00' }],
@@ -253,6 +249,7 @@ export const SchedulerConfigModal = ({
                                 <select className="mt-1 block w-full border rounded-md p-2"
                                     value={slotDuration} onChange={e => setSlotDuration(Number(e.target.value))}>
                                     <option value={60}>60 min</option>
+                                    <option value={75}>75 min</option>
                                     <option value={90}>90 min (Estándar)</option>
                                     <option value={120}>120 min</option>
                                 </select>
@@ -267,6 +264,14 @@ export const SchedulerConfigModal = ({
                                     <option value={120}>120 min</option>
                                 </select>
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Modo de horario</label>
+                            <select className="mt-1 block w-full border rounded-md p-2"
+                                value={mode} onChange={e => setMode(e.target.value as 'full' | 'daily')}>
+                                <option value="full">Horario completo: se fija todo al generar</option>
+                                <option value="daily">Por día: se fija el día en curso, el resto es estimado</option>
+                            </select>
                         </div>
                     </div>
                 )}
