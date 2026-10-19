@@ -11,7 +11,7 @@ export interface RoundPlan {
     jornada: number;
     roundName: string;
     label: string;              // category label for messages
-    matchCount: number;         // matches that will actually be played
+    matchCount: number;         // non-BYE matches of the round (finished ones included)
     intervals: Interval[];      // where this round may be played
     windowed: boolean;          // has its own phase windows
     earliestStart: Date | null; // IT
@@ -119,16 +119,25 @@ export const planRounds = (
 
         // Forward pass: earliest start of each round
         let t = tournamentStart;
+        // Optimistic lower bound: bye-seeds enter the consolation from main round 2, so starting it
+        // after the main's first round is never too late. earliestStart is only used for feasibility
+        // warnings, never to place matches.
         if (div.type === 'consolation') {
             const main = findMainFor(div, divisions);
             const mainFirst = main && Math.min(...main.matches.map(m => m.jornada));
             const mainPlan = main ? plans.get(roundKeyOf(main.id, mainFirst!)) : undefined;
             if (mainPlan?.earliestStart) t = addMinutes(mainPlan.earliestStart, D + rest);
         }
+        // Once a round cannot be placed, later rounds get no earliest start (no stale time).
+        let blocked = false;
         const earliest = rounds.map(r => {
+            if (blocked) return null;
             if (r.count === 0) return firstFit(t, r.starts);
             const res = forwardWaves(t, Math.ceil(r.count / courts), r.starts, D);
-            if (!res) return null;
+            if (!res) {
+                blocked = true;
+                return null;
+            }
             t = addMinutes(res.end, rest);
             return res.start;
         });
@@ -147,6 +156,8 @@ export const planRounds = (
             if (latestStart && r.count > 0) latestEnd = addMinutes(latestStart, -rest);
         }
 
+        // At most one round warning per division, so one failure does not cascade into many.
+        let warned = false;
         rounds.forEach((r, i) => {
             const key = roundKeyOf(div.id, r.jornada);
             const es = earliest[i];
@@ -156,7 +167,7 @@ export const planRounds = (
                 matchCount: r.count, intervals: r.intervals, windowed: r.windowed,
                 earliestStart: es, latestStart: ls, deadline,
             });
-            if (r.count === 0) return;
+            if (r.count === 0 || warned) return;
             const name = `${normalizeRoundName(r.roundName)} de ${label}`;
             if (!es) warnings.push({ roundKey: key, message: `${name}: no hay horario disponible para jugarla.` });
             else if (!ls) warnings.push({ roundKey: key, message: `${name}: no cabe antes de las rondas siguientes.` });
@@ -164,6 +175,8 @@ export const planRounds = (
                 roundKey: key,
                 message: `${name} no cabe: puede empezar como pronto ${fmt(es)} pero debería empezar como tarde ${fmt(ls)}.`,
             });
+            else return;
+            warned = true;
         });
     }
 

@@ -38,7 +38,21 @@ describe('roundPlanner', () => {
             roundWindows: [{ roundName: 'Semifinales', date: '2026-06-06', startTime: '16:00', endTime: '17:30' }],
         });
         const { warnings } = planRounds(cat, config);
-        expect(warnings.some(w => w.message.startsWith('Semifinales'))).toBe(true);
+        expect(warnings.some(w => /partidos no caben en sus franjas/.test(w.message))).toBe(true);
+    });
+
+    it('a round that cannot be placed blocks later rounds and warns once', () => {
+        const cat = makeCategory('A', 8);
+        const config = makeConfig({
+            courts: 1,
+            dailySchedule: [{ date: '2026-06-06', startTime: '09:00', endTime: '22:00' }],
+            roundWindows: [{ roundName: 'Semifinales', date: '2026-06-06', startTime: '16:00', endTime: '17:30' }],
+        });
+        const { plans, warnings } = planRounds(cat, config);
+        const final = plans.get(roundKeyOf(cat[0].id, 3))!;
+        expect(final.earliestStart).toBeNull();
+        const divWarnings = warnings.filter(w => w.roundKey?.startsWith(cat[0].id));
+        expect(divWarnings).toHaveLength(1);
     });
 
     it('no warnings for a comfortable weekend', () => {
