@@ -77,35 +77,37 @@ export const PublicLayout = ({ rankingId }: Props) => {
     };
 
     if (loading) {
-        return <div className="min-h-screen flex items-center justify-center text-gray-500">Cargando torneo...</div>;
+        return <div className="rg min-h-screen flex items-center justify-center text-rg-muted bg-rg-ground">Cargando torneo…</div>;
     }
 
     if (!activeRanking) {
-        return <div className="min-h-screen flex items-center justify-center text-red-500">Torneo no encontrado o eliminado.</div>;
+        return <div className="rg min-h-screen flex items-center justify-center px-6 text-center text-rg-ink bg-rg-ground">Este torneo no existe o ya no está publicado.</div>;
     }
 
     const branding = activeRanking.config?.branding;
     const displayLogo = branding?.logoUrl || ownerLogo;
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
-            <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm">
-                <div className="flex items-center gap-2 font-bold text-primary text-xl">
-                    {displayLogo ? (
-                        <img src={displayLogo} alt="Logo" className="h-10 object-contain" />
-                    ) : (
-                        <>
-                            <Trophy size={24} /> Racket Grid
-                        </>
-                    )}
-                    <span className="text-xs text-gray-400 font-normal uppercase tracking-wider border-l pl-2 ml-2">Vista Pública</span>
-                </div>
-                <div>
-                    {/* Optional: Add a 'Login' button here if we want to allow admins to jump to login */}
-                </div>
+        <div className="min-h-screen bg-rg-ground md:bg-gray-50 text-gray-900 flex flex-col">
+            <header className="rg bg-white border-b border-rg-line h-14 md:h-16 flex items-center gap-3 px-4 md:px-6 sticky top-0 z-30">
+                {displayLogo ? (
+                    <img src={displayLogo} alt="Logo del club" className="h-8 md:h-10 max-w-[120px] object-contain" />
+                ) : (
+                    <span className="flex items-center gap-2 font-semibold text-[15px] text-rg-ink">
+                        <span className="w-7 h-7 rounded-lg bg-court text-white grid place-items-center">
+                            <Trophy size={15} />
+                        </span>
+                        Racket Grid
+                    </span>
+                )}
+                {selectedPlayerId && (
+                    <button onClick={handleBackToRanking} className="ml-auto flex items-center gap-1 text-sm font-medium text-court py-2">
+                        <ArrowLeft size={16} /> Volver al torneo
+                    </button>
+                )}
             </header>
 
-            <main className="p-4 md:p-8 flex-1 w-full">
+            <main className="px-4 pt-5 pb-4 md:p-8 flex-1 w-full">
                 {selectedPlayerId && isPairSelection ? (
                     <PairDetailView
                         pairId={selectedPlayerId}
@@ -132,10 +134,8 @@ export const PublicLayout = ({ rankingId }: Props) => {
             </main>
 
             {displayLogo && (
-                <footer className="py-6 text-center text-gray-400 text-sm border-t bg-gray-50">
-                    <p className="flex items-center justify-center gap-2">
-                        Powered by <strong className="text-gray-600 flex items-center gap-1"><Trophy size={14} /> Racket Grid</strong>
-                    </p>
+                <footer className="rg hidden md:block py-6 text-center text-rg-muted text-sm border-t border-rg-line">
+                    Hecho con <strong className="font-semibold text-rg-ink">Racket Grid</strong>
                 </footer>
             )}
         </div>
