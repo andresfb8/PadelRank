@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { Division } from '../../../types';
+import type { Division, Match } from '../../../types';
 import type { PairAvailability, SchedulerConfig } from '../types';
-import { assignMatches } from '../matchAssigner';
+import { assignMatches, computeConflicts } from '../matchAssigner';
 import { planRounds } from '../roundPlanner';
 import { buildMatchIndex, getDependencies } from '../candidates';
 import { allMatches, at, endOf, makeCategory, makeConfig, pairIds } from './fixtures';
@@ -49,6 +49,7 @@ describe('matchAssigner', () => {
             expect(new Date(m.startTime).getTime()).toBeGreaterThanOrEqual(at('2026-06-06', '09:00').getTime());
             expect(endOf(m.startTime).getTime()).toBeLessThanOrEqual(at('2026-06-06', '12:00').getTime());
         });
+        expect(main.matches.some(m => !m.startTime)).toBe(true);
     });
 
     it('gives the restricted pair a compatible slot first', () => {
@@ -126,5 +127,51 @@ describe('matchAssigner', () => {
         const sat = cuartos.filter(m => new Date(m.startTime!).getDate() === 6);
         expect(fri).toHaveLength(2);
         expect(sat).toHaveLength(2);
+    });
+
+    it('a fallback never takes the court an urgent compatible match needs at the same instant', () => {
+        const b = makeCategory('B', 4);
+        const a = makeCategory('A', 2);
+        const constraints = {
+            [pairIds('B', 4)[0]]: { unavailableRanges: [{ date: '2026-06-06', startTime: '10:30', endTime: '22:00' }] },
+            [pairIds('A', 2)[0]]: { unavailableRanges: [
+                { date: '2026-06-06', startTime: '09:00', endTime: '09:15' },
+                { date: '2026-06-06', startTime: '10:30', endTime: '22:00' },
+            ] },
+        };
+        run([...b, ...a], makeConfig({ courts: 1, dailySchedule: oneDay() }), constraints);
+        const semiB1 = b[0].matches.find(m => m.jornada === 1 && (m.pair1.p1Id === 'B1a' || m.pair2.p1Id === 'B1a'))!;
+        expect(new Date(semiB1.startTime!).getTime()).toBe(at('2026-06-06', '09:00').getTime());
+        expect(semiB1.scheduleConflict).toBeUndefined();
+    });
+
+    it('a fallback avoids the only compatible slot of another pending match', () => {
+        const [a] = makeCategory('A', 2);
+        const [b] = makeCategory('B', 2);
+        const day = '2026-06-06';
+        const onlyBetween = (from: string, to: string) => ({ unavailableRanges: [
+            { date: day, startTime: '00:00', endTime: from },
+            { date: day, startTime: to, endTime: '23:59' },
+        ] });
+        run([a, b], makeConfig({ courts: 1, dailySchedule: oneDay() }), {
+            [pairIds('A', 2)[0]]: onlyBetween('18:00', '19:00'),
+            [pairIds('B', 2)[0]]: onlyBetween('17:30', '19:00'),
+        });
+        expect(new Date(b.matches[0].startTime!).getTime()).toBe(at(day, '17:30').getTime());
+        expect(b.matches[0].scheduleConflict).toBeUndefined();
+        expect(a.matches[0].scheduleConflict).toBeDefined();
+    });
+
+    it('only candidate (not yet known) pairs get the "Posible pareja" prefix', () => {
+        const match = {
+            id: 'm', jornada: 1, roundName: 'Octavos',
+            pair1: { p1Id: 'k1', p2Id: 'k2' }, pair2: { p1Id: '', p2Id: '' },
+            points: { p1: 0, p2: 0 }, status: 'pendiente',
+        } as Match;
+        const block = { unavailableRanges: [{ date: '2026-06-06', startTime: '09:00', endTime: '12:00' }] };
+        const conflicts = computeConflicts(match, at('2026-06-06', '10:00'), makeConfig(),
+            { 'k1::k2': block, 'c1::c2': block }, new Set(['k1::k2', 'c1::c2']), false)!;
+        expect(conflicts.find(c => c.pairKey === 'k1::k2')!.reason.startsWith('Posible')).toBe(false);
+        expect(conflicts.find(c => c.pairKey === 'c1::c2')!.reason.startsWith('Posible pareja: ')).toBe(true);
     });
 });

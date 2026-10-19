@@ -35,7 +35,7 @@ export const computeConflicts = (
         prefix = 'Posible pareja: ';
     }
     const conflicts: ScheduleConflict[] = getViolations(start, end, keys, constraints)
-        .map(v => ({ pairKey: v.pairKey, reason: prefix + describeViolation(v) }));
+        .map(v => ({ pairKey: v.pairKey, reason: (known.includes(v.pairKey) ? '' : prefix) + describeViolation(v) }));
     if (outsideWindow) {
         conflicts.push({ pairKey: ANY_PAIR, reason: `Fuera de franja de ${normalizeRoundName(match.roundName)}` });
     }
@@ -142,6 +142,9 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
         });
     });
 
+    const pending = new Set<string>();
+    infos.forEach((_, id) => pending.add(id));
+
     /** undefined = a dependency is still unplaced; otherwise the earliest start allowed by dependencies. */
     const readyTime = (info: Info): Date | undefined => {
         let ready = new Date(0);
@@ -178,13 +181,26 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
         const within = info.starts.filter(s => free(s) && (!info.lastStart || s <= info.lastStart));
         const pool = within.length ? within : info.starts.filter(free);
         if (pool.length) {
-            let best = pool[0];
-            let bestCost = cost(info, best);
-            for (const s of pool.slice(1)) {
+            // Slots that overlap the only/any compatible slot of another pending match rank last.
+            const reserved: number[] = [];
+            pending.forEach(id => {
+                if (id === info.match.id) return;
+                infos.get(id)!.compatible.forEach(s => reserved.push(s.getTime()));
+            });
+            const rank = (s: Date): [number, number, number] => {
                 const c = cost(info, s);
-                if (c[0] < bestCost[0] || (c[0] === bestCost[0] && c[1] < bestCost[1])) {
+                const overlaps = reserved.some(r => Math.abs(r - s.getTime()) < D * 60000);
+                return [overlaps ? 1 : 0, c[0], c[1]];
+            };
+            const better = (x: [number, number, number], y: [number, number, number]) =>
+                x[0] !== y[0] ? x[0] < y[0] : x[1] !== y[1] ? x[1] < y[1] : x[2] < y[2];
+            let best = pool[0];
+            let bestRank = rank(best);
+            for (const s of pool.slice(1)) {
+                const r = rank(s);
+                if (better(r, bestRank)) {
                     best = s;
-                    bestCost = c;
+                    bestRank = r;
                 }
             }
             place(info, best, pickCourt(best)!, false);
@@ -210,12 +226,11 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
     const byPriority = (infosAtT: Info[], t: Date): Info[] => {
         const remaining = new Map(infosAtT.map(i => [i, remainingCompatible(i, t)]));
         return infosAtT.sort((a, b) =>
-            (a.plan?.latestStart?.getTime() ?? Infinity) - (b.plan?.latestStart?.getTime() ?? Infinity) ||
+            (a.plan?.latestStart?.getTime() ?? -Infinity) - (b.plan?.latestStart?.getTime() ?? -Infinity) ||
             remaining.get(a)! - remaining.get(b)! ||
             a.order - b.order);
     };
 
-    const pending = new Set(infos.keys());
     const grid = Array.from(new Set(Array.from(infos.values()).flatMap(i => i.starts.map(s => s.getTime()))))
         .sort((a, b) => a - b)
         .map(ms => new Date(ms));
@@ -230,21 +245,21 @@ export const assignMatches = ({ divisions, config, constraints, plans, toSchedul
             }), t);
         if (!ready.length) continue;
 
-        // 1) Matches that can no longer get a compatible slot before their deadline
-        const courtFreeAtT = anyCourtFree(t);
-        for (const info of ready) {
-            if (isEligible(info, t) && courtFreeAtT) continue;
-            if (hasFutureCompatible(info, t)) continue;
-            placeFallback(info, t);
-            pending.delete(info.match.id);
-        }
-
-        // 2) Fill the free courts at t with the most urgent eligible matches
+        // 1) Fill the free courts at t with the most urgent eligible matches
         for (const info of ready) {
             if (!pending.has(info.match.id) || !isEligible(info, t)) continue;
             const court = pickCourt(t);
             if (court === null) break;
             place(info, t, court, false);
+            pending.delete(info.match.id);
+        }
+
+        // 2) Matches that can no longer get a compatible slot before their deadline
+        for (const info of ready) {
+            if (!pending.has(info.match.id)) continue;
+            if (isEligible(info, t) && anyCourtFree(t)) continue;
+            if (hasFutureCompatible(info, t)) continue;
+            placeFallback(info, t);
             pending.delete(info.match.id);
         }
     }
