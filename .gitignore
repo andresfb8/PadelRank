@@ -25,3 +25,6 @@ dist-ssr
 
 functions/service-account-key.json
 .claude/
+
+# Brainstorming mockups (superpowers visual companion)
+.superpowers/
