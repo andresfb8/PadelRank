@@ -42,12 +42,27 @@ export const alignUp = (date: Date): Date => {
     return rem ? addMinutes(d, STEP_MINUTES - rem) : d;
 };
 
+/** Sorts and fuses overlapping or touching intervals. Returns new objects. */
+export const mergeIntervals = (intervals: Interval[]): Interval[] => {
+    const sorted = [...intervals].sort((p, q) => p.start.getTime() - q.start.getTime());
+    const out: Interval[] = [];
+    sorted.forEach(iv => {
+        const last = out[out.length - 1];
+        if (last && iv.start <= last.end) {
+            if (iv.end > last.end) last.end = new Date(iv.end);
+        } else {
+            out.push({ start: new Date(iv.start), end: new Date(iv.end) });
+        }
+    });
+    return out;
+};
+
 /** Operating hours of every tournament day, sorted chronologically. */
 export const getOperatingIntervals = (config: SchedulerConfig): Interval[] =>
-    [...(config.dailySchedule ?? [])]
+    mergeIntervals([...(config.dailySchedule ?? [])]
         .sort((a, b) => a.date.localeCompare(b.date))
         .map(d => ({ start: parseTimeOnDate(d.startTime, d.date), end: parseTimeOnDate(d.endTime, d.date) }))
-        .filter(iv => iv.end > iv.start);
+        .filter(iv => iv.end > iv.start));
 
 export const intersectIntervals = (a: Interval[], b: Interval[]): Interval[] => {
     const out: Interval[] = [];
@@ -74,7 +89,7 @@ export const hasRoundWindows = (roundName: string | undefined, config: Scheduler
 export const getRoundIntervals = (roundName: string | undefined, config: SchedulerConfig): Interval[] => {
     const operating = getOperatingIntervals(config);
     const windows = roundWindowIntervals(roundName, config);
-    return windows.length ? intersectIntervals(windows, operating) : operating;
+    return windows.length ? intersectIntervals(mergeIntervals(windows), operating) : operating;
 };
 
 /** Every grid start such that the whole match [start, start + duration] fits in one interval. Sorted. */

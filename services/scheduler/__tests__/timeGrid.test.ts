@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Madrid';
 
 import { describe, it, expect } from 'vitest';
-import { alignUp, getRoundIntervals, getStartTimes, localDateKey, parseTimeOnDate, STEP_MINUTES } from '../timeGrid';
+import { alignUp, getRoundIntervals, getStartTimes, localDateKey, mergeIntervals, parseTimeOnDate, STEP_MINUTES } from '../timeGrid';
 import { makeConfig } from './fixtures';
 
 describe('timeGrid', () => {
@@ -42,5 +42,35 @@ describe('timeGrid', () => {
         expect(iv[0].start.getHours()).toBe(19);
         expect(iv[0].end.getHours()).toBe(21);
         expect(getRoundIntervals('Semifinales', config)[0].start.getHours()).toBe(9);
+    });
+
+    it('overlapping phase windows do not duplicate start times', () => {
+        const config = makeConfig({
+            dailySchedule: [{ date: '2026-06-06', startTime: '09:00', endTime: '22:00' }],
+            roundWindows: [
+                { roundName: 'Final', date: '2026-06-06', startTime: '10:00', endTime: '12:00' },
+                { roundName: 'Final', date: '2026-06-06', startTime: '11:00', endTime: '13:00' },
+            ],
+        });
+        const iv = getRoundIntervals('Final', config);
+        expect(iv).toHaveLength(1);
+        expect(iv[0].start.getHours()).toBe(10);
+        expect(iv[0].end.getHours()).toBe(13);
+        const starts = getStartTimes(iv, 60);
+        expect(new Set(starts.map(s => s.getTime())).size).toBe(starts.length);
+        const last = starts[starts.length - 1];
+        expect(last.getHours()).toBe(12);
+        expect(last.getMinutes()).toBe(0);
+    });
+
+    it('mergeIntervals fuses touching and overlapping intervals', () => {
+        const merged = mergeIntervals([
+            { start: parseTimeOnDate('11:00', '2026-06-06'), end: parseTimeOnDate('12:00', '2026-06-06') },
+            { start: parseTimeOnDate('10:00', '2026-06-06'), end: parseTimeOnDate('11:00', '2026-06-06') },
+        ]);
+        expect(merged).toHaveLength(1);
+        expect(merged[0].start.getHours()).toBe(10);
+        expect(merged[0].end.getHours()).toBe(12);
+        expect(mergeIntervals([])).toEqual([]);
     });
 });
