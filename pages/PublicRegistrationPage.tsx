@@ -140,20 +140,23 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
       const registrationData: Omit<TournamentRegistration, 'id'> = {
         rankingId: ranking.id,
         ownerId: ranking.ownerId || '',
+        // Firestore rejects undefined fields: an empty email is left out, not sent as undefined
         player1: {
           name: player1.name.trim(),
           phone: player1.phone.trim(),
-          email: player1.email.trim() || undefined,
+          ...(player1.email.trim() ? { email: player1.email.trim() } : {}),
           level: player1.level,
           shirtSize: player1.shirtSize
         },
-        player2: isIndividual ? undefined : {
-          name: player2.name.trim(),
-          phone: player2.phone.trim(),
-          email: player2.email.trim() || undefined,
-          level: player2.level,
-          shirtSize: player2.shirtSize
-        },
+        ...(isIndividual ? {} : {
+          player2: {
+            name: player2.name.trim(),
+            phone: player2.phone.trim(),
+            ...(player2.email.trim() ? { email: player2.email.trim() } : {}),
+            level: player2.level,
+            shirtSize: player2.shirtSize
+          }
+        }),
         selectedCategory,
         assignedCategory: selectedCategory,
         status: 'pending',
