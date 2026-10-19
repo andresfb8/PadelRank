@@ -611,7 +611,7 @@ export const AdminLayout = () => {
     const activeRankings = rankings.filter(r => r.status === 'activo');
 
     return (
-        <div className="min-h-screen flex bg-[#F0F4F8] text-gray-900 relative">
+        <div className="rg min-h-screen flex bg-rg-ground text-rg-ink relative">
             {/* IMPERSONATION BANNER */}
             {impersonatedUserId && (
                 <div className="fixed top-0 left-0 right-0 h-10 bg-amber-400 z-50 flex items-center justify-between px-4 text-amber-900 font-bold shadow-md animate-in slide-in-from-top">
@@ -628,51 +628,64 @@ export const AdminLayout = () => {
                 </div>
             )}
 
-            {/* Sidebar (Desktop Only) */}
-            <aside className={`hidden lg:block sticky top-0 h-screen w-64 bg-white border-r border-gray-100 z-30 ${impersonatedUserId ? 'mt-10 h-[calc(100vh-2.5rem)]' : ''}`}>
-                <div className="h-full flex flex-col">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-center">
-                        <h2 className="text-xl font-bold text-primary flex items-center gap-2">
-                            <Trophy size={24} /> Racket Grid
-                        </h2>
-                    </div>
-                    <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
-                        {!isPublicUser && (
-                            <button onClick={() => handleNavClick('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'dashboard' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><LayoutDashboard size={20} /> Panel</button>
-                        )}
-
-                        <button onClick={() => handleNavClick('ranking_list')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${['ranking_list', 'ranking_create', 'ranking_detail'].includes(view) ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                            <Trophy size={20} />
-                            {currentUser?.role === 'superadmin' && !impersonatedUserId ? 'Control Central' : (isPublicUser ? 'Torneos' : 'Mis Torneos')}
-                        </button>
-
-                        {!isPublicUser && (
-                            <button onClick={() => handleNavClick('players')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'players' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Users size={20} /> Jugadores</button>
-                        )}
-
-                        {currentUser?.role === 'admin' && (
-                            <button onClick={() => handleNavClick('staff')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'staff' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><Shield size={20} /> Staff</button>
-                        )}
-
-                        {currentUser?.role === 'superadmin' && !impersonatedUserId && (
-                            <button onClick={() => handleNavClick('admin_management')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'admin_management' ? 'bg-primary-50 text-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}><ShieldCheck size={20} /> Gestión Admins</button>
-                        )}
-
-                        {/* Mi Cuenta - Only for non-public users */}
-                        {!isPublicUser && (
-                            <button onClick={() => handleNavClick('profile')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === 'profile' ? 'bg-primary-50 text-primary font-primary font-bold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                                <UserIcon size={20} /> Mi Cuenta
-                            </button>
-                        )}
-
-                        {/* Add Exit Impersonation Button in Sidebar too */}
-                        {impersonatedUserId && (
-                            <button onClick={() => setImpersonatedUserId(null)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-amber-600 bg-amber-50 hover:bg-amber-100 font-bold border border-amber-200">
-                                <LogOut size={20} /> Salir de Vista
-                            </button>
-                        )}
+            {/* Sidebar (desktop): on the page ground, the club first, the day's work, then the club's settings */}
+            <aside className={`hidden lg:block sticky top-0 h-screen w-[240px] flex-none z-30 ${impersonatedUserId ? 'mt-10 h-[calc(100vh-2.5rem)]' : ''}`}>
+                <div className="h-full flex flex-col px-3 py-5">
+                    {(() => {
+                        const isSuperView = currentUser?.role === 'superadmin' && !impersonatedUserId;
+                        const clubName = (isSuperView ? 'Racket Grid' : effectiveUser?.clubName || effectiveUser?.name) || 'Racket Grid';
+                        const initials = clubName.split(/\s+/).filter(w => /[a-zA-ZÀ-ÿ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'RG';
+                        const planLabels: Record<string, string> = { basic: 'Básico', pro: 'Pro', star: 'Star Point', weekend: 'Weekend Warrior', trial: 'de prueba' };
+                        const planName = isSuperView ? 'Superadministrador' : isPublicUser ? 'Jugador' : effectiveUser?.plan ? `Plan ${planLabels[effectiveUser.plan] || effectiveUser.plan}` : '';
+                        return (
+                            <div className="flex items-center gap-2.5 px-2.5 pb-5">
+                                {effectiveUser?.branding?.logoUrl && !isSuperView ? (
+                                    <img src={effectiveUser.branding.logoUrl} alt="" className="w-[30px] h-[30px] rounded-lg object-contain bg-white flex-none" />
+                                ) : (
+                                    <span className="w-[30px] h-[30px] rounded-lg bg-court text-white grid place-items-center text-[13px] font-bold flex-none">{initials}</span>
+                                )}
+                                <div className="min-w-0">
+                                    <p className="text-[14px] font-semibold truncate">{clubName}</p>
+                                    {planName && <p className="text-[12px] text-rg-muted truncate">{planName}</p>}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                    <nav className="flex-1 space-y-0.5 overflow-y-auto" aria-label="Principal">
+                        {(() => {
+                            const item = (active: boolean, onClick: () => void, Icon: React.ComponentType<{ size?: number }>, label: string) => (
+                                <button
+                                    type="button"
+                                    onClick={onClick}
+                                    aria-current={active ? 'page' : undefined}
+                                    className={`w-full h-[34px] flex items-center gap-2.5 px-2.5 rounded-lg text-[14px] transition-colors ${active ? 'bg-court-soft text-court-ink font-medium [&_svg]:text-court' : 'text-rg-muted hover:text-rg-ink hover:bg-rg-raised'}`}
+                                >
+                                    <Icon size={16} />
+                                    {label}
+                                </button>
+                            );
+                            const isSuper = currentUser?.role === 'superadmin' && !impersonatedUserId;
+                            const hasBranding = effectiveUser?.plan === 'pro' || effectiveUser?.plan === 'star' || effectiveUser?.plan === 'weekend';
+                            return (
+                                <>
+                                    {!isPublicUser && item(view === 'dashboard', () => handleNavClick('dashboard'), LayoutDashboard, 'Panel')}
+                                    {item(['ranking_list', 'ranking_create', 'ranking_detail'].includes(view), () => handleNavClick('ranking_list'), Trophy, isSuper ? 'Control central' : 'Torneos')}
+                                    {!isPublicUser && item(['players', 'player_detail', 'pair_detail'].includes(view), () => handleNavClick('players'), Users, 'Jugadores')}
+                                    {!isPublicUser && <p className="text-[12px] text-rg-muted px-2.5 pt-6 pb-1.5">Club</p>}
+                                    {currentUser?.role === 'admin' && item(view === 'staff', () => handleNavClick('staff'), Shield, 'Staff')}
+                                    {isSuper && item(view === 'admin_management', () => handleNavClick('admin_management'), ShieldCheck, 'Gestión de admins')}
+                                    {!isPublicUser && hasBranding && item(false, () => setIsClubSettingsOpen(true), Building2, 'Club y marca')}
+                                    {!isPublicUser && item(view === 'profile', () => handleNavClick('profile'), UserIcon, 'Mi cuenta')}
+                                    {impersonatedUserId && (
+                                        <button type="button" onClick={() => setImpersonatedUserId(null)} className="mt-3 w-full h-[34px] flex items-center gap-2.5 px-2.5 rounded-lg text-[14px] font-medium text-[#92400e] bg-[#fffbeb]">
+                                            <LogOut size={16} /> Salir de la vista de cliente
+                                        </button>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </nav>
-                    <div className="p-4 border-t border-gray-100 space-y-3">
+                    <div className="space-y-2 pt-3">
                         {!isPublicUser && effectiveUser && (effectiveUser.role !== 'superadmin' || impersonatedUserId) && (
                             <PlanBadge
                                 user={effectiveUser}
@@ -680,14 +693,25 @@ export const AdminLayout = () => {
                                 activeTournaments={activeRankings.length}
                             />
                         )}
-                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"><LogOut size={20} /> Cerrar Sesión</button>
+                        <div className="flex items-center gap-2.5 px-2.5 py-1.5">
+                            <span className="w-7 h-7 rounded-full bg-court-soft text-court-ink grid place-items-center text-[12px] font-semibold flex-none">
+                                {(effectiveUser?.name || effectiveUser?.email || '?').charAt(0).toUpperCase()}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-medium truncate">{effectiveUser?.name || effectiveUser?.email}</p>
+                                <p className="text-[12px] text-rg-muted">{effectiveUser?.role === 'superadmin' ? 'Superadministrador' : effectiveUser?.role === 'staff' ? 'Staff' : isPublicUser ? 'Jugador' : 'Administrador'}</p>
+                            </div>
+                            <button type="button" onClick={handleLogout} className="w-8 h-8 grid place-items-center rounded-md text-rg-muted hover:text-rg-negative hover:bg-[#ffedea] transition-colors" title="Cerrar sesión" aria-label="Cerrar sesión">
+                                <LogOut size={16} />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </aside>
 
             {/* Main Content */}
             <div className={`flex-1 flex flex-col min-w-0 pb-24 lg:pb-0 ${impersonatedUserId ? 'mt-10' : ''}`}>
-                <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm lg:shadow-none">
+                <header className="lg:hidden bg-white border-b border-rg-line h-14 flex items-center justify-between px-4 sticky top-0 z-20">
                     <div className="lg:hidden text-primary font-bold flex items-center gap-2">
                         <Trophy size={24} /> Racket Grid
                     </div>
@@ -728,7 +752,7 @@ export const AdminLayout = () => {
                     </div>
                 </header>
 
-                <main className="flex-1 p-6 overflow-y-auto">
+                <main className="flex-1 px-4 py-5 lg:pl-4 lg:pr-10 lg:py-8 overflow-y-auto">
                     {/* Welcome / Dashboard */}
                     {isPublicUser && view === 'dashboard' && (
                         <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
@@ -773,6 +797,7 @@ export const AdminLayout = () => {
                                 onNavigate={setView}
                                 onCreateTournament={() => setView('ranking_create')}
                                 onCreatePlayer={() => { setEditingPlayer(null); setIsPlayerModalOpen(true) }}
+                                onOpenRanking={handleRankingSelect}
                             />
                         )
                     )}
