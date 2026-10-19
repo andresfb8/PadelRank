@@ -1,3 +1,65 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    html { scroll-behavior: smooth; }
+    body { background: #F6F8FB; color: #0F1729; -webkit-font-smoothing: antialiased; }
+    ::selection { background: #D6E4FB; color: #123A7A; }
+    :focus-visible { outline: 2px solid #1F5FD6; outline-offset: 3px; border-radius: 4px; }
+    .num { font-variant-numeric: tabular-nums; }
+}
+
+/* ---------- motion layer ---------- */
+
+/* Entrances: the parts of a section rise in order, once. Content stays visible without script. */
+.js .rise { opacity: 0; transform: translateY(24px); transition: opacity 600ms cubic-bezier(.2,.7,.2,1), transform 600ms cubic-bezier(.2,.7,.2,1); transition-delay: calc(var(--i, 0) * 80ms); }
+.js .in .rise, .js .rise.in { opacity: 1; transform: none; }
+
+/* Signature: the wordmark settles as the first screen leaves */
+.wordmark { transform-origin: left bottom; }
+@supports (animation-timeline: scroll()) {
+    .wordmark { animation: settle linear both; animation-timeline: scroll(root); animation-range: 0 100vh; }
+    @keyframes settle { to { scale: 0.94; translate: 0 -2vh; } }
+}
+
+/* One moving picture: a slow drift on the courts seen from above */
+.drift { animation: drift 24s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: scale(1.04) translate3d(0, 0, 0); } to { transform: scale(1.12) translate3d(-2%, -3%, 0); } }
+
+/* The stage swaps its picture with a crossfade */
+.stage-layer { transition: opacity 450ms ease, transform 450ms ease; }
+
+/* Live parrilla: a match that moved lands with a short pulse of its border */
+@keyframes landed { from { transform: scale(0.94); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.landed { animation: landed 320ms cubic-bezier(.2,.7,.2,1); }
+
+.swap { animation: swap 220ms ease both; }
+@keyframes swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .js .rise { opacity: 1; transform: none; transition: none; }
+    .wordmark, .drift, .landed, .swap { animation: none !important; }
+    .stage-layer { transition: none; }
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { scrollbar-width: none; }
+
+/* The how-it-works slider: a solid track, the passed part in white, a square thumb */
+.stage-range { -webkit-appearance: none; appearance: none; height: 40px; background: transparent; cursor: pointer; }
+.stage-range::-webkit-slider-runnable-track { /* taste-skill-ignore: two hard stops draw the passed part of the track, not a gradient */ height: 8px; border-radius: 4px; background: linear-gradient(to right, #fff var(--fill), #3A4560 var(--fill)); }
+.stage-range::-moz-range-track { height: 8px; border-radius: 4px; background: #3A4560; }
+.stage-range::-moz-range-progress { height: 8px; border-radius: 4px; background: #fff; }
+.stage-range::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 32px; margin-top: -12px; border-radius: 6px; background: #1F5FD6; border: 3px solid #fff; transition: transform 150ms; }
+.stage-range::-moz-range-thumb { width: 26px; height: 26px; border-radius: 6px; background: #1F5FD6; border: 3px solid #fff; }
+.stage-range:active::-webkit-slider-thumb { transform: scale(1.1); }
+@media (max-width: 1023px) { .stage-range::-webkit-slider-thumb { width: 40px; height: 40px; margin-top: -16px; } }
+
+/* Overlays may float, and the product's own fragments keep their row rules */
+.float-fab { box-shadow: 0 4px 14px rgba(15, 23, 41, 0.25); } /* taste-skill-ignore: floating button */
+.float-dialog { box-shadow: 0 12px 40px rgba(15, 23, 41, 0.25); } /* taste-skill-ignore: dialog */
+@media (min-width: 1024px) { .lg\:float-card { box-shadow: 0 8px 30px rgba(15, 23, 41, 0.16); } } /* taste-skill-ignore: floating notice */
+[data-ui] .ui-rule-t { border-top: 1px solid #EEF1F5; } /* taste-skill-ignore: rows inside an interface fragment */
+[data-ui] .ui-rule-b { border-bottom: 1px solid #E3E7EE; } /* taste-skill-ignore: header of an interface fragment */

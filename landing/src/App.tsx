@@ -1,1027 +1,465 @@
-import React, { useState } from 'react';
-import {
-    Trophy,
-    Users,
-    ChevronRight,
-    Check,
-    Smartphone,
-    Activity,
-    LogIn,
-    Menu,
-    X,
-    Clock,
-    Search,
-    Plus,
-    Sparkles,
-    UserCheck,
-    Cpu,
-    MonitorPlay,
-    Palette,
-    Gift,
-    Mail,
-    Star,
-    ShieldCheck,
-    Instagram,
-    MessageCircle,
-    FileSpreadsheet,
-    Download
-} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ConsentManager } from './components/ConsentManager';
 import { LegalModal } from './components/LegalModal';
+import {
+    BrandFragment, ConflictFragment, FollowFragment, FormatsFragment, InscriptionsFragment, ParrillaLive,
+    RegistrationFragment, ResultFragment, ScheduleListFragment, StandingsFragment, TVFragment,
+} from './fragments';
+
+const APP_URL = 'https://app.racketgrid.com';
+const WHATSAPP_URL = 'https://wa.me/34625277697';
+const EMAIL = 'hola@racketgrid.com';
+const checkoutUrl = (priceId: string, plan: string) =>
+    `https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=${priceId}&plan=${plan}`;
+const TRIAL_URL = checkoutUrl('price_1SyENLH0qNNQGErtnn8H2yK7', 'pro');
+const KIT_MAILTO = `mailto:${EMAIL}?subject=${encodeURIComponent('Quiero el kit de gestión para mi club')}&body=${encodeURIComponent('Hola, soy … del club … y me gustaría recibir la plantilla de ranking y el checklist de torneos.')}`;
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
+
+const FEATURES = [
+    {
+        title: 'Siete formatos en una sola app',
+        text: 'Liga individual o por parejas, americano, mexicano, eliminatoria con consolación, liga con playoff y pozo. Ascensos, descensos y desempates se calculan solos al apuntar cada resultado.',
+        Proof: FormatsFragment,
+    },
+    {
+        title: 'La parrilla se hace sola',
+        text: 'Cada pareja marca al inscribirse cuándo no puede jugar. Racket Grid reparte los partidos por pistas y horas respetándolo, deja descansar entre partidos y te avisa de lo que no encaja.',
+        Proof: ConflictFragment,
+        live: true,
+    },
+    {
+        title: 'Inscripción con un enlace',
+        text: 'Compartes un enlace por WhatsApp; las parejas eligen categoría, dejan sus datos y marcan su horario desde el móvil. Tú solo revisas y apruebas.',
+        Proof: RegistrationFragment,
+    },
+    {
+        title: 'Cada jugador lo sigue en su móvil',
+        text: 'Elige su pareja una vez y ve su próximo partido, la pista y su posición. Clasificaciones, partidos y cuadros pensados para el pulgar, sin tablas que se salgan de la pantalla.',
+        Proof: FollowFragment,
+    },
+    {
+        title: 'La pantalla del club, en directo',
+        text: 'El modo TV rota resultados, cuadros, horarios y clasificaciones en cualquier Smart TV o proyector, con los patrocinadores del torneo.',
+        Proof: TVFragment,
+    },
+    {
+        title: 'Con el logo de tu club',
+        text: 'La vista pública lleva tu logo y una dirección propia para compartir, así que jugadores y patrocinadores ven tu club, no el nuestro.',
+        Proof: BrandFragment,
+    },
+];
+
+const STAGES = [
+    { name: 'Inscripciones', clause: 'Primero, abres las inscripciones', Fragment: InscriptionsFragment },
+    { name: 'Parrilla', clause: 'Después, se reparte la parrilla', Fragment: ScheduleListFragment },
+    { name: 'Resultados', clause: 'Mientras se juega, apuntas resultados', Fragment: ResultFragment },
+    { name: 'Clasificación', clause: 'Y todos lo ven al momento', Fragment: StandingsFragment },
+];
+
+const PLANS = [
+    {
+        name: 'Básico', price: '19', period: '€ al mes', cta: 'Elegir Básico',
+        href: checkoutUrl('price_1SyENKH0qNNQGErtnwAw3w9R', 'basic'),
+        text: 'Para clubes que empiezan: hasta 50 jugadores, 3 torneos activos y 3 categorías por torneo. Ligas, americano y mexicano con la gestión administrativa. Sin portal del jugador, marca propia ni playoffs.',
+    },
+    {
+        name: 'Pro', price: '39', period: '€ al mes', cta: 'Empezar el mes gratis', trial: true,
+        href: TRIAL_URL,
+        text: 'El primer mes es gratis. Hasta 150 jugadores, torneos y categorías sin límite, liga con playoff, modo TV, portal de autoservicio y validación de resultados. No incluye torneos de fin de semana ni varios administradores.',
+    },
+    {
+        name: 'Star Point', price: '59', period: '€ al mes', cta: 'Elegir Star Point',
+        href: checkoutUrl('price_1SyENLH0qNNQGErtanrpSTkh', 'star'),
+        text: 'Para grandes centros: jugadores y torneos sin límite, playoffs con cuadro principal y de consolación, varios administradores y soporte prioritario.',
+    },
+    {
+        name: 'Weekend Warrior', price: '39', period: '€ por torneo', cta: 'Comprar el pase',
+        href: checkoutUrl('price_1QuU3dG36W3wUv2p3m7XFvU4', 'weekend'),
+        text: 'Un solo torneo con todo lo de Star Point durante 14 días: cuadro principal y de consolación, categorías sin límite y estadísticas completas.',
+    },
+];
+
+const PROOF = [
+    { kind: 'Clubes', names: ['Roda Padel Reserve', 'Padel Indoor Aragón', 'Club de Pádel San Javier'] },
+    { kind: 'Formatos', names: ['Liga individual', 'Liga por parejas', 'Americano', 'Mexicano', 'Eliminatoria', 'Liga + playoff', 'Pozo'] },
+    { kind: 'Se ve en', names: ['El móvil del jugador', 'La tablet del club', 'El ordenador del organizador', 'La Smart TV del bar'] },
+];
+
+const NAV = [
+    { label: 'Funciones', href: '#funciones' },
+    { label: 'Cómo funciona', href: '#como-funciona' },
+    { label: 'Precios', href: '#precios' },
+    { label: 'Entrar', href: APP_URL },
+];
+
+// ---------------------------------------------------------------------------
+// Behaviour
+// ---------------------------------------------------------------------------
+
+/** Adds .in to every [data-reveal] block the first time it enters the screen. */
+const useReveal = () => {
+    useEffect(() => {
+        const blocks = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+        if (!('IntersectionObserver' in window)) { blocks.forEach(b => b.classList.add('in')); return; }
+        const io = new IntersectionObserver(entries => entries.forEach(e => {
+            if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+        }), { rootMargin: '0px 0px -12% 0px' });
+        blocks.forEach(b => io.observe(b));
+        // Never leave content hidden if the observer is slow to fire
+        const safety = window.setTimeout(() => blocks.forEach(b => b.classList.add('in')), 4000);
+        return () => { io.disconnect(); window.clearTimeout(safety); };
+    }, []);
+};
+
+const Button = ({ href, children, tone = 'accent', className = '' }: { href: string; children: React.ReactNode; tone?: 'accent' | 'light' | 'ink'; className?: string }) => {
+    const tones = {
+        accent: 'bg-court text-white hover:bg-court-deep',
+        light: 'bg-white text-rg-ink hover:bg-rg-raised',
+        ink: 'bg-rg-ink text-white hover:bg-rg-night-2',
+    };
+    return (
+        <a href={href} className={`inline-flex items-center justify-center h-12 px-6 rounded-full text-[16px] font-semibold transition-[background-color,transform] duration-150 active:scale-[0.97] ${tones[tone]} ${className}`}>
+            {children}
+        </a>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 const App = () => {
-    const [legalModal, setLegalModal] = useState<{ isOpen: boolean; type: 'aviso' | 'privacidad' | 'cookies' }>({
-        isOpen: false,
-        type: 'aviso'
-    });
+    const [legalModal, setLegalModal] = useState<{ isOpen: boolean; type: 'aviso' | 'privacidad' | 'cookies' }>({ isOpen: false, type: 'aviso' });
+    const openLegal = (type: 'aviso' | 'privacidad' | 'cookies') => setLegalModal({ isOpen: true, type });
+    const [menuOpen, setMenuOpen] = useState(false);
 
-    const openLegal = (type: 'aviso' | 'privacidad' | 'cookies') => {
-        setLegalModal({ isOpen: true, type });
-    };
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [leadForm, setLeadForm] = useState({ name: '', email: '', club: '', submitted: false });
+    // The live parrilla: the slots in which Laura and Marta cannot play
+    const [blocked, setBlocked] = useState<Set<number>>(() => new Set([0]));
+    const toggleSlot = useCallback((slot: number) => setBlocked(prev => {
+        const next = new Set(prev);
+        if (next.has(slot)) next.delete(slot); else next.add(slot);
+        return next;
+    }), []);
 
-    const handleLeadSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // In the future, this will connect to a DB or CRM
-        console.log('Lead Captured:', leadForm);
-        setLeadForm({ ...leadForm, submitted: true });
-    };
+    // The fixed half shows the courts until the features arrive, then the live parrilla
+    const featuresRef = useRef<HTMLElement>(null);
+    const [stage, setStage] = useState<'photo' | 'parrilla'>('photo');
+    useEffect(() => {
+        const el = featuresRef.current;
+        if (!el || !('IntersectionObserver' in window)) return;
+        const io = new IntersectionObserver(([e]) => setStage(e.isIntersecting ? 'parrilla' : 'photo'), { rootMargin: '-45% 0px -45% 0px' });
+        io.observe(el);
+        return () => io.disconnect();
+    }, []);
 
-    const subscriptionPlans = [
-        {
-            name: "Básico",
-            price: "19",
-            priceId: "price_1SyENKH0qNNQGErtnwAw3w9R",
-            period: "/mes",
-            description: "Ideal para pequeños grupos o clubes que inician.",
-            features: [
-                "Máximo 50 jugadores",
-                "Hasta 3 torneos activos",
-                "3 categorías por torneo",
-                "Ligas, Americano y Mexicano",
-                "Gestión administrativa",
-            ],
-            notIncluded: [
-                "Portal del jugador",
-                "Marca personalizada",
-                "Playoffs Pro"
-            ],
-            color: "border-slate-200 bg-white text-slate-900"
-        },
-        {
-            name: "Pro",
-            price: "39",
-            priceId: "price_1SyENLH0qNNQGErtnn8H2yK7",
-            period: "/mes",
-            description: "La solución completa para clubes en crecimiento.",
-            features: [
-                "Todo lo del plan básico y además:",
-                "Hasta 150 jugadores",
-                "Torneos ilimitados",
-                "Categorías ilimitadas",
-                "Liga + Playoff",
-                "Modo TV",
-                "Portal auto-servicio",
-                "Validación de resultados",
-            ],
-            notIncluded: [
-                "Torneos de fin de Semana",
-                "Multi-admin avanzado"
-            ],
-            featured: true,
-            hasTrial: true,
-            color: "border-green-500 bg-white text-slate-900 shadow-xl shadow-green-100"
-        },
-        {
-            name: "Plan Star Point",
-            price: "59",
-            priceId: "price_1SyENLH0qNNQGErtanrpSTkh",
-            period: "/mes",
-            description: "Potencia total e ilimitada para grandes centros.",
-            features: [
-                "Todo lo del plan básico y además:",
-                "Usuarios ilimitados",
-                "Todo ilimitado",
-                "Playoffs (Main + Consolación)",
-                "Multi-administrador",
-                "Soporte prioritario",
-            ],
-            notIncluded: [],
-            color: "border-slate-200 bg-white text-slate-900"
-        }
-    ];
+    const [stageIndex, setStageIndex] = useState(0);
+    const [planIndex, setPlanIndex] = useState(1);
+    useReveal();
 
-    const eventPass = {
-        name: "Weekend Warrior",
-        price: "39",
-        priceId: "price_1QuU3dG36W3wUv2p3m7XFvU4",
-        period: "/evento",
-        badge: "Pase por Evento Único",
-        description: "Desbloquea toda la potencia del Plan Star Point para un solo torneo de alto impacto.",
-        features: [
-            "Acceso total 14 días",
-            "Cuadro Principal + Consolación",
-            "Categorías ilimitadas",
-            "Estadísticas Pro"
-        ]
-    };
+    const [pastHero, setPastHero] = useState(false);
+    useEffect(() => {
+        const onScroll = () => setPastHero(window.scrollY > window.innerHeight * 0.8);
+        onScroll();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
 
-    const tournamentFormats = [
-        { title: "Ranking Individual", desc: "Liga con divisiones. Partidos con parejas rotatorias o aleatorias." },
-        { title: "Ranking por Parejas", desc: "Liga de Parejas Fijas. 2 vs 2. Partidos Round Robin." },
-        { title: "Americano / Mexicano", desc: "Todos juegan con todos. Puntuación por juegos ganados." },
-        { title: "Eliminación Directa", desc: "Cuadro principal y de consolación. Cabezas de serie y avance por rondas." }
-    ];
-
-    const roadmap2026 = [
-        {
-            quarter: "Q1 2026",
-            title: "Formatos de Nueva Generación",
-            desc: "Expansión del ecosistema competitivo con la llegada de modalidades como 'Rey de la Pista', torneos por equipos con hándicap y ligas relámpago automatizadas.",
-            icon: <Sparkles className="w-6 h-6 text-orange-500" />
-        },
-        {
-            quarter: "Q2 2026",
-            title: "Portal de Autogestión",
-            desc: "Lanzamiento del Portal del Jugador con Login propio. Los usuarios podrán subir sus resultados directamente desde la pista para ahorrar tiempo al administrador.",
-            icon: <UserCheck className="w-6 h-6 text-green-500" />
-        },
-        {
-            quarter: "Q4 2026",
-            title: "Smart Scheduler AI",
-            desc: "Generación automática de horarios inteligentes para torneos de eliminación directa, optimizando la ocupación de pistas según las restricciones de los jugadores.",
-            icon: <Cpu className="w-6 h-6 text-indigo-500" />
-        },
-        {
-            quarter: "Q4 2026",
-            title: "App iOS & Android",
-            desc: "Tu club en el bolsillo. Lanzamiento de la App nativa para una experiencia 100% móvil con notificaciones push y resultados en vivo.",
-            icon: <Smartphone className="w-6 h-6 text-blue-500" />
-        }
-    ];
-
-    // --- MOCKUPS ---
-
-    const RankingTableMockup = () => (
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden text-[10px] md:text-xs">
-            <div className="bg-slate-50 p-3 border-b border-slate-200 flex flex-wrap gap-2">
-                <span className="bg-indigo-600 text-white px-3 py-1 rounded-md font-bold">Global</span>
-                <span className="bg-white border px-3 py-1 rounded-md text-slate-600">División 1</span>
-                <span className="bg-white border px-3 py-1 rounded-md text-slate-600">División 2</span>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-100">
-                            <th className="p-3">#</th>
-                            <th className="p-3">Jugador</th>
-                            <th className="p-3">PTS</th>
-                            <th className="p-3">PG</th>
-                            <th className="p-3">Dif Sets</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {[
-                            { id: 1, name: "Carlos Méndez", pts: 9, pg: 3, ds: "+6" },
-                            { id: 2, name: "Roberto Sanz", pts: 7, pg: 2, ds: "+3" },
-                            { id: 3, name: "Javier Ruiz", pts: 6, pg: 2, ds: "+2" },
-                        ].map((row) => (
-                            <tr key={row.id} className="hover:bg-slate-50">
-                                <td className="p-3 font-bold text-slate-400">{row.id}</td>
-                                <td className="p-3 font-semibold text-slate-900">{row.name}</td>
-                                <td className="p-3 text-indigo-600 font-bold">{row.pts}</td>
-                                <td className="p-3 text-green-600">{row.pg}</td>
-                                <td className="p-3">{row.ds}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-
-    const ScheduleGridMockup = () => (
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden text-[9px] sm:text-[10px]">
-            <div className="grid grid-cols-5 bg-slate-100 border-b border-slate-200 font-bold text-slate-500">
-                <div className="p-2 border-r text-center">Hora</div>
-                <div className="p-2 border-r text-center">Pista 1</div>
-                <div className="p-2 border-r text-center">Pista 2</div>
-                <div className="p-2 border-r text-center">Pista 3</div>
-                <div className="p-2 text-center">Pista 4</div>
-            </div>
-            {["09:00", "10:00", "11:00"].map((time, idx) => (
-                <div key={time} className="grid grid-cols-5 border-b border-slate-50 min-h-[85px]">
-                    <div className="p-2 border-r bg-slate-50 font-bold text-slate-400 flex items-center justify-center">{time}</div>
-                    <div className="p-1.5 border-r relative flex items-center justify-center">
-                        {idx === 1 && (
-                            <div className="w-full h-full bg-indigo-50 border border-indigo-200 rounded-lg p-2 text-indigo-700 font-bold leading-tight flex flex-col justify-center text-center shadow-sm">
-                                <span className="text-[7px] text-indigo-400 uppercase mb-1">OPEN</span>
-                                <span>H. Martín / S. Ramos</span>
-                                <span className="text-[7px] text-slate-300 my-0.5 uppercase">vs</span>
-                                <span>A. Castro / E. Blanco</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className="p-1.5 border-r"></div>
-                    <div className="p-1.5 border-r relative flex items-center justify-center">
-                        {idx === 0 && (
-                            <div className="w-full h-full bg-indigo-50 border border-indigo-200 rounded-lg p-2 text-indigo-700 font-bold leading-tight flex flex-col justify-center text-center shadow-sm">
-                                <span className="text-[7px] text-indigo-400 uppercase mb-1">LIGA</span>
-                                <span>M. Gil / D. Soler</span>
-                                <span className="text-[7px] text-slate-300 my-0.5 uppercase">vs</span>
-                                <span>L. Vega / P. Cano</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className="p-1.5 border-r"></div>
-                    <div className="p-1.5 flex items-center justify-center text-slate-200 uppercase font-bold text-[7px]">Libre</div>
-                </div>
-            ))}
-        </div>
-    );
-
-    const PlayerDatabaseMockup = () => (
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden text-[10px] md:text-xs">
-            <div className="p-4 border-b bg-slate-50 flex items-center justify-between gap-4">
-                <div className="relative flex-grow">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                    <input type="text" placeholder="Buscando..." className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs outline-none" readOnly value="Sergio Domínguez" />
-                </div>
-                <button className="bg-green-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2">
-                    <Plus className="w-3 h-3" /> Nuevo
-                </button>
-            </div>
-            <table className="w-full text-left">
-                <thead>
-                    <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-100">
-                        <th className="p-3">Nombre</th>
-                        <th className="p-3">Nivel</th>
-                        <th className="p-3">Estado</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                    {[
-                        { name: "Sergio Domínguez", level: "4.5", status: "Activo" },
-                        { name: "Beatriz Ortiz", level: "3.0", status: "Activo" },
-                        { name: "Hugo Martín", level: "5.2", status: "Baja" },
-                    ].map((p, idx) => (
-                        <tr key={idx}>
-                            <td className="p-3 font-semibold">{p.name}</td>
-                            <td className="p-3"><span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold">{p.level}</span></td>
-                            <td className="p-3">
-                                <div className="flex items-center gap-1.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${p.status === 'Activo' ? 'bg-green-500' : 'bg-red-400'}`}></div>
-                                    <span>{p.status}</span>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-
-    const PlayerStatsMockup = () => (
-        <div className="bg-[#f8fafc] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-900 w-full">
-            <div className="bg-[#0f172a] p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-lg font-bold border border-slate-500">RS</div>
-                    <div>
-                        <h3 className="text-xl font-bold">Roberto Sanz</h3>
-                        <div className="text-[8px] text-slate-400 uppercase tracking-widest mt-0.5 bg-slate-800 px-2 py-0.5 rounded inline-block">Racha: WWLW</div>
-                    </div>
-                </div>
-                <div className="flex gap-6 text-center">
-                    <div><p className="text-green-400 text-2xl font-black">80%</p><p className="text-[8px] text-slate-400 uppercase font-bold">Win Rate</p></div>
-                    <div><p className="text-white text-2xl font-black">15</p><p className="text-[8px] text-slate-400 uppercase font-bold">Partidos</p></div>
-                </div>
-            </div>
-            <div className="p-4 space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm col-span-2 md:col-span-1">
-                        <h4 className="text-[9px] font-bold text-green-600 uppercase mb-2">Resumen Total</h4>
-                        <div className="space-y-1 text-[11px]">
-                            <div className="flex justify-between"><span>Victorias</span><span className="font-bold">12</span></div>
-                            <div className="flex justify-between"><span>Derrotas</span><span className="font-bold">3</span></div>
-                            <div className="flex justify-between border-t pt-1"><span>Dif. Sets</span><span className="font-bold text-indigo-600">+15</span></div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm text-center">
-                        <h4 className="text-[9px] font-bold text-yellow-600 uppercase mb-1">Mejor Aliado</h4>
-                        <p className="text-xs font-bold">Carlos Méndez</p>
-                        <p className="text-[9px] text-slate-400">100% efectividad</p>
-                    </div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm text-center">
-                        <h4 className="text-[9px] font-bold text-red-600 uppercase mb-1">Némesis</h4>
-                        <p className="text-xs font-bold">Elena Blanco</p>
-                        <p className="text-[9px] text-slate-400">2 derrotas</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    const CustomBrandingMockup = () => (
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full aspect-video flex flex-col relative">
-            {/* Etiqueta flotante */}
-            <div className="absolute top-4 right-4 z-10 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg">
-                Tu Marca Aquí
-            </div>
-
-            {/* Cabecera personalizada */}
-            <div className="bg-[#1e293b] h-32 flex flex-col items-center justify-center relative">
-                {/* Logo Placeholder */}
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg border-4 border-[#1e293b] absolute -bottom-8">
-                    <Trophy className="w-8 h-8 text-emerald-500" />
-                </div>
-                <h3 className="text-white font-bold text-lg mt-2">Club Padel Center</h3>
-                <p className="text-slate-400 text-xs">Torneo de Primavera 2026</p>
-            </div>
-
-            {/* Contenido simulado */}
-            <div className="flex-grow bg-slate-50 pt-10 px-6 pb-6">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm h-20">
-                        <div className="h-2 w-16 bg-slate-100 rounded mb-2"></div>
-                        <div className="h-4 w-full bg-slate-50 rounded"></div>
-                    </div>
-                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm h-20">
-                        <div className="h-2 w-16 bg-slate-100 rounded mb-2"></div>
-                        <div className="h-4 w-full bg-slate-50 rounded"></div>
-                    </div>
-                </div>
-                <div className="mt-4 h-8 w-32 mx-auto bg-emerald-500 rounded-full opacity-20"></div>
-            </div>
-        </div>
-    );
-
-    const ModoTVMockup = () => (
-        <div className="bg-[#0f172a] rounded-2xl shadow-2xl border-4 border-slate-800 overflow-hidden text-white w-full aspect-video flex flex-col font-sans">
-            {/* Barra de Título TV */}
-            <div className="bg-indigo-600 p-3 flex justify-between items-center border-b border-indigo-500">
-                <div className="flex items-center gap-2">
-                    <div className="bg-red-600 px-1.5 py-0.5 rounded text-[9px] font-bold animate-pulse">LIVE</div>
-                    <h3 className="text-sm font-black italic tracking-tighter">RACKET GRID TV</h3>
-                </div>
-                <div className="text-right">
-                    <p className="text-[9px] font-bold uppercase opacity-80 tracking-wider">Torneo Verano 2026</p>
-                </div>
-            </div>
-
-            <div className="flex-grow grid grid-cols-12 p-4 gap-4">
-                {/* Marcador Principal */}
-                <div className="col-span-8 space-y-3">
-                    <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 backdrop-blur-sm">
-                        <p className="text-[8px] text-indigo-400 font-bold uppercase mb-2 tracking-widest text-center">PISTA CENTRAL - FINAL</p>
-                        <div className="flex justify-between items-center">
-                            <div className="text-center w-1/3 space-y-1">
-                                <p className="text-base font-bold leading-tight">Carlos M.</p>
-                                <p className="text-base font-bold leading-tight text-slate-400">Roberto S.</p>
-                            </div>
-                            <div className="flex gap-2 items-center">
-                                <div className="bg-white text-slate-900 w-10 h-12 rounded flex items-center justify-center text-3xl font-black shadow-lg shadow-indigo-500/20">6</div>
-                                <div className="text-slate-600 font-bold">:</div>
-                                <div className="bg-white text-slate-900 w-10 h-12 rounded flex items-center justify-center text-3xl font-black shadow-lg shadow-indigo-500/20">4</div>
-                            </div>
-                            <div className="text-center w-1/3 space-y-1">
-                                <p className="text-base font-bold leading-tight">Elena B.</p>
-                                <p className="text-base font-bold leading-tight text-slate-400">Javier R.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/50 flex items-center gap-2">
-                            <div className="w-6 h-6 rounded bg-indigo-500/20 flex items-center justify-center text-[8px] font-bold text-indigo-300">P2</div>
-                            <div className="text-[9px] leading-tight">
-                                <p className="font-bold text-white">M. Gil / D. Soler</p>
-                                <p className="text-slate-400">vs Vega / Cano</p>
-                            </div>
-                        </div>
-                        <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/50 flex items-center gap-2">
-                            <div className="w-6 h-6 rounded bg-indigo-500/20 flex items-center justify-center text-[8px] font-bold text-indigo-300">P3</div>
-                            <div className="text-[9px] leading-tight">
-                                <p className="font-bold text-white">Ortiz / Ramos</p>
-                                <p className="text-slate-400">vs Martín / J.L.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Clasificación Lateral */}
-                <div className="col-span-4 bg-slate-900/90 rounded-xl border border-slate-700 p-3 flex flex-col">
-                    <h4 className="text-[8px] font-bold text-center mb-3 text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-2">Ranking Live</h4>
-                    <div className="space-y-1.5 flex-grow overflow-hidden">
-                        {[
-                            { n: "C. Méndez", p: "1250" },
-                            { n: "R. Sanz", p: "1180" },
-                            { n: "E. Blanco", p: "1150" },
-                            { n: "J. Ruiz", p: "1090" }
-                        ].map((r, i) => (
-                            <div key={i} className="flex justify-between items-center bg-slate-800/50 p-1.5 rounded text-[10px]">
-                                <span className="font-bold text-slate-500 w-3">{i + 1}</span>
-                                <span className="font-bold flex-grow text-slate-200 truncate px-1">{r.n}</span>
-                                <span className="text-white font-bold">{r.p}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+    const plan = PLANS[planIndex];
+    const Current = STAGES[stageIndex].Fragment;
 
     return (
-        <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 scroll-smooth">
-            {/* Navbar */}
-            <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-slate-100">
-                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                        <div className="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-100">
-                            <Trophy className="text-white w-6 h-6" />
-                        </div>
-                        <span className="text-xl font-black tracking-tight">Racket <span className="text-indigo-600">Grid</span></span>
-                    </div>
-                    <div className="hidden md:flex items-center gap-10">
-                        <a href="#features" className="text-slate-600 hover:text-indigo-600 transition-colors font-bold text-sm">Funciones</a>
-                        <a href="#pricing" className="text-slate-600 hover:text-indigo-600 transition-colors font-bold text-sm">Precios</a>
-                        <a
-                            href="https://app.racketgrid.com"
-                            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-full hover:bg-slate-800 transition-all font-bold text-sm shadow-lg shadow-slate-100"
-                        >
-                            <LogIn className="w-4 h-4" /> Admin Login
-                        </a>
-                    </div>
-                    <button className="md:hidden p-2 text-slate-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                        {mobileMenuOpen ? <X /> : <Menu />}
-                    </button>
-                </div>
-                {mobileMenuOpen && (
-                    <div className="md:hidden bg-white border-b border-slate-100 px-6 py-6 space-y-4">
-                        <a href="#features" className="block py-2 text-slate-600 font-bold" onClick={() => setMobileMenuOpen(false)}>Funciones</a>
-                        <a href="#pricing" className="block py-2 text-slate-600 font-bold" onClick={() => setMobileMenuOpen(false)}>Precios</a>
-                        <a
-                            href="https://app.racketgrid.com"
-                            className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-4 rounded-2xl font-bold"
-                        >
-                            <LogIn className="w-4 h-4" /> Admin Login
-                        </a>
-                    </div>
-                )}
-            </nav>
+        <div className="min-h-svh bg-rg-paper text-rg-ink font-sans">
+            <div className="hidden lg:block"><ConsentManager /></div>
+            <a href="#funciones" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[120] bg-white px-4 py-2 rounded-full">Saltar al contenido</a>
 
-            {/* Hero */}
-            <section className="pt-40 pb-20 px-6 bg-gradient-to-b from-slate-50 to-white">
-                <div className="max-w-7xl mx-auto text-center">
-                    <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-[1.1]">
-                        La plataforma definitiva para <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-400 font-black">Clubes de Padel</span>
-                    </h1>
-                    <p className="text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
-                        Gestión inteligente de todo tipo de torneos. Controla el torneo de una forma sencilla y facilita el seguimiento del evento a todos los participantes.
-                    </p>
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <a
-                            href="https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=price_1SyENLH0qNNQGErtnn8H2yK7&plan=pro"
-                            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl text-lg font-bold transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
-                        >
-                            Prueba Gratuita <ChevronRight className="w-5 h-5" />
-                        </a>
-                        <button
-                            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                            className="w-full sm:w-auto bg-white border border-slate-200 hover:border-indigo-600 text-slate-700 px-8 py-4 rounded-2xl text-lg font-bold transition-all"
-                        >
-                            Ver Funciones
-                        </button>
-                    </div>
-                </div>
-            </section>
+            {/* ============ The split stage: courts and parrilla on the left, reading on the right ============ */}
+            <div className="relative bg-rg-night lg:grid lg:grid-cols-[47%_53%]">
 
-            {/* Feature Sections with Numbered Cards */}
-            <section id="features" className="py-24 bg-white space-y-32">
-                <div className="max-w-7xl mx-auto px-6">
-
-                    {/* Card 01: Rankings */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-50/50 border border-slate-100">
-                        <div>
-                            <div className="flex items-center gap-4 mb-6">
-                                <span className="text-5xl font-black text-indigo-100">01</span>
-                                <h2 className="text-4xl font-extrabold text-slate-900">Todos tus Formatos en una sola App</h2>
+                {/* Fixed half */}
+                <div className="relative">
+                    <div className="h-[58svh] p-3 lg:sticky lg:top-0 lg:h-svh lg:p-5">
+                        <div className="relative h-full rounded-xl overflow-hidden bg-rg-night-2">
+                            <div className={`stage-layer absolute inset-0 ${stage === 'photo' ? 'opacity-100' : 'opacity-0 lg:scale-[1.02]'}`} aria-hidden={stage !== 'photo'}>
+                                <img
+                                    src="/photos/pistas-desde-arriba.jpg"
+                                    alt="Pistas de pádel azules vistas desde arriba, junto a una antigua capilla de piedra"
+                                    width={1920} height={1440}
+                                    className="drift w-full h-full object-cover object-[60%_70%] brightness-[0.82]"
+                                />
                             </div>
-                            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-                                Racket Grid automatiza el cálculo de puntos y ascensos al instante, desde ligas anuales hasta torneos rápidos.
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {tournamentFormats.map((f, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                        <Check className="w-5 h-5 text-indigo-600 shrink-0" />
-                                        <span className="font-bold text-slate-900 text-sm">{f.title}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="relative group">
-                            <div className="absolute -inset-4 bg-indigo-100/30 rounded-[2.5rem] blur-xl"></div>
-                            <RankingTableMockup />
-                        </div>
-                    </div>
-
-                    {/* Card 02: Schedule */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-white border border-slate-50 shadow-sm">
-                        <div className="order-2 lg:order-1 relative group">
-                            <div className="absolute -inset-4 bg-green-100/30 rounded-[2.5rem] blur-xl"></div>
-                            <ScheduleGridMockup />
-                        </div>
-                        <div className="order-1 lg:order-2">
-                            <div className="flex items-center gap-4 mb-6">
-                                <span className="text-5xl font-black text-green-100">02</span>
-                                <h2 className="text-4xl font-extrabold text-slate-900">Parrilla de Horarios Inteligente</h2>
-                            </div>
-                            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-                                Visualiza la ocupación de tus pistas de un vistazo. Programa partidos directamente en la cuadrícula asegurando visibilidad total.
-                            </p>
-                            <ul className="space-y-4">
-                                {[
-                                    "Gestión de múltiples pistas y franjas horarias",
-                                    "Tarjetas de partido con legibilidad optimizada",
-                                    "Sustitución rápida por bajas de última hora",
-                                    "Sincronización total con las actas del torneo"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 font-medium text-slate-700">
-                                        <div className="bg-green-100 text-green-600 p-1 rounded-full"><Check className="w-4 h-4" /></div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-
-                    {/* Card 03: Player Database */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-50/50 border border-slate-100">
-                        <div>
-                            <div className="flex items-center gap-4 mb-6">
-                                <span className="text-5xl font-black text-indigo-100">03</span>
-                                <h2 className="text-4xl font-extrabold text-slate-900">Gestión de Socios Centralizada</h2>
-                            </div>
-                            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-                                Controla niveles, estados de socio y disponibilidad sin necesidad de hojas de cálculo externas.
-                            </p>
-                            <ul className="space-y-4">
-                                {[
-                                    "Ficha de jugador con nivel técnico (1.0 - 7.0)",
-                                    "Filtros avanzados por división y estado",
-                                    "Historial de pagos y participaciones",
-                                    "Gestión masiva de altas y bajas"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 font-medium text-slate-700">
-                                        <div className="bg-indigo-100 text-indigo-600 p-1 rounded-full"><Check className="w-4 h-4" /></div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                        <div className="relative group">
-                            <div className="absolute -inset-4 bg-indigo-100/20 rounded-[2.5rem] blur-xl"></div>
-                            <PlayerDatabaseMockup />
-                        </div>
-                    </div>
-
-                    {/* Card 04: Player Experience */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-white border border-slate-50 shadow-sm">
-                        <div className="order-2 lg:order-1 relative group">
-                            <div className="absolute -inset-4 bg-orange-100/20 rounded-[2.5rem] blur-xl"></div>
-                            <PlayerStatsMockup />
-                        </div>
-                        <div className="order-1 lg:order-2">
-                            <div className="flex items-center gap-4 mb-6">
-                                <span className="text-5xl font-black text-orange-100">04</span>
-                                <h2 className="text-4xl font-extrabold text-slate-900">Experiencia Pro para el Jugador</h2>
-                            </div>
-                            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-                                Visualiza winrate, rachas, némesis y un historial completo de partidos con eficiencia detallada.
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {[
-                                    { title: "Radar de Némesis", desc: "Identifica tus rivales directos." },
-                                    { title: "Rachas de Forma", desc: "Mide tu consistencia." },
-                                    { title: "Historial Visual", desc: "Resultados siempre a mano." },
-                                    { title: "Mejores Aliados", desc: "Compañeros más efectivos." }
-                                ].map((f, i) => (
-                                    <div key={i} className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">
-                                        <Activity className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                                        <div><h4 className="font-bold text-slate-900 text-sm">{f.title}</h4><p className="text-[10px] text-slate-500">{f.desc}</p></div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* NUEVA Card 05: Modo TV */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-slate-900 border border-slate-800 shadow-2xl">
-                        <div>
-                            <div className="flex items-center gap-4 mb-6">
-                                <span className="text-5xl font-black text-indigo-500/30">05</span>
-                                <h2 className="text-4xl font-extrabold text-white italic tracking-tight">Modo TV: Live Experience</h2>
-                            </div>
-                            <p className="text-lg text-slate-400 mb-8 leading-relaxed">
-                                Transforma las pantallas de tu club en un canal de televisión profesional. Muestra resultados en directo y clasificaciones dinámicas con un diseño de alta competición.
-                            </p>
-                            <div className="space-y-4">
-                                {[
-                                    "Marcadores en tiempo real para todas las pistas",
-                                    "Rotación automática de cuadros y clasificaciones",
-                                    "Ideal para eventos finales y torneos de fin de semana",
-                                    "Interfaz optimizada para Smart TVs y proyectores"
-                                ].map((item, i) => (
-                                    <div key={i} className="flex items-center gap-3 font-medium text-slate-300 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
-                                        <div className="bg-indigo-600 text-white p-1 rounded-full"><MonitorPlay className="w-4 h-4" /></div>
-                                        {item}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="relative group">
-                            <div className="absolute -inset-4 bg-indigo-600/20 rounded-[2.5rem] blur-2xl group-hover:bg-indigo-600/30 transition-all"></div>
-                            <ModoTVMockup />
-                        </div>
-                    </div>
-
-                    {/* NUEVA Card 06: Tu Marca, Tu Torneo */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center p-8 rounded-[3rem] bg-white border border-slate-100 shadow-sm">
-                        <div className="order-2 lg:order-1 relative group">
-                            <div className="absolute -inset-4 bg-emerald-100/30 rounded-[2.5rem] blur-xl"></div>
-                            <CustomBrandingMockup />
-                        </div>
-                        <div className="order-1 lg:order-2">
-                            <div className="flex items-center gap-4 mb-6">
-                                <span className="text-5xl font-black text-emerald-100">06</span>
-                                <h2 className="text-4xl font-extrabold text-slate-900">Tu Marca, Tu Torneo</h2>
-                            </div>
-                            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-                                Personaliza la vista pública de tus competiciones con el logo y los colores de tu club. Ofrece una experiencia corporativa profesional a tus jugadores y patrocinadores.
-                            </p>
-                            <ul className="space-y-4">
-                                {[
-                                    "Sube tu propio logotipo para cabeceras y rankings",
-                                    "Colores corporativos en la interfaz pública",
-                                    "Eliminación de la marca Racket Grid en vistas clave",
-                                    "URL personalizada para compartir resultados"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 font-medium text-slate-700">
-                                        <div className="bg-emerald-100 text-emerald-600 p-1 rounded-full"><Palette className="w-4 h-4" /></div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-
-                </div>
-            </section>
-
-            {/* Admin Dashboard - Botones deshabilitados */}
-            <section className="py-24 bg-slate-900 text-white overflow-hidden">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="text-center mb-16">
-                        <h2 className="text-4xl font-extrabold mb-4">Control Administrativo Pro</h2>
-                        <p className="text-slate-400">Herramientas diseñadas por y para organizadores.</p>
-                    </div>
-                    <div className="bg-slate-800 p-6 md:p-10 rounded-[3rem] border border-slate-700 shadow-2xl">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 text-center">
-                            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                                <p className="text-slate-500 text-xs font-bold uppercase mb-2">Torneos Activos</p>
-                                <div className="flex justify-center items-center gap-4"><span className="text-4xl font-black">1</span><Trophy className="text-indigo-500 w-8 h-8" /></div>
-                            </div>
-                            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                                <p className="text-slate-500 text-xs font-bold uppercase mb-2">Jugadores</p>
-                                <div className="flex justify-center items-center gap-4"><span className="text-4xl font-black">40</span><Users className="text-green-500 w-8 h-8" /></div>
-                            </div>
-                            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700">
-                                <p className="text-slate-500 text-xs font-bold uppercase mb-2">Validaciones</p>
-                                <div className="flex justify-center items-center gap-4"><span className="text-4xl font-black">20</span><ShieldCheck className="text-orange-500 w-8 h-8" /></div>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-indigo-600/50 p-8 rounded-3xl flex items-center justify-between cursor-default opacity-80 border border-indigo-400/30">
-                                <div><h4 className="text-2xl font-bold mb-1">Nuevo Torneo</h4><p className="text-indigo-100 text-sm opacity-60">Configuración en segundos</p></div>
-                                <Trophy className="w-12 h-12 opacity-20" />
-                            </div>
-                            <div className="bg-green-600/50 p-8 rounded-3xl flex items-center justify-between cursor-default opacity-80 border border-green-400/30">
-                                <div><h4 className="text-2xl font-bold mb-1">Añadir Socio</h4><p className="text-green-100 text-sm opacity-60">Carga masiva</p></div>
-                                <Users className="w-12 h-12 opacity-20" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Roadmap */}
-            <section className="py-24 bg-white relative">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="mb-16">
-                        <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase mb-4">
-                            <Plus className="w-3 h-3" /> Roadmap 2026
-                        </div>
-                        <h2 className="text-4xl font-extrabold text-slate-900 mb-4">Construyendo el Futuro del Pádel</h2>
-                        <p className="text-slate-600">Innovaciones que transformarán tu club este año.</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                        {roadmap2026.map((item, i) => (
-                            <div key={i} className="group bg-slate-50 hover:bg-white p-8 rounded-[2rem] border border-slate-100 hover:border-indigo-100 hover:shadow-2xl transition-all duration-500">
-                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 w-fit mb-6 group-hover:scale-110 transition-transform">
-                                    {item.icon}
+                            <div className={`stage-layer hidden lg:flex absolute inset-0 items-center justify-center p-6 xl:p-10 bg-rg-night-2 ${stage === 'parrilla' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={stage !== 'parrilla'}>
+                                <div className="w-full max-w-[620px]">
+                                    <ParrillaLive blocked={blocked} onToggle={toggleSlot} />
+                                    <p className="text-[14px] text-rg-on-night-muted mt-3">Toca las horas: el partido de Laura y Marta busca el siguiente hueco libre.</p>
                                 </div>
-                                <span className="text-[10px] font-black text-indigo-600 tracking-widest">{item.quarter}</span>
-                                <h3 className="text-xl font-bold text-slate-900 mt-2 mb-4">{item.title}</h3>
-                                <p className="text-slate-500 text-xs leading-relaxed">{item.desc}</p>
                             </div>
+
+                            {/* Phone: menu and action over the photograph */}
+                            <div className="lg:hidden absolute top-0 inset-x-0 flex items-center justify-between p-3">
+                                <button type="button" onClick={() => setMenuOpen(true)} className="h-11 px-4 rounded-full bg-white/90 text-rg-ink text-[15px] font-medium">Menú</button>
+                                <Button href={TRIAL_URL} className="h-11 text-[15px] px-5">Probar gratis</Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Reading half */}
+                <div className="relative">
+                    {/* First screen */}
+                    <section className="relative px-5 pb-12 lg:px-14 lg:pb-0 lg:h-svh text-rg-on-night" aria-labelledby="titulo">
+                        <nav className="hidden lg:flex absolute top-8 right-8 items-center gap-7 text-[15px]" aria-label="Principal">
+                            {NAV.map(l => <a key={l.label} href={l.href} className="text-rg-on-night hover:text-white transition-colors">{l.label}</a>)}
+                            <Button href={TRIAL_URL} className="h-10 px-5 text-[15px]">Probar gratis</Button>
+                        </nav>
+
+                        <h1 id="titulo" className="wordmark text-display font-medium lowercase text-white -mt-[9vw] sm:-mt-[6vw] sm:whitespace-nowrap lg:mt-0 lg:absolute lg:right-8 lg:bottom-10 lg:z-20 lg:whitespace-nowrap lg:text-[clamp(84px,11vw,190px)]">
+                            <span className="block sm:inline">racket</span> grid
+                        </h1>
+
+                        <div className="mt-6 max-w-[30ch] sm:max-w-none sm:grid sm:grid-cols-2 sm:gap-8 sm:items-end lg:block lg:mt-0 lg:pt-[36svh] lg:max-w-[30ch]">
+                            <p className="text-[20px] lg:text-[24px] leading-[1.35] text-white">
+                                Las ligas y torneos de pádel de tu club, con la parrilla hecha y los resultados en el móvil de cada jugador.
+                            </p>
+                            <div className="mt-7 sm:mt-0 lg:mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
+                                <Button href={TRIAL_URL}>Probar un mes gratis</Button>
+                                <a href="#como-funciona" className="text-[16px] text-rg-on-night underline-offset-4 hover:underline">Ver cómo funciona</a>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div className="lg:hidden"><ConsentManager /></div>
+
+                    {/* Features, on paper */}
+                    <section id="funciones" ref={featuresRef} className="bg-rg-paper px-5 py-20 lg:px-14 lg:py-32" aria-labelledby="funciones-titulo">
+                        <div data-reveal>
+                            <h2 id="funciones-titulo" className="rise text-l font-semibold max-w-[20ch]">Lo que Racket Grid hace por tu club</h2>
+                            <p className="rise text-m mt-3 max-w-[46ch]" style={{ '--i': 1 } as React.CSSProperties}>
+                                Todo lo que hoy vive en un Excel, un grupo de WhatsApp y un corcho en recepción, en un solo sitio.
+                            </p>
+                        </div>
+                        <div className="mt-14 lg:mt-16 space-y-16 lg:space-y-24">
+                            {FEATURES.map(({ title, text, Proof, live }) => (
+                                <article key={title} data-reveal className="grid gap-5 xl:grid-cols-[340px_minmax(0,300px)] xl:gap-7 items-start">
+                                    <div className="rise bg-rg-raised rounded-xl p-3 overflow-hidden">
+                                        {live ? (
+                                            <>
+                                                <div className="hidden lg:block"><Proof /></div>
+                                                <div className="lg:hidden"><ParrillaLive blocked={blocked} onToggle={toggleSlot} compact /></div>
+                                            </>
+                                        ) : <Proof />}
+                                    </div>
+                                    <div className="rise" style={{ '--i': 1 } as React.CSSProperties}>
+                                        <h3 className="text-[18px] font-semibold leading-snug">{title}</h3>
+                                        <p className="text-[16px] leading-[1.55] mt-2">{text}</p>
+                                        {live && <p className="hidden lg:block text-[15px] text-court-ink mt-3">Pruébalo en la parrilla de la izquierda.</p>}
+                                        {live && <p className="lg:hidden text-[15px] text-court-ink mt-3">Pruébalo arriba: toca las horas.</p>}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            {/* ============ How it works: one slider drives both fields ============ */}
+            <section id="como-funciona" className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-2 lg:min-h-[88svh]" aria-labelledby="como-titulo">
+                <div className="order-1 bg-court text-white px-5 py-10 lg:px-14 lg:py-16 flex flex-col">
+                    <h2 id="como-titulo" key={stageIndex} className="swap text-xl font-semibold max-w-[13ch]">{STAGES[stageIndex].clause}</h2>
+                    <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-1 text-[16px] lg:hidden">
+                        {STAGES.map((s, i) => <li key={s.name} className={i === stageIndex ? 'text-white font-semibold' : 'text-white/70'}>{s.name}</li>)}
+                    </ul>
+                </div>
+                <div className="order-2 bg-rg-raised px-4 py-8 lg:p-14 flex items-center justify-center min-h-[46svh]">
+                    <div key={stageIndex} className="swap w-full flex justify-center"><Current /></div>
+                </div>
+                <div className="order-3 lg:col-span-2 bg-rg-ink px-5 lg:px-14 py-6">
+                    <label htmlFor="etapa" className="sr-only">Etapa del torneo</label>
+                    <input
+                        id="etapa"
+                        type="range" min={0} max={STAGES.length - 1} step={1}
+                        value={stageIndex}
+                        onChange={e => setStageIndex(Number(e.target.value))}
+                        className="stage-range w-full"
+                        style={{ '--fill': `${(stageIndex / (STAGES.length - 1)) * 100}%` } as React.CSSProperties}
+                        aria-valuetext={STAGES[stageIndex].name}
+                    />
+                    <ol className="hidden lg:grid grid-cols-4 mt-3 text-[16px]">
+                        {STAGES.map((s, i) => (
+                            <li key={s.name} className={`${i === 0 ? '' : i === STAGES.length - 1 ? 'text-right' : 'text-center'}`}>
+                                <button type="button" onClick={() => setStageIndex(i)} className={`transition-colors ${i === stageIndex ? 'text-white font-semibold' : 'text-rg-on-night-muted hover:text-white'}`}>{s.name}</button>
+                            </li>
                         ))}
-                    </div>
+                    </ol>
                 </div>
             </section>
 
-            {/* Trusted By Section */}
-            <section className="py-16 bg-slate-50 border-b border-slate-100">
-                <div className="max-w-7xl mx-auto px-6 text-center">
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-8">Clubes que confían en Racket Grid</p>
-                    <div className="flex flex-wrap justify-center items-center gap-12 grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
-                        {/* Roda Padel Reserve */}
-                        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTW3dnLzemcsWMSvywP8WfSzWWswd01o4QLZg&s" alt="Roda Padel Reserve" className="h-16 object-contain" />
-
-                        {/* Padel Indoor Aragon */}
-                        <img src="https://padelindooraragon.com/wp-content/uploads/2023/11/padel-indoor-aragon.png" alt="Padel Indoor Aragon" className="h-16 object-contain" />
-
-                        {/* Club de Padel San Javier */}
-                        <img src="https://www.clubdepadelsanjavier.es/img/logo.png" alt="Club de Padel San Javier" className="h-16 object-contain" />
-                    </div>
+            {/* ============ Where it is played ============ */}
+            <section className="px-5 py-24 lg:px-14 lg:py-32 grid lg:grid-cols-12 gap-10 lg:gap-8" aria-labelledby="clubes-titulo" data-reveal>
+                <div className="lg:col-span-3">
+                    <h2 id="clubes-titulo" className="rise text-l font-semibold">Dónde ya se juega</h2>
+                    <img
+                        src="/photos/pista-cristal.jpg"
+                        alt="Pista de pádel de cristal y césped azul bajo un cielo nublado"
+                        width={1920} height={1280} loading="lazy"
+                        className="rise mt-8 w-full aspect-[4/5] object-cover object-[45%_50%] rounded-xl"
+                        style={{ '--i': 1 } as React.CSSProperties}
+                    />
+                </div>
+                <div className="rise lg:col-span-8 lg:col-start-5 columns-2 md:columns-3 gap-8 text-[18px] lg:text-[20px] leading-[1.5]" style={{ '--i': 1 } as React.CSSProperties}>
+                    {PROOF.map(group => (
+                        <ul key={group.kind} className="break-inside-avoid mb-8">
+                            <li className="text-rg-muted">{group.kind}</li>
+                            {group.names.map(n => <li key={n}>{n}</li>)}
+                        </ul>
+                    ))}
                 </div>
             </section>
 
-            {/* Lead Magnet Section */}
-            <section className="py-24 bg-indigo-900 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full opacity-10">
-                    <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[80%] bg-indigo-400 rounded-full blur-[120px]"></div>
-                    <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[80%] bg-green-400 rounded-full blur-[120px]"></div>
-                </div>
-                
-                <div className="max-w-7xl mx-auto px-6 relative z-10">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                        <div>
-                            <div className="inline-flex items-center gap-2 bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold uppercase mb-6">
-                                <Gift className="w-3 h-3" /> Recurso Gratuito para Clubes
-                            </div>
-                            <h2 className="text-4xl md:text-5xl font-black text-white mb-6 leading-tight">
-                                ¿Aún usas Excels caóticos? Descarga nuestro <span className="text-green-400">Kit de Gestión Pro</span>.
-                            </h2>
-                            <p className="text-indigo-100 text-lg mb-8 leading-relaxed opacity-80">
-                                Hemos empaquetado las herramientas que usan los clubes más eficientes. Consigue gratis la plantilla de ranking automatizada y el checklist de organización de torneos.
-                            </p>
-                            
-                            <ul className="space-y-4 mb-8">
-                                {[
-                                    "Plantilla de Ranking con fórmulas de puntos",
-                                    "Checklist: 20 pasos para un torneo perfecto",
-                                    "Guía de niveles y categorías de juego",
-                                    "Manual de bienvenida para nuevos socios"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-white font-medium">
-                                        <ShieldCheck className="w-5 h-5 text-green-400" />
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
+            {/* ============ Prices: plan names, one live figure ============ */}
+            <section id="precios" className="bg-white px-5 py-24 lg:px-14 lg:py-32" aria-labelledby="precios-titulo">
+                <h2 id="precios-titulo" className="text-l font-semibold">Precios, con el IVA incluido</h2>
+                <p className="text-[16px] text-rg-muted mt-2 max-w-[52ch]">Son precios de lanzamiento y pueden cambiar. Puedes cancelar cuando quieras.</p>
 
-                            <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 w-fit">
-                                <div className="bg-indigo-500/20 p-3 rounded-xl">
-                                    <FileSpreadsheet className="text-indigo-400 w-8 h-8" />
-                                </div>
-                                <div>
-                                    <p className="text-white font-bold text-sm">Kit de Gestión 2026.zip</p>
-                                    <p className="text-indigo-300 text-xs">Incluye 4 archivos • 2.4 MB</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="bg-white p-8 md:p-10 rounded-[3.5rem] shadow-2xl relative">
-                            {leadForm.submitted ? (
-                                <div className="text-center py-10 animate-in fade-in zoom-in duration-500">
-                                    <div className="bg-green-100 text-green-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                                        <Check className="w-10 h-10" />
+                <div className="mt-12 lg:grid lg:grid-cols-12 lg:gap-8">
+                    <ul className="lg:col-span-6" role="tablist" aria-label="Planes">
+                        {PLANS.map((p, i) => (
+                            <li key={p.name}>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    id={`plan-${i}`}
+                                    aria-selected={i === planIndex}
+                                    aria-controls="plan-panel"
+                                    onClick={() => setPlanIndex(i)}
+                                    onFocus={() => setPlanIndex(i)}
+                                    className={`group flex items-center gap-[0.35em] text-left text-[clamp(40px,5vw,76px)] font-semibold leading-[1.12] tracking-[-0.03em] transition-colors ${i === planIndex ? 'text-rg-ink' : 'text-[#76808F] hover:text-rg-muted'}`}
+                                >
+                                    <span className={`w-[0.3em] h-[0.3em] rounded-full flex-none transition-colors ${i === planIndex ? 'bg-court' : 'bg-transparent'}`} />
+                                    {p.name}
+                                </button>
+                                {/* Phone: the plan opens beneath its name */}
+                                {i === planIndex && (
+                                    <div className="lg:hidden swap mt-3 mb-14 bg-rg-paper rounded-xl p-5">
+                                        <PlanDetail plan={p} />
                                     </div>
-                                    <h3 className="text-2xl font-bold text-slate-900 mb-2">¡Kit Enviado!</h3>
-                                    <p className="text-slate-500">Revisa tu bandeja de entrada en unos minutos. ¡A por ello!</p>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleLeadSubmit} className="space-y-4">
-                                    <h3 className="text-xl font-bold text-slate-900 mb-6">Recibe el kit en tu email</h3>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Tu Nombre</label>
-                                        <input 
-                                            required
-                                            type="text" 
-                                            placeholder="Ej. Carlos García" 
-                                            className="w-full px-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                            value={leadForm.name}
-                                            onChange={(e) => setLeadForm({...leadForm, name: e.target.value})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Email del Club</label>
-                                        <input 
-                                            required
-                                            type="email" 
-                                            placeholder="ejemplo@clubpadel.com" 
-                                            className="w-full px-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                            value={leadForm.email}
-                                            onChange={(e) => setLeadForm({...leadForm, email: e.target.value})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 ml-1">Nombre del Club</label>
-                                        <input 
-                                            required
-                                            type="text" 
-                                            placeholder="Ej. Padel Indoor Madrid" 
-                                            className="w-full px-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                            value={leadForm.club}
-                                            onChange={(e) => setLeadForm({...leadForm, club: e.target.value})}
-                                        />
-                                    </div>
-                                    <button 
-                                        type="submit" 
-                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 group mt-4"
-                                    >
-                                        Enviar Kit Gratuito
-                                        <Download className="w-5 h-5 group-hover:translate-y-1 transition-transform" />
-                                    </button>
-                                    <p className="text-[10px] text-slate-400 text-center mt-4 font-medium italic">
-                                        No hacemos spam. Solo te enviaremos el kit y algún consejo útil para tu club.
-                                    </p>
-                                </form>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Pricing */}
-            <section id="pricing" className="py-24 bg-slate-50">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="text-center mb-16">
-                        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-6 animate-pulse">
-                            <Sparkles className="w-3 h-3" /> Fase de Desarrollo - Precios Promocionales
-                        </div>
-                        <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Planes Adaptados a tu Club</h2>
-                        <p className="text-slate-600 mb-2">IVA Incluido en todos nuestros modelos.</p>
-                        <p className="text-xs text-amber-600 font-bold max-w-xl mx-auto uppercase tracking-tighter">
-                            Aviso: Los precios actuales son temporales por fase de desarrollo y están sujetos a cambios.
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-                        {subscriptionPlans.map((plan, i) => (
-                            <div key={i} className={`relative p-8 rounded-3xl border-2 flex flex-col ${plan.color} transition-all hover:scale-[1.02] ${plan.featured ? 'scale-[1.05] shadow-2xl z-10 border-green-500' : 'hover:shadow-xl'}`}>
-                                {plan.featured && (
-                                    <span className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-600 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg flex items-center gap-1">
-                                        Recomendado
-                                    </span>
                                 )}
-                                <div className="mb-6">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
-                                        {plan.hasTrial && (
-                                            <div className="inline-flex items-center gap-1 text-green-600 font-black text-[10px] uppercase bg-green-50 px-2 py-0.5 rounded border border-green-100">
-                                                <Gift className="w-2.5 h-2.5" /> Mes GRATIS
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-baseline gap-1 mb-1">
-                                        <span className="text-4xl font-extrabold text-slate-900">{plan.price}€</span>
-                                        <span className="text-slate-500 font-medium text-sm">{plan.period}</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-bold mb-3 uppercase tracking-tighter">IVA Incluido</p>
-                                    <p className="text-sm leading-snug text-slate-500">{plan.description}</p>
-                                </div>
-                                <div className="space-y-3 mb-8 flex-grow">
-                                    {plan.features.map((feature, idx) => (
-                                        <div key={idx} className="flex items-start gap-3 text-sm">
-                                            {feature.includes("Todo lo del plan") ? (
-                                                <span className="font-bold text-indigo-600 leading-tight block mb-2">{feature}</span>
-                                            ) : (
-                                                <>
-                                                    <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                                                    <span className="leading-tight text-slate-700">{feature}</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {plan.notIncluded && plan.notIncluded.map((feature, idx) => (
-                                        <div key={idx} className="flex items-start gap-3 text-sm text-slate-300">
-                                            <X className="w-5 h-5 shrink-0 mt-0.5" />
-                                            <span className="line-through leading-tight">{feature}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                                <a
-                                    href={`https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=${plan.priceId}&plan=${plan.name.toLowerCase().includes('básico') ? 'basic' : plan.name.toLowerCase().includes('pro') ? 'pro' : 'star'}`}
-                                    className={`w-full py-4 rounded-xl font-bold text-center transition-all ${plan.featured ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-100' : 'bg-slate-900 hover:bg-slate-800 text-white'
-                                        }`}
-                                >
-                                    {plan.hasTrial ? 'Empezar mes gratis' : `Elegir ${plan.name}`}
-                                </a>
-                            </div>
+                            </li>
                         ))}
-                    </div>
-
-                    {/* Weekend Warrior */}
-                    <div className="relative group max-w-5xl mx-auto">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-indigo-700 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-                        <div className="relative bg-white border border-indigo-100 p-8 md:p-10 rounded-[2.5rem] shadow-xl flex flex-col lg:flex-row items-center justify-between gap-8">
-                            <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left flex-1">
-                                <div className="bg-indigo-600 text-white p-6 rounded-3xl shadow-lg shadow-indigo-100"><Clock className="w-10 h-10" /></div>
-                                <div>
-                                    <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase mb-3"><Star className="w-3 h-3 fill-indigo-700" /> {eventPass.badge}</div>
-                                    <h3 className="text-3xl font-black text-slate-900 mb-2">{eventPass.name}</h3>
-                                    <p className="text-slate-500 max-w-md leading-relaxed">{eventPass.description}</p>
-                                </div>
-                            </div>
-                            <div className="text-center lg:text-right min-w-[200px]">
-                                <div className="mb-2"><span className="text-5xl font-black text-slate-900">{eventPass.price}€</span><span className="text-slate-500 font-bold ml-1">{eventPass.period}</span></div>
-                                <p className="text-[10px] text-slate-400 font-bold mb-4 uppercase tracking-tighter">IVA Incluido</p>
-                                <a
-                                    href={`https://us-central1-padelrank-pro-app-2025.cloudfunctions.net/checkoutRedirect?priceId=${eventPass.priceId}&plan=weekend`}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-xl shadow-indigo-100 inline-block"
-                                >
-                                    Comprar Pase Único
-                                </a>
-                            </div>
-                        </div>
+                    </ul>
+                    <div id="plan-panel" role="tabpanel" aria-labelledby={`plan-${planIndex}`} className="hidden lg:block lg:col-span-5 lg:col-start-8">
+                        <div key={planIndex} className="swap"><PlanDetail plan={plan} large /></div>
                     </div>
                 </div>
             </section>
 
-            {/* Consent Manager (renamed to avoid ad blockers) */}
-            <ConsentManager />
-
-            {/* Legal Modals */}
-            <LegalModal
-                isOpen={legalModal.isOpen}
-                onClose={() => setLegalModal({ ...legalModal, isOpen: false })}
-                type={legalModal.type}
-            />
-
-            {/* WhatsApp Floating Button */}
-            <a
-                href="https://wa.me/34625277697"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="fixed bottom-6 right-6 z-[90] bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-110 flex items-center justify-center group"
-                title="Contactar por WhatsApp"
-            >
-                <div className="absolute right-full mr-3 bg-white text-slate-900 px-4 py-2 rounded-xl text-sm font-bold shadow-xl opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all pointer-events-none whitespace-nowrap border border-slate-100 italic">
-                    ¿Hablamos por WhatsApp?
+            {/* ============ The close ============ */}
+            <section className="px-5 lg:px-14 pt-[20svh] pb-[16svh] grid lg:grid-cols-12 gap-12 lg:gap-8 items-end" aria-labelledby="hablamos" data-reveal>
+                <div className="lg:col-span-6">
+                    <h2 id="hablamos" className="rise text-[20px] font-medium leading-[1.45] max-w-[34ch]">
+                        Cuéntanos cómo es tu club y te enseñamos Racket Grid con uno de tus torneos.
+                    </h2>
+                    <div className="rise mt-6 flex flex-wrap items-center gap-x-6 gap-y-3" style={{ '--i': 1 } as React.CSSProperties}>
+                        <Button href={WHATSAPP_URL} tone="ink">Escribir por WhatsApp</Button>
+                        <a href={`mailto:${EMAIL}`} className="text-[16px] text-court underline-offset-4 hover:underline">o a {EMAIL}</a>
+                    </div>
                 </div>
-                <MessageCircle size={28} />
-            </a>
+                <div className="rise lg:col-span-5 lg:col-start-8 bg-white rounded-xl p-6" style={{ '--i': 2 } as React.CSSProperties}>
+                    <h3 className="text-[18px] font-semibold">El kit de gestión, gratis</h3>
+                    <p className="text-[16px] leading-[1.55] mt-2">
+                        La plantilla de ranking con sus fórmulas de puntos, el checklist de 20 pasos para organizar un torneo,
+                        la guía de niveles y categorías y el manual de bienvenida para socios nuevos.
+                    </p>
+                    <a href={KIT_MAILTO} className="inline-block mt-4 text-[16px] font-semibold text-court underline-offset-4 hover:underline">Pedirlo por email</a>
+                </div>
+            </section>
 
-            {/* Footer con email */}
-            <footer className="bg-white border-t border-slate-100 py-16 px-6">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-12 mb-12">
-                        <div className="flex flex-col md:flex-row items-center gap-8">
-                            <div className="flex items-center gap-2">
-                                <div className="bg-indigo-600 p-1.5 rounded-lg"><Trophy className="text-white w-4 h-4" /></div>
-                                <span className="text-xl font-black tracking-tight">Racket <span className="text-indigo-600">Grid</span></span>
-                            </div>
-                            <div className="flex items-center gap-6">
-                                <a href="mailto:hola@racketgrid.com" className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-medium">
-                                    <Mail className="w-4 h-4" />
-                                    <span>hola@racketgrid.com</span>
-                                </a>
-                                <a href="https://instagram.com/racketgridapp" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-slate-500 hover:text-pink-600 transition-colors font-medium">
-                                    <Instagram className="w-4 h-4" />
-                                    <span>@racketgridapp</span>
-                                </a>
-                            </div>
+            {/* ============ Footer: the court close up, the menu large ============ */}
+            <footer className="grid lg:grid-cols-2 lg:min-h-svh bg-rg-night text-rg-on-night">
+                <div className="relative h-[50svh] lg:h-auto overflow-hidden">
+                    <img src="/photos/jugadores-pista-azul.jpg" alt="Dos jugadores en una pista de pádel azul durante una exhibición" width={1920} height={1357} loading="lazy" className="absolute inset-0 w-full h-full object-cover object-[22%_40%] scale-[1.35] origin-[22%_40%]" />
+                </div>
+                <div className="px-5 py-12 lg:px-14 lg:py-20 flex flex-col">
+                    <p className="text-[16px] font-semibold text-white">Racket Grid</p>
+                    <nav className="mt-8" aria-label="Pie">
+                        <ul className="space-y-3 lg:space-y-5">
+                            {[...NAV, { label: 'Probar un mes gratis', href: TRIAL_URL }].map(l => (
+                                <li key={l.label}>
+                                    <a href={l.href} className="inline-block text-[8vw] lg:text-[2.6vw] font-semibold leading-tight text-white transition-transform duration-200 hover:translate-x-3">{l.label}</a>
+                                </li>
+                            ))}
+                        </ul>
+                    </nav>
+                    <div className="mt-14 grid sm:grid-cols-2 gap-6 text-[15px] leading-relaxed">
+                        <div>
+                            <p className="text-rg-on-night-muted">Contacto</p>
+                            <a href={`mailto:${EMAIL}`} className="block hover:text-white">{EMAIL}</a>
+                            <a href={WHATSAPP_URL} className="block hover:text-white num">WhatsApp +34 625 277 697</a>
                         </div>
-
-                        <div className="flex flex-wrap justify-center gap-6">
-                            <button onClick={() => openLegal('aviso')} className="text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors tracking-tight">Aviso Legal</button>
-                            <button onClick={() => openLegal('privacidad')} className="text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors tracking-tight">Privacidad</button>
-                            <button onClick={() => openLegal('cookies')} className="text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors tracking-tight">Cookies</button>
+                        <div>
+                            <p className="text-rg-on-night-muted">Redes</p>
+                            <a href="https://instagram.com/racketgridapp" target="_blank" rel="noopener noreferrer" className="block hover:text-white">Instagram @racketgridapp</a>
                         </div>
                     </div>
-
-                    <div className="pt-8 border-t border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <p className="text-sm text-slate-400 font-medium italic">© 2026 Racket Grid. Gestión inteligente para clubes de pádel.</p>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-300 font-bold uppercase tracking-widest">
-                            Hecho con <Star className="w-2.5 h-2.5 fill-slate-300" /> para amantes del deporte
+                    <div className="mt-auto pt-14 space-y-3 text-[13px] text-rg-on-night-muted">
+                        <div className="flex flex-wrap gap-x-5 gap-y-1">
+                            <span className="num">© 2026 Racket Grid</span>
+                            <button type="button" onClick={() => openLegal('aviso')} className="hover:text-white">Aviso legal</button>
+                            <button type="button" onClick={() => openLegal('privacidad')} className="hover:text-white">Privacidad</button>
+                            <button type="button" onClick={() => openLegal('cookies')} className="hover:text-white">Cookies</button>
                         </div>
+                        <p className="leading-relaxed max-w-[60ch]">
+                            Fotos: «Platform 26 padel tennis courts behind Railway Street, Chatham», de OathOn, CC0;
+                            «Padel Tennis Arena ISPO 2014», de Ordercrazy, CC0; «Pista de padel, Muñomer del Peco», de Malopez 21,
+                            CC BY-SA 4.0. Todas vía Wikimedia Commons.
+                        </p>
                     </div>
                 </div>
             </footer>
+
+            {/* Phone menu */}
+            {menuOpen && (
+                <div className="lg:hidden fixed inset-0 z-[95] bg-rg-night text-white px-5 py-4 flex flex-col swap" role="dialog" aria-modal="true" aria-label="Menú">
+                    <div className="flex justify-between items-center">
+                        <span className="text-[16px] font-semibold">Racket Grid</span>
+                        <button type="button" onClick={() => setMenuOpen(false)} className="h-11 px-4 rounded-full bg-white/10 text-[15px]">Cerrar</button>
+                    </div>
+                    <ul className="mt-10 space-y-4">
+                        {NAV.map(l => (
+                            <li key={l.label}><a href={l.href} onClick={() => setMenuOpen(false)} className="text-[9vw] font-semibold leading-tight">{l.label}</a></li>
+                        ))}
+                    </ul>
+                    <Button href={TRIAL_URL} className="mt-auto w-full">Probar un mes gratis</Button>
+                </div>
+            )}
+
+            <LegalModal isOpen={legalModal.isOpen} onClose={() => setLegalModal({ ...legalModal, isOpen: false })} type={legalModal.type} />
+
+            {/* WhatsApp, always at hand. taste-skill-ignore: it floats over the page, so it may cast a shadow */}
+            <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Escribir por WhatsApp"
+                className={`fixed bottom-5 right-5 z-[90] w-14 h-14 rounded-full bg-[#1FA855] hover:bg-[#178a45] text-white grid place-items-center float-fab transition-[opacity,transform] duration-300 active:scale-95 ${pastHero ? 'opacity-100' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+            >
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.6 4c1.7.7 2.3.8 3.2.7a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3Z" /></svg>
+            </a>
         </div>
     );
 };
+
+const PlanDetail = ({ plan, large = false }: { plan: typeof PLANS[number]; large?: boolean }) => (
+    <div>
+        <p className="flex items-baseline gap-3">
+            <span className={`${large ? 'text-[clamp(72px,9vw,150px)]' : 'text-[20vw]'} font-semibold leading-[0.9] tracking-[-0.04em] num`}>{plan.price}</span>
+            <span className="text-[18px] text-rg-muted">{plan.period}</span>
+        </p>
+        <p className={`${large ? 'text-[18px]' : 'text-[17px]'} leading-[1.55] mt-5 max-w-[40ch]`}>{plan.text}</p>
+        <Button href={plan.href} className={`mt-7 ${large ? '' : 'w-full'}`}>{plan.cta}</Button>
+    </div>
+);
 
 export default App;
