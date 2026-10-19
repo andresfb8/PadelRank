@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:emulator": "vite --mode emulator",
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-padelrank",
+    "seed:emulator": "node scripts/seedEmulator.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
