@@ -142,7 +142,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
             <div className="flex gap-8 min-w-max p-4 pt-12">
                 {rounds.map(round => (
                     <div key={round} className="flex flex-col justify-around gap-4 min-w-[220px]">
-                        <h3 className="text-center font-bold text-gray-500 mb-4 uppercase text-xs tracking-wider">
+                        <h3 className="text-left font-semibold text-rg-muted mb-4 text-[13px]">
                             {matchesByRound[round][0]?.roundName || `Ronda ${round}`}
                         </h3>
 
@@ -151,8 +151,8 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                 <div
                                     key={match.id}
                                     className={`
-                                        bg-white rounded-lg border shadow-sm w-full transition-all relative group flex flex-col
-                                        ${match.status === 'finalizado' ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}
+                                        rg bg-white rounded-lg border border-rg-line w-full transition-colors relative group flex flex-col
+                                        
                                         ${isEditMode ? 'ring-2 ring-amber-300 ring-opacity-50' : ''}
                                     `}
                                 >
@@ -163,7 +163,7 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                     >
                                         <div className="flex flex-col gap-3">
                                             {/* Pair 1 */}
-                                            <div className={`text-sm flex justify-between items-center gap-2 transition-colors ${match.points?.p1 > match.points?.p2 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
+                                            <div className={`text-sm flex justify-between items-center gap-2 transition-colors ${match.points?.p1 > match.points?.p2 && match.status === 'finalizado' ? 'font-semibold text-rg-ink' : 'text-rg-muted'}`}>
                                                 <div
                                                     className={`flex flex-col min-w-0 flex-1 ${isEditMode ? 'cursor-text' : ''}`}
                                                     onClick={(e) => {
@@ -178,24 +178,22 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                         {getPairName(match.pair1)}
                                                     </span>
                                                     {getGroupLabel(match.pair1) && (
-                                                        <span className="text-[9px] font-bold text-indigo-400 leading-none mt-0.5">
+                                                        <span className="text-[12px] text-rg-muted leading-tight mt-0.5">
                                                             {getGroupLabel(match.pair1)}
                                                         </span>
                                                     )}
                                                 </div>
                                                 {match.status === 'finalizado' && (
-                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono ring-1 ring-gray-200 shrink-0">
+                                                    <span className="num text-[13px] font-semibold shrink-0">
                                                         {renderScore(match, 'p1')}
                                                     </span>
                                                 )}
                                             </div>
 
-                                            <div className="relative h-px bg-gray-100 my-0.5">
-                                                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[8px] font-bold text-gray-300 italic z-10">VS</span>
-                                            </div>
+                                            <div className="h-px bg-rg-rule my-0.5" />
 
                                             {/* Pair 2 */}
-                                            <div className={`text-sm flex justify-between items-center gap-2 transition-colors ${match.points?.p2 > match.points?.p1 && match.status === 'finalizado' ? 'font-bold text-green-700' : 'text-gray-700'}`}>
+                                            <div className={`text-sm flex justify-between items-center gap-2 transition-colors ${match.points?.p2 > match.points?.p1 && match.status === 'finalizado' ? 'font-semibold text-rg-ink' : 'text-rg-muted'}`}>
                                                 <div
                                                     className={`flex flex-col min-w-0 flex-1 ${isEditMode ? 'cursor-text' : ''}`}
                                                     onClick={(e) => {
@@ -210,13 +208,13 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                                         {getPairName(match.pair2)}
                                                     </span>
                                                     {getGroupLabel(match.pair2) && (
-                                                        <span className="text-[9px] font-bold text-indigo-400 leading-none mt-0.5">
+                                                        <span className="text-[12px] text-rg-muted leading-tight mt-0.5">
                                                             {getGroupLabel(match.pair2)}
                                                         </span>
                                                     )}
                                                 </div>
                                                 {match.status === 'finalizado' && (
-                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono ring-1 ring-gray-200 shrink-0">
+                                                    <span className="num text-[13px] font-semibold shrink-0">
                                                         {renderScore(match, 'p2')}
                                                     </span>
                                                 )}
@@ -229,8 +227,8 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                     {((match.startTime || match.court) || onScheduleClick) && !isEditMode && (
                                         <div
                                             className={`
-                                                border-t border-gray-100 py-1.5 px-3 bg-gray-50 flex items-center justify-between rounded-b-lg transition-colors
-                                                ${onScheduleClick ? 'cursor-pointer hover:bg-blue-50 group' : ''}
+                                                border-t border-rg-rule py-1.5 px-3 bg-rg-raised flex items-center justify-between rounded-b-lg transition-colors
+                                                ${onScheduleClick ? 'cursor-pointer hover:bg-court-soft group' : ''}
                                             `}
                                             onClick={(e) => {
                                                 if (onScheduleClick) {
@@ -240,17 +238,17 @@ export const BracketView = ({ divisions, players, onMatchClick, onScheduleClick,
                                             }}
                                         >
                                             {(match.startTime || match.court) ? (
-                                                <div className="flex items-center gap-2 text-[10px] font-semibold text-blue-700 w-full">
+                                                <div className="flex items-center gap-2 text-[12px] text-rg-muted w-full num">
                                                     <div className="flex items-center gap-1">
                                                         <Clock size={12} />
                                                         {match.startTime ? new Date(match.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--:--'}
                                                     </div>
-                                                    {match.court && <div className="ml-auto border-l border-blue-200 pl-2">Pista {match.court}</div>}
+                                                    {match.court && <div className="ml-auto">Pista {match.court}</div>}
 
                                                     <ScheduleStatusBadges match={match} ranking={ranking} showConflicts={!!onScheduleClick} size={12} />
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center justify-center w-full text-[10px] font-medium text-gray-400 group-hover:text-blue-600 gap-1">
+                                                <div className="flex items-center justify-center w-full text-[12px] font-medium text-court group-hover:text-court-ink gap-1">
                                                     <Calendar size={12} /> Programar
                                                 </div>
                                             )}

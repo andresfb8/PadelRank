@@ -43,7 +43,7 @@ export const EliminationConfig = ({
                             onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'individual' } })}
                             className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${
                                 config.eliminationConfig?.type === 'individual'
-                                    ? 'bg-white shadow-sm text-primary'
+                                    ? 'bg-white text-rg-ink font-semibold'
                                     : 'text-gray-500 hover:text-gray-700'
                             }`}
                         >
@@ -53,7 +53,7 @@ export const EliminationConfig = ({
                             onClick={() => setConfig({ ...config, eliminationConfig: { ...config.eliminationConfig!, type: 'pairs' } })}
                             className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${
                                 config.eliminationConfig?.type === 'pairs'
-                                    ? 'bg-white shadow-sm text-primary'
+                                    ? 'bg-white text-rg-ink font-semibold'
                                     : 'text-gray-500 hover:text-gray-700'
                             }`}
                         >

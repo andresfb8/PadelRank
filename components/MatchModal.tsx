@@ -185,11 +185,11 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
   // Helper for names
   const PlayerBlock = ({ p1, p2 }: { p1: Player | null, p2: Player | null }) => (
     <div className="flex flex-col gap-1 text-left px-2">
-      <div className="font-bold text-sm text-gray-800 truncate" title={p1 ? `${p1.nombre} ${p1.apellidos}` : ''}>
+      <div className="font-semibold text-[14px] text-rg-ink truncate" title={p1 ? `${p1.nombre} ${p1.apellidos}` : ''}>
         {p1 ? `${p1.nombre} ${p1.apellidos}` : '???'}
       </div>
       {p2 && (
-        <div className="font-bold text-sm text-gray-600 truncate" title={`${p2.nombre} ${p2.apellidos}`}>
+        <div className="font-semibold text-[14px] text-rg-ink truncate" title={`${p2.nombre} ${p2.apellidos}`}>
           {p2.nombre} {p2.apellidos}
         </div>
       )}
@@ -206,11 +206,13 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
 
         {/* Read-Only Schedule Context - Hide for Pozo */}
         {format !== 'pozo' && (match.startTime || match.court) && (
-          <div className="bg-blue-50 text-blue-800 text-xs px-3 py-2 rounded-md flex items-center gap-2 border border-blue-100">
+          <div className="bg-court-soft text-court-ink text-[13px] px-3 py-2 rounded-md flex items-center gap-2">
             <Calendar size={14} />
             <span>
-              Programado el <strong>{match.startTime ? new Date(match.startTime).toLocaleString() : 'Fecha PDte'}</strong>
-              {match.court && <span> en <strong>Pista {match.court}</strong></span>}
+              {match.startTime
+                ? <>Programado el <strong>{new Date(match.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</strong></>
+                : <>Sin hora todavía</>}
+              {match.court && <span>{match.startTime ? ' en ' : ' · '}<strong>Pista {match.court}</strong></span>}
             </span>
           </div>
         )}
@@ -220,7 +222,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
           <div className="space-y-4">
             {!isCustomMode && (
               <div className="text-center mb-4">
-                <p className="text-sm text-gray-600">Sistema: <span className="font-bold text-primary">{totalPoints} Puntos Totales</span></p>
+                <p className="text-[14px] text-rg-muted">Sistema: <span className="font-semibold text-rg-ink">{totalPoints} Puntos Totales</span></p>
               </div>
             )}
 
@@ -233,7 +235,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
                   type="number"
                   value={pointsP1}
                   onChange={(e) => setPointsP1(e.target.value)}
-                  className="border p-3 rounded text-center w-full text-2xl font-bold focus:ring-2 focus:ring-primary focus:border-primary mt-2"
+                  className="h-14 rounded-md border border-rg-control text-center w-full text-[24px] font-semibold num focus:outline-none focus:ring-2 focus:ring-court-track focus:border-court mt-2"
                   placeholder="0"
                   min={0}
                   max={totalPoints}
@@ -249,23 +251,23 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
                     type="number"
                     value={pointsP2Manual}
                     onChange={(e) => setPointsP2Manual(e.target.value)}
-                    className="border p-3 rounded text-center w-full text-2xl font-bold focus:ring-2 focus:ring-primary focus:border-primary mt-2"
+                    className="h-14 rounded-md border border-rg-control text-center w-full text-[24px] font-semibold num focus:outline-none focus:ring-2 focus:ring-court-track focus:border-court mt-2"
                     placeholder="0"
                     min={0}
                   />
                 ) : (
                   <>
-                    <div className="border p-3 rounded text-center w-full text-2xl font-bold bg-gray-50 text-gray-600 mt-2">
+                    <div className="h-14 rounded-md border border-rg-line grid place-items-center w-full text-[24px] font-semibold num bg-rg-raised text-rg-muted mt-2">
                       {pointsP2}
                     </div>
-                    <p className="text-xs text-center text-gray-500 mt-1">Auto-calculado</p>
+                    <p className="text-[12px] text-center text-rg-muted mt-1">Se calcula solo</p>
                   </>
                 )}
               </div>
             </div>
 
             {!isCustomMode && pointsP1 && parseInt(pointsP1) > totalPoints! && (
-              <div className="bg-red-50 border border-red-200 rounded p-2 text-sm text-red-700 text-center">
+              <div className="bg-[#ffedea] rounded-md p-2 text-[14px] text-[#831c1e] text-center">
                 ⚠️ Los puntos no pueden superar el total ({totalPoints})
               </div>
             )}
@@ -279,33 +281,33 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
             <div className="overflow-hidden"><PlayerBlock p1={p2_1} p2={p2_2} /></div>
 
             {/* Set 1 */}
-            <div className="flex items-center text-sm font-medium text-gray-700">Set 1 *</div>
-            <input type="number" value={s1.p1} onChange={e => setS1({ ...s1, p1: e.target.value })} className="border p-2 rounded text-center" />
-            <input type="number" value={s1.p2} onChange={e => setS1({ ...s1, p2: e.target.value })} className="border p-2 rounded text-center" />
+            <div className="flex items-center text-[14px] font-medium text-rg-ink">Set 1</div>
+            <input type="number" value={s1.p1} onChange={e => setS1({ ...s1, p1: e.target.value })} className="h-12 rounded-md border border-rg-control text-center text-[18px] font-semibold num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" />
+            <input type="number" value={s1.p2} onChange={e => setS1({ ...s1, p2: e.target.value })} className="h-12 rounded-md border border-rg-control text-center text-[18px] font-semibold num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" />
 
             {/* Set 2 */}
-            <div className="flex items-center text-sm font-medium text-gray-700">Set 2</div>
-            <input type="number" value={s2.p1} onChange={e => setS2({ ...s2, p1: e.target.value })} className="border p-2 rounded text-center" />
-            <input type="number" value={s2.p2} onChange={e => setS2({ ...s2, p2: e.target.value })} className="border p-2 rounded text-center" />
+            <div className="flex items-center text-[14px] font-medium text-rg-ink">Set 2</div>
+            <input type="number" value={s2.p1} onChange={e => setS2({ ...s2, p1: e.target.value })} className="h-12 rounded-md border border-rg-control text-center text-[18px] font-semibold num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" />
+            <input type="number" value={s2.p2} onChange={e => setS2({ ...s2, p2: e.target.value })} className="h-12 rounded-md border border-rg-control text-center text-[18px] font-semibold num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" />
 
             {/* Set 3 */}
-            <div className={`flex items-center text-sm font-medium text-gray-700 ${isIncomplete ? 'opacity-50' : ''}`}>Set 3</div>
-            <input type="number" value={s3.p1} onChange={e => setS3({ ...s3, p1: e.target.value })} className="border p-2 rounded text-center" disabled={isIncomplete} />
-            <input type="number" value={s3.p2} onChange={e => setS3({ ...s3, p2: e.target.value })} className="border p-2 rounded text-center" disabled={isIncomplete} />
+            <div className={`flex items-center text-[14px] font-medium text-rg-ink ${isIncomplete ? 'opacity-50' : ''}`}>Set 3</div>
+            <input type="number" value={s3.p1} onChange={e => setS3({ ...s3, p1: e.target.value })} className="h-12 rounded-md border border-rg-control text-center text-[18px] font-semibold num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" disabled={isIncomplete} />
+            <input type="number" value={s3.p2} onChange={e => setS3({ ...s3, p2: e.target.value })} className="h-12 rounded-md border border-rg-control text-center text-[18px] font-semibold num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" disabled={isIncomplete} />
           </div>
         )}
 
         {/* Incomplete Toggle - Hide for Individual, Mexicano/Americano AND POZO */}
         {format !== 'individual' && format !== 'mexicano' && format !== 'americano' && format !== 'pozo' && format !== 'elimination' && (
-          <div className={`flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100`}>
+          <div className={`flex items-center gap-3 p-3 bg-rg-raised rounded-lg`}>
             <input
               type="checkbox"
               id="incomplete"
               checked={isIncomplete}
               onChange={e => setIsIncomplete(e.target.checked)}
-              className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+              className="w-5 h-5 accent-[#1F5FD6]"
             />
-            <label htmlFor="incomplete" className="text-sm font-medium text-orange-900 cursor-pointer">
+            <label htmlFor="incomplete" className="text-[14px] font-medium text-rg-ink cursor-pointer">
               Finalizar partido aquí (Set Incompleto)
             </label>
           </div>
@@ -313,14 +315,14 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
 
         {/* Analysis Result - Hide for Pozo */}
         {preview && format !== 'pozo' && (
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+          <div className="bg-rg-raised p-4 rounded-lg">
+            <h4 className="text-[14px] font-semibold text-rg-ink mb-2 flex items-center gap-2">
               <Info size={16} /> Análisis del Resultado
             </h4>
             {format === 'elimination' ? (
               <div className="flex justify-between items-center">
-                <span className="text-sm font-bold text-gray-700">Ganador:</span>
-                <span className="font-bold text-green-600">
+                <span className="text-[14px] font-medium text-rg-ink">Ganador</span>
+                <span className="font-semibold text-rg-positive">
                   {(() => {
                     let p1Sets = 0;
                     let p2Sets = 0;
@@ -345,7 +347,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
             ) : (
               <>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
+                  <div className="flex justify-between items-center p-2.5 bg-white rounded-md">
                     <div className="flex flex-col max-w-[70%]">
                       <span className="font-medium text-gray-700 truncate">
                         {(() => {
@@ -355,7 +357,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
                         })()}
                       </span>
                       <span
-                        className={`text-xs font-bold uppercase mt-0.5 ${preview.points.p1 > preview.points.p2 ? 'text-green-600' :
+                        className={`text-[12px] font-medium mt-0.5 ${preview.points.p1 > preview.points.p2 ? 'text-green-600' :
                           preview.points.p1 < preview.points.p2 ? 'text-red-500' : 'text-gray-500'
                           }`}
                       >
@@ -365,9 +367,9 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
 
 
                     </div>
-                    <span className="font-bold text-lg text-primary">{preview.points.p1} pts</span>
+                    <span className="font-semibold text-[16px] num">{preview.points.p1} pts</span>
                   </div>
-                  <div className="flex justify-between items-center p-2 bg-white rounded border border-gray-100">
+                  <div className="flex justify-between items-center p-2.5 bg-white rounded-md">
                     <div className="flex flex-col max-w-[70%]">
                       <span className="font-medium text-gray-700 truncate">
                         {(() => {
@@ -377,7 +379,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
                         })()}
                       </span>
                       <span
-                        className={`text-xs font-bold uppercase mt-0.5 ${preview.points.p2 > preview.points.p1 ? 'text-green-600' :
+                        className={`text-[12px] font-medium mt-0.5 ${preview.points.p2 > preview.points.p1 ? 'text-green-600' :
                           preview.points.p2 < preview.points.p1 ? 'text-red-500' : 'text-gray-500'
                           }`}
                       >
@@ -385,7 +387,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
                           preview.points.p2 < preview.points.p1 ? 'Derrota' : 'Empate'}
                       </span>
                     </div>
-                    <span className="font-bold text-lg text-primary">{preview.points.p2} pts</span>
+                    <span className="font-semibold text-[16px] num">{preview.points.p2} pts</span>
                   </div>
                 </div>
               </>
@@ -393,7 +395,7 @@ export const MatchModal = ({ isOpen, onClose, match, players, onSave, rankingCon
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
+        <div className="flex justify-end gap-3 pt-4 border-t border-rg-line">
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button
             onClick={handleSave}

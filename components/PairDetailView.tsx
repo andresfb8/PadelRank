@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Player, Ranking, Match } from '../types';
-import { ArrowLeft, TrendingUp, Activity, Users } from 'lucide-react';
-import { Card, Badge } from './ui/Components';
+import { ArrowLeft } from 'lucide-react';
 
 interface Props {
     pairId: string; // "p1::p2"
@@ -202,182 +201,114 @@ export const PairDetailView = ({ pairId, players, rankings, onBack }: Props) => 
         };
     }, [p1Id, p2Id, rankings]);
 
+    // Headline figures: the matches listed below plus the organiser's manual adjustments
+    const wins = stats.pg + manualAdj.wins;
+    const losses = stats.pp + manualAdj.losses;
+    const played = wins + losses + stats.pe;
+    const winPct = played > 0 ? Math.round((wins / played) * 100) : null;
+    const setsDiff = stats.sets.diff + manualAdj.setsDiff;
+    const gamesDiff = stats.games.diff + manualAdj.gamesDiff;
+    const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
+    const pct = (won: number, total: number) => (total > 0 ? `${Math.round((won / total) * 100)} %` : '—');
+    const shortName = (id?: string) => {
+        if (!id) return '';
+        const p = players[id];
+        return p ? `${p.nombre} ${p.apellidos ? p.apellidos.charAt(0) + '.' : ''}`.trim() : 'Jugador eliminado';
+    };
+    const initials = (p?: Player) => (p ? `${p.nombre.charAt(0)}${p.apellidos.charAt(0)}` : '?');
+
     return (
-        <div className="space-y-6 container mx-auto max-w-5xl animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center gap-4 mb-2">
-                <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <ArrowLeft size={24} className="text-gray-600" />
+        <div className="rg space-y-5 max-w-5xl mx-auto">
+            {/* Header: the pair */}
+            <div className="flex items-center gap-3">
+                <button type="button" onClick={onBack} className="w-9 h-9 -ml-1 grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised" aria-label="Volver">
+                    <ArrowLeft size={20} />
                 </button>
-                <h2 className="text-2xl font-bold text-gray-800">Estadísticas de Pareja</h2>
+                <span className="flex -space-x-2 flex-none" aria-hidden="true">
+                    <span className="w-11 h-11 rounded-full bg-court-soft text-court-ink grid place-items-center text-[15px] font-semibold ring-2 ring-rg-ground">{initials(p1)}</span>
+                    <span className="w-11 h-11 rounded-full bg-[#def3e8] text-[#14532d] grid place-items-center text-[15px] font-semibold ring-2 ring-rg-ground">{initials(p2)}</span>
+                </span>
+                <div className="min-w-0">
+                    <h1 className="text-[22px] font-bold tracking-[-0.015em] leading-tight truncate">{getPlayerName(p1Id)} y {getPlayerName(p2Id)}</h1>
+                    <p className="text-[14px] text-rg-muted num">{played} {played === 1 ? 'partido jugado' : 'partidos jugados'} juntos</p>
+                </div>
             </div>
 
-            {/* Hero Card */}
-            <Card className="p-0 overflow-hidden bg-gradient-to-r from-slate-800 to-slate-900 text-white">
-                <div className="p-8 flex flex-col md:flex-row items-center gap-8">
-                    <div className="flex -space-x-4">
-                        <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center text-2xl font-bold border-4 border-white/20 z-10">
-                            {p1?.nombre.charAt(0)}{p1?.apellidos.charAt(0)}
-                        </div>
-                        <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center text-2xl font-bold border-4 border-white/20">
-                            {p2?.nombre.charAt(0)}{p2?.apellidos.charAt(0)}
-                        </div>
+            {/* Figures in one strip */}
+            <div className="bg-white border border-rg-line rounded-lg grid grid-cols-2 md:grid-cols-4 num">
+                {[
+                    { label: 'Partidos', value: String(played), note: stats.pe ? `${wins} G · ${losses} P · ${stats.pe} E` : `${wins} ganados · ${losses} perdidos` },
+                    { label: 'Victorias', value: winPct === null ? '—' : `${winPct} %`, note: played ? `de ${played} jugados` : 'sin partidos aún' },
+                    { label: 'Sets ganados', value: pct(stats.sets.won, stats.sets.total), note: `diferencia ${signed(setsDiff)}` },
+                    { label: 'Juegos ganados', value: pct(stats.games.won, stats.games.total), note: `diferencia ${signed(gamesDiff)}` },
+                ].map((k, i) => (
+                    <div key={k.label} className={`px-4 py-3.5 ${i % 2 === 1 ? 'border-l border-rg-rule' : ''} ${i >= 2 ? 'border-t md:border-t-0 border-rg-rule' : ''} ${i === 2 ? 'md:border-l' : ''}`}>
+                        <span className="block text-[14px] text-rg-muted">{k.label}</span>
+                        <span className="block text-[24px] font-semibold mt-0.5">{k.value}</span>
+                        <span className="block text-[12px] text-rg-muted">{k.note}</span>
                     </div>
-
-                    <div className="flex-1 text-center md:text-left">
-                        <h1 className="text-3xl font-bold mb-1">{p1?.nombre} & {p2?.nombre}</h1>
-                        <div className="text-blue-200 text-sm">Pareja Oficial</div>
-                    </div>
-
-                    {/* Key Stats Pill */}
-                    <div className="flex gap-4">
-                        <div className="text-center px-4 md:border-r border-white/10">
-                            <div className="text-3xl font-bold text-emerald-400">{stats.winrate}%</div>
-                            <div className="text-xs uppercase tracking-wider text-slate-400">Win Rate</div>
-                        </div>
-                        <div className="text-center px-4">
-                            <div className="text-3xl font-bold text-white">{stats.pj}</div>
-                            <div className="text-xs uppercase tracking-wider text-slate-400">Partidos</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Recent Form Strip */}
-                <div className="bg-black/20 px-8 py-3 flex items-center justify-between">
-                    <span className="text-xs uppercase font-semibold text-slate-400">Racha Reciente</span>
-                    <div className="flex gap-1">
-                        {stats.recentForm.map((r, i) => (
-                            <span key={i} className={`w-8 h-8 rounded flex items-center justify-center font-bold text-xs ${r === 'W' ? 'bg-emerald-500 text-white' : r === 'L' ? 'bg-rose-500 text-white' : 'bg-gray-500 text-white'
-                                }`}>
-                                {r}
-                            </span>
-                        ))}
-                        {stats.recentForm.length === 0 && <span className="text-slate-500 text-sm">Sin partidos recientes</span>}
-                    </div>
-                </div>
-            </Card>
-
-            {/* Detailed Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="p-6">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <TrendingUp size={18} className="text-emerald-500" /> Estadísticas Totales
-                    </h3>
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-600">Victorias</span>
-                            <span className="font-bold text-emerald-600">{stats.pg + manualAdj.wins}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-600">Derrotas</span>
-                            <span className="font-bold text-rose-600">{stats.pp + manualAdj.losses}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-600">Dif. Sets</span>
-                            <span className={`font-bold ${(stats.sets.diff + manualAdj.setsDiff) > 0 ? 'text-emerald-600' : (stats.sets.diff + manualAdj.setsDiff) < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
-                                {(stats.sets.diff + manualAdj.setsDiff) > 0 ? `+${stats.sets.diff + manualAdj.setsDiff}` : (stats.sets.diff + manualAdj.setsDiff)}
-                            </span>
-                        </div>
-                        <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span className="text-gray-600">Dif. Juegos</span>
-                            <span className={`font-bold ${(stats.games.diff + manualAdj.gamesDiff) > 0 ? 'text-emerald-600' : (stats.games.diff + manualAdj.gamesDiff) < 0 ? 'text-rose-600' : 'text-gray-600'}`}>
-                                {(stats.games.diff + manualAdj.gamesDiff) > 0 ? `+${stats.games.diff + manualAdj.gamesDiff}` : (stats.games.diff + manualAdj.gamesDiff)}
-                            </span>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="p-6">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <Activity size={18} className="text-blue-500" /> Eficiencia
-                    </h3>
-                    <div className="space-y-6">
-                        <div className="text-center">
-                            <div className="text-2xl font-bold text-gray-800">
-                                {stats.sets.total > 0 ? Math.round((stats.sets.won / stats.sets.total) * 100) : 0}%
-                            </div>
-                            <div className="text-xs text-gray-500">Sets Ganados</div>
-                            <div className="text-xs text-gray-400">({stats.sets.won}/{stats.sets.total})</div>
-                        </div>
-                        <div className="text-center">
-                            <div className="text-2xl font-bold text-gray-800">
-                                {stats.games.total > 0 ? Math.round((stats.games.won / stats.games.total) * 100) : 0}%
-                            </div>
-                            <div className="text-xs text-gray-500">Juegos Ganados</div>
-                            <div className="text-xs text-gray-400">({stats.games.won}/{stats.games.total})</div>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="p-6">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <TrendingUp size={18} className="text-orange-500" /> Rachas
-                    </h3>
-                    <div className="flex justify-between text-center pt-4">
-                        <div>
-                            <div className="text-xl font-bold text-gray-800 flex items-center justify-center gap-1">
-                                {stats.streaks.current} <span className="text-lg">🔥</span>
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">Actual</div>
-                        </div>
-                        <div>
-                            <div className="text-xl font-bold text-gray-800 flex items-center justify-center gap-1">
-                                {stats.streaks.best} <span className="text-lg">🏆</span>
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">Mejor</div>
-                        </div>
-                    </div>
-                </Card>
+                ))}
             </div>
 
-            {/* Match History */}
-            <Card className="p-0 overflow-hidden">
-                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Users size={18} className="text-primary" /> Historial de Partidos ({history.length})</h3>
+            {/* Form and toughest rival */}
+            <div className="grid gap-4 md:grid-cols-2">
+                <section className="bg-white border border-rg-line rounded-lg px-4 py-3.5" aria-labelledby="forma-pareja">
+                    <h2 id="forma-pareja" className="text-[15px] font-semibold">Forma reciente</h2>
+                    {stats.recentForm.length > 0 ? (
+                        <>
+                            <div className="flex gap-1.5 mt-2.5" aria-label="Últimos resultados, del más reciente al más antiguo">
+                                {stats.recentForm.map((r, i) => (
+                                    <span key={i} title={r === 'W' ? 'Victoria' : r === 'L' ? 'Derrota' : 'Empate'} className={`w-8 h-8 rounded-md grid place-items-center text-[13px] font-semibold ${r === 'W' ? 'bg-[#dcfce7] text-[#14532d]' : r === 'L' ? 'bg-[#ffedea] text-[#831c1e]' : 'bg-rg-raised text-rg-muted'}`}>
+                                        {r === 'W' ? 'G' : r === 'L' ? 'P' : 'E'}
+                                    </span>
+                                ))}
+                            </div>
+                            <p className="text-[13px] text-rg-muted mt-2 num">
+                                Racha actual: {stats.streaks.current} {stats.streaks.current === 1 ? 'victoria' : 'victorias'} · mejor: {stats.streaks.best}
+                            </p>
+                        </>
+                    ) : <p className="text-[14px] text-rg-muted mt-2">Todavía no han jugado juntos.</p>}
+                </section>
+                <section className="bg-white border border-rg-line rounded-lg px-4 py-3.5" aria-labelledby="rival-pareja">
+                    <h2 id="rival-pareja" className="text-[15px] font-semibold">Rival más difícil</h2>
+                    {stats.biggestNemesis.id && stats.biggestNemesis.losses > 0 ? (
+                        <>
+                            <p className="text-[16px] font-semibold mt-2 truncate">{getPlayerName(stats.biggestNemesis.id)}</p>
+                            <p className="text-[13px] text-rg-muted num">{stats.biggestNemesis.losses} {stats.biggestNemesis.losses === 1 ? 'derrota' : 'derrotas'} en {stats.biggestNemesis.matches} partidos</p>
+                        </>
+                    ) : <p className="text-[14px] text-rg-muted mt-2">Ningún rival les ha ganado dos veces.</p>}
+                </section>
+            </div>
+
+            {/* Match history */}
+            <section className="bg-white border border-rg-line rounded-lg" aria-labelledby="partidos-pareja">
+                <div className="flex items-baseline justify-between px-4 pt-3.5 pb-2">
+                    <h2 id="partidos-pareja" className="text-[15px] font-semibold">Partidos</h2>
+                    <span className="text-[13px] text-rg-muted num">{history.length}</span>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500 font-medium border-b">
-                            <tr>
-                                <th className="px-4 py-3">Fecha/Torneo</th>
-                                <th className="px-4 py-3 text-center">Res.</th>
-                                <th className="px-4 py-3 text-center">Marcador</th>
-                                <th className="px-4 py-3">Rivales</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {history.map((h, i) => (
-                                <tr key={h.match.id + i} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-4 py-3">
-                                        <div className="font-semibold text-gray-900">{h.rankingName}</div>
-                                        <div className="text-xs text-gray-500">División {h.divisionName} • Jornada {h.match.jornada}</div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                        <Badge type={h.result === 'Win' ? 'success' : h.result === 'Loss' ? 'danger' : h.result === 'Draw' ? 'warning' : 'neutral'}>
-                                            {h.result === 'Win' ? 'Victoria' : h.result === 'Loss' ? 'Derrota' : h.result === 'Draw' ? 'Empate' : 'Pendiente'}
-                                        </Badge>
-                                    </td>
-                                    <td className="px-4 py-3 text-center font-mono font-medium">
-                                        {h.scoreStr}
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600">
-                                        <div className="flex flex-col gap-1">
-                                            {h.opponents?.map(op => (
-                                                <span key={op} className="text-xs">{getPlayerName(op)}</span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {history.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="text-center py-8 text-gray-400 italic">No hay partidos registrados como pareja</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+                {history.length === 0 ? (
+                    <p className="px-4 pb-4 text-[14px] text-rg-muted">No hay partidos registrados como pareja.</p>
+                ) : (
+                    <ul className="num">
+                        {history.map((h, i) => {
+                            const tone = h.result === 'Win' ? 'bg-[#dcfce7] text-[#14532d]' : h.result === 'Loss' ? 'bg-[#ffedea] text-[#831c1e]' : 'bg-rg-raised text-rg-muted';
+                            const label = h.result === 'Win' ? 'Victoria' : h.result === 'Loss' ? 'Derrota' : h.result === 'Draw' ? 'Empate' : 'Pendiente';
+                            return (
+                                <li key={h.match.id + i} className="grid grid-cols-[1fr_auto] gap-x-3 px-4 py-3 border-t border-rg-rule">
+                                    <span className="min-w-0">
+                                        <span className="block text-[14px] truncate">Contra {(h.opponents || []).map(shortName).join(' y ')}</span>
+                                        <span className="block text-[13px] text-rg-muted truncate">{h.rankingName} · División {h.divisionName} · Jornada {h.match.jornada}</span>
+                                    </span>
+                                    <span className="text-right">
+                                        <span className="block text-[14px] font-semibold">{h.scoreStr !== '-' ? h.scoreStr.replace(/, /g, ' ').replace(/-/g, '–') : '—'}</span>
+                                        <span className={`pill mt-0.5 ${tone}`}>{label}</span>
+                                    </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </section>
         </div>
     );
 };

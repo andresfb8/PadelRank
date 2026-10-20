@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw, Download, Sheet, Code } from 'lucide-react';
+import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw, Download, Sheet, Code, ListOrdered, CalendarDays, Network } from 'lucide-react';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
 import { exportRankingToPDF, exportRankingToCSV, exportRankingToExcel, exportRankingToJSON } from '../services/export';
@@ -37,6 +37,11 @@ import { QualifiersOverrideModal } from './QualifiersOverrideModal';
 import { computeBracketSize } from '../services/crossGroupQualifiers';
 import { RegistrationManagerModal } from './admin/RegistrationManagerModal';
 import { subscribeToRegistrations } from '../services/db';
+import { MobileStandingsList } from './public/MobileStandingsList';
+import { MobileMatchList } from './public/MobileMatchList';
+import { FollowCard } from './public/FollowCard';
+import { MobileBracket } from './public/MobileBracket';
+import { entryLabel, nextMatchFor, pairKey, useFollowedEntry } from './public/playerMobile';
 
 interface Props {
   ranking: Ranking;
@@ -247,39 +252,84 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const [historyPhaseIndex, setHistoryPhaseIndex] = useState<number | null>(null); // null = current phase
 
   // --- RENDERING HELPERS FOR MOBILE REDESIGN ---
+  const statusLabel = ranking.status === 'activo' ? 'En juego' : ranking.status === 'pausado' ? 'En pausa' : 'Finalizado';
+  const statusDot = ranking.status === 'activo' ? 'bg-rg-positive' : ranking.status === 'pausado' ? 'bg-amber-500' : 'bg-rg-muted';
+  const participantCount = (() => {
+    const ids = new Set<string>();
+    ranking.divisions.forEach(d => d.players.forEach(id => ids.add(id)));
+    const isPairs = ranking.format === 'pairs' || ranking.format === 'hybrid' || ranking.format === 'elimination';
+    if (isPairs) {
+      const n = Math.round(ids.size / 2);
+      return `${n} ${n === 1 ? 'pareja' : 'parejas'}`;
+    }
+    return `${ids.size} ${ids.size === 1 ? 'jugador' : 'jugadores'}`;
+  })();
+
+  // One h1 on the screen: the header that is visible at this width carries it
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const MobileTitle = isDesktop ? 'p' : 'h1';
+  const DesktopTitle = isDesktop ? 'h1' : 'p';
+
   const renderMobileHeader = () => (
-    <div className="md:hidden space-y-4 mb-6">
-      <div className="flex items-center justify-between">
-        <button onClick={onBack} className="p-2 -ml-2 text-gray-400 hover:text-gray-600">
-          <ArrowLeft size={24} />
-        </button>
-        <div className="flex gap-2">
+    <div className="md:hidden rg mb-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex items-start gap-1">
+          {isAdmin && (
+            <button onClick={onBack} className="p-2 -ml-2 -mt-1 text-rg-muted" aria-label="Volver">
+              <ArrowLeft size={22} />
+            </button>
+          )}
+          <div className="min-w-0">
+            <MobileTitle className="text-[22px] font-bold tracking-[-0.015em] leading-tight text-rg-ink">{ranking.nombre}</MobileTitle>
+            <p className="text-[13px] text-rg-muted mt-1 flex flex-wrap items-center gap-x-1.5">
+              <button
+                type="button"
+                disabled={!isAdmin}
+                onClick={() => isAdmin && setIsStatusModalOpen(true)}
+                className="inline-flex items-center gap-1.5 disabled:cursor-default"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
+                {statusLabel}
+              </button>
+              <span aria-hidden="true">·</span><span>{getFormatLabel(ranking.format)}</span>
+              <span aria-hidden="true">·</span><span>{ranking.categoria}</span>
+              <span aria-hidden="true">·</span><span className="num">{participantCount}</span>
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-1 flex-none">
           {isAdmin && (
             <>
               <button
                 onClick={() => window.open(`${window.location.origin}${window.location.pathname}?tv=${ranking.id}`, '_blank')}
-                className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500"
+                className="w-10 h-10 grid place-items-center rounded-lg border border-rg-line bg-white text-rg-muted"
                 title="Modo TV"
               >
-                <Monitor size={20} />
+                <Monitor size={18} />
               </button>
-              <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500">
-                <Settings size={20} />
+              <button onClick={() => setIsSettingsModalOpen(true)} className="w-10 h-10 grid place-items-center rounded-lg border border-rg-line bg-white text-rg-muted" title="Ajustes">
+                <Settings size={18} />
               </button>
             </>
           )}
-          <button onClick={copyToClipboard} className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-500">
-            <Share2 size={20} />
-          </button>
           {ranking.format === 'hybrid' && ranking.drawSeed !== undefined && (
             <button
               onClick={() => setIsDrawReplayOpen(true)}
-              className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 text-yellow-600"
+              className="w-10 h-10 grid place-items-center rounded-lg border border-rg-line bg-white text-rg-muted"
               title="Ver sorteo de grupos"
             >
-              <Trophy size={20} />
+              <Shuffle size={18} />
             </button>
           )}
+          <button onClick={copyToClipboard} className="w-10 h-10 grid place-items-center rounded-lg border border-rg-line bg-white text-rg-muted" title="Compartir enlace" aria-label="Compartir enlace">
+            {copied ? <Check size={18} className="text-rg-positive" /> : <Share2 size={18} />}
+          </button>
         </div>
       </div>
 
@@ -305,29 +355,6 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         />
       )}
 
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <Badge
-            type={ranking.status === 'activo' ? 'success' : ranking.status === 'pausado' ? 'warning' : 'neutral'}
-            className="uppercase cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => isAdmin && setIsStatusModalOpen(true)}
-          >
-            {ranking.status === 'activo' ? 'ACTIVO' : ranking.status === 'pausado' ? 'PAUSADO' : 'FINALIZADO'}
-          </Badge>
-          <Badge type="info" className="uppercase opacity-70">
-            {getFormatLabel(ranking.format)}
-          </Badge>
-        </div>
-        <h2 className="text-3xl font-black text-gray-900 tracking-tight leading-none">{ranking.nombre}</h2>
-        <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
-          <span>{ranking.categoria}</span>
-          <span>•</span>
-          <div className="flex items-center gap-1">
-            <Users size={12} />
-            <span>{Object.keys(players).length} Jugadores</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 
@@ -770,6 +797,59 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
   const standings = sortData(rawStandings);
   const globalStandings = sortData(rawGlobalStandings);
+
+  // --- Player-facing mobile view: the pair or player this phone follows ---
+  const [followed, setFollowed] = useFollowedEntry(ranking.id);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const isPairFormat = ranking.format === 'pairs' || ranking.format === 'hybrid' || ranking.format === 'elimination';
+  const followOptions = useMemo(() => {
+    const entries = new Set<string>();
+    ranking.divisions.forEach(d => {
+      if (isPairFormat) {
+        d.matches.forEach(m => [m.pair1, m.pair2].forEach(pair => {
+          if (pair?.p1Id && pair.p1Id !== 'BYE' && players[pair.p1Id]) entries.add(pairKey(pair));
+        }));
+      } else {
+        d.players.forEach(id => { if (players[id]) entries.add(id); });
+      }
+    });
+    return Array.from(entries)
+      .map(entry => ({ entry, label: entryLabel(entry, players) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }, [ranking.divisions, players, isPairFormat]);
+  const followedNext = useMemo(
+    () => nextMatchFor(followed, ranking.divisions.flatMap(d => d.matches)),
+    [followed, ranking.divisions]
+  );
+  const followedStanding = useMemo(() => {
+    if (!followed || ranking.format === 'elimination' || ranking.format === 'pozo') return null;
+    const ids = followed.split('::');
+    const div = ranking.divisions.find(d => d.stage !== 'playoff' && d.type !== 'consolation' && ids.every(id => d.players.includes(id)));
+    if (!div) return null;
+    const rows = generateStandings(div.id, div.matches, div.players, ranking.format as any, ranking.manualPointsAdjustments, ranking.manualStatsAdjustments, ranking.config?.tieBreakCriteria);
+    const row = rows.find(r => r.playerId === followed || r.playerId === ids.slice().reverse().join('::'));
+    return row ? { pos: row.pos, pts: row.pts, division: div.category || div.name || `División ${div.numero}` } : null;
+  }, [followed, ranking]);
+  const showPlayerMobile = !isAdmin && ranking.format !== 'pozo';
+  // The round the side column shows: the first with matches still to play, else the last one played
+  const nextRound = useMemo(() => {
+    if (!activeDivision || ranking.format === 'elimination' || ranking.format === 'pozo') return null;
+    const playable = activeDivision.matches.filter(m => m.status !== 'descanso');
+    if (playable.length === 0) return null;
+    const pendingRounds = playable.filter(m => m.status === 'pendiente').map(m => Number(m.jornada));
+    const round = pendingRounds.length ? Math.min(...pendingRounds) : Math.max(...playable.map(m => Number(m.jornada)));
+    return { round, pending: pendingRounds.length > 0, matches: activeDivision.matches.filter(m => Number(m.jornada) === round) };
+  }, [activeDivision, ranking.format]);
+  const groupOfPair = useMemo(() => {
+    const map = new Map<string, string>();
+    if (ranking.format !== 'hybrid') return map;
+    ranking.divisions.filter(d => d.stage === 'group' && d.name).forEach(div => {
+      div.matches.forEach(m => [m.pair1, m.pair2].forEach(pair => {
+        if (pair?.p1Id && pair.p1Id !== 'BYE' && !map.has(pairKey(pair))) map.set(pairKey(pair), div.name!);
+      }));
+    });
+    return map;
+  }, [ranking.divisions, ranking.format]);
 
   // Calculate players already in the tournament to prevent duplicates in new divisions
   const occupiedPlayerIds = new Set<string>();
@@ -1487,31 +1567,33 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       {/* --- NEW RACKET GRID MOBILE HEADER --- */}
       {renderMobileHeader()}
 
-      {/* --- DESKTOP HEADER (Hidden on mobile) --- */}
-      <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
-              <ArrowLeft size={24} />
+      {/* --- DESKTOP HEADER: the tournament itself as the object of the page --- */}
+      <div className="hidden md:flex rg items-center gap-4 bg-white border border-rg-line rounded-lg px-4 py-3.5">
+        {isAdmin && onBack && (
+          <button onClick={onBack} className="w-9 h-9 -ml-1 grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised transition-colors" aria-label="Volver a los torneos">
+            <ArrowLeft size={20} />
+          </button>
+        )}
+        <span className="w-[50px] h-[62px] rounded-md bg-court text-white grid place-items-center text-[15px] font-bold flex-none" aria-hidden="true">
+          {ranking.nombre.split(/\s+/).filter(w => /[a-zA-ZÀ-ÿ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('')}
+        </span>
+        <div className="min-w-0">
+          <DesktopTitle className="text-[20px] font-bold tracking-[-0.01em] leading-tight truncate">{ranking.nombre}</DesktopTitle>
+          <p className="text-[13.5px] text-rg-muted mt-0.5 flex flex-wrap items-center gap-x-1.5">
+            <button
+              type="button"
+              disabled={!isAdmin}
+              onClick={() => isAdmin && setIsStatusModalOpen(true)}
+              className={`inline-flex items-center gap-1.5 disabled:cursor-default ${isAdmin ? 'hover:text-rg-ink' : ''}`}
+              title={isAdmin ? 'Cambiar estado' : undefined}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
+              {statusLabel}
             </button>
-          )}
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 leading-tight">{ranking.nombre}</h2>
-            <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-              <Badge
-                type={ranking.status === 'activo' ? 'success' : ranking.status === 'pausado' ? 'warning' : 'neutral'}
-                className="uppercase cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => isAdmin && setIsStatusModalOpen(true)}
-              >
-                {ranking.status === 'activo' ? 'Activo' : ranking.status === 'pausado' ? 'Pausado' : 'Finalizado'}
-              </Badge>
-              <Badge type="info" className="uppercase opacity-70">
-                {getFormatLabel(ranking.format)}
-              </Badge>
-              <span>•</span>
-              <span>{ranking.categoria}</span>
-            </div>
-          </div>
+            <span aria-hidden="true">·</span><span>{getFormatLabel(ranking.format)}</span>
+            <span aria-hidden="true">·</span><span>{ranking.categoria}</span>
+            <span aria-hidden="true">·</span><span className="num">{participantCount}</span>
+          </p>
         </div>
 
         <ActionToolbar
@@ -1683,7 +1765,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             }
           ]}
           primaryActionIds={primaryIds}
-          className="w-full md:w-auto justify-end"
+          className="ml-auto justify-end flex-wrap"
         />
       </div >
 
@@ -1765,7 +1847,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           ranking.format === 'hybrid' && ranking.phase === 'playoff' && viewMode === 'playoff' ? (
             <div className="space-y-4">
               {/* Playoff Bracket Tabs */}
-              <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 bg-white sticky top-[60px] z-30">
+              <div className={`${showPlayerMobile ? 'hidden' : 'flex'} overflow-x-auto pb-2 gap-2 border-b border-gray-200 bg-white sticky top-[60px] z-30`}>
                 {/* Main Bracket Tab */}
                 {ranking.divisions.some(d => d.type === 'main' || (d.stage === 'playoff' && !d.type.toString().includes('consolation'))) && (
                   <button
@@ -1792,7 +1874,35 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 )}
               </div>
 
+              {showPlayerMobile && (
+                <div>
+                  {ranking.divisions.some(d => d.type === 'league-consolation-main') && (
+                    <div className="rg flex gap-2 mb-3">
+                      {(['main', 'consolation'] as const).map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setPlayoffBracketView(type)}
+                          className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${playoffBracketView === type ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}
+                        >
+                          {type === 'main' ? 'Principal' : 'Consolación'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <MobileBracket
+                    divisions={ranking.divisions.filter(d => playoffBracketView === 'main'
+                      ? (d.type === 'main' || d.type === 'consolation') && d.stage === 'playoff'
+                      : d.type === 'league-consolation-main')}
+                    players={players}
+                    bracketType={bracketType}
+                    followed={followed}
+                    groupOf={groupOfPair}
+                  />
+                </div>
+              )}
               {/* Bracket View - Filtered by Active Tab */}
+              <div className={showPlayerMobile ? 'hidden' : ''}>
               <BracketView
                 divisions={ranking.divisions.filter(d => {
                   if (playoffBracketView === 'main') {
@@ -1808,119 +1918,114 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 ranking={ranking}
                 bracketType={bracketType}
               />
+              </div>
             </div>
           ) : (
             <>
-              {/* Division Tabs */}
-              {((ranking.format !== 'mexicano' && ranking.format !== 'americano') || ranking.divisions.length > 1) && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs' || (ranking.format === 'hybrid')) && (
-                <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200">
-                  {ranking.format !== 'elimination' && (
-                    <button
-                      onClick={() => setActiveTab('global')}
-                      className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'global'
-                        ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
-                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                        } `}
-                    >
-                      <BarChart size={16} /> Estadísticas Globales
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setActiveTab('rules')}
-                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
-                      ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
-                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                      } `}
-                  >
-                    <BookOpen size={16} /> Normas
-                  </button>
-                  {ranking.divisions
-                    .filter(div => div.type !== 'consolation' && div.stage !== 'playoff') // Hide consolation and playoff divisions from main tabs
-                    .sort((a, b) => a.numero - b.numero)
-                    .map(div => (
-                      <button
-                        key={div.id}
-                        onClick={() => { setActiveDivisionId(div.id); setActiveTab('standings'); }}
-                        className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all whitespace-nowrap ${activeDivisionId === div.id && activeTab !== 'global' && activeTab !== 'rules'
-                          ? 'bg-white text-primary border-b-2 border-primary shadow-sm z-10'
-                          : 'bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                          } `}
-                      >
-                        {(() => {
-                          // Remove automatic suffixes like "Cuadro Principal", "Cuadro Consolación"
-                          const displayName = div.category || div.name || `División ${div.numero} `;
-                          return displayName
-                            .replace(/Cuadro Principal/gi, '')
-                            .replace(/Cuadro Consolación/gi, '')
-                            .replace(/\s*-\s*Principal/gi, '')
-                            .replace(/\s*-\s*Consolación/gi, '')
-                            .trim() || `División ${div.numero} `;
-                        })()}
-                      </button>
-                    ))}
-                  {isAdmin && (
-                    <div className="ml-2 flex items-center gap-1">
-                      {onAddDivision && (
-                        <button
-                          onClick={() => setIsAddDivModalOpen(true)}
-                          className="px-3 py-2 rounded-t-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center border-b border-gray-200"
-                          title="Añadir nueva división"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {/* Historial de Fases tab */}
-                  {((ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0)) && (
-                    <button
-                      onClick={() => setActiveTab('history')}
-                      className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'history'
-                        ? 'bg-white border-b-2 border-violet-500 text-violet-700 shadow-sm'
-                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                        }`}
-                    >
-                      <Clock size={16} /> Historial
-                    </button>
-                  )}
-                  {/* Estadísticas Avanzadas tab */}
-                  {((ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0)) && (
-                    <button
-                      onClick={() => setActiveTab('advstats')}
-                      className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'advstats'
-                        ? 'bg-white border-b-2 border-emerald-500 text-emerald-700 shadow-sm'
-                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                        }`}
-                    >
-                      <BarChart size={16} /> Estadísticas
-                    </button>
+              {/* Player-facing mobile: divisions as chips, then the followed pair */}
+              {showPlayerMobile && (
+                <div className="md:hidden rg space-y-4">
+                  {(() => {
+                    const chips: { id: string; label: string; active: boolean; onClick: () => void }[] = ranking.divisions
+                      .filter(div => div.type !== 'consolation' && div.stage !== 'playoff')
+                      .sort((a, b) => a.numero - b.numero)
+                      .map(div => ({
+                        id: div.id,
+                        label: (div.category || div.name || `División ${div.numero}`)
+                          .replace(/Cuadro Principal/gi, '').replace(/Cuadro Consolación/gi, '')
+                          .replace(/\s*-\s*Principal/gi, '').replace(/\s*-\s*Consolación/gi, '').trim() || `División ${div.numero}`,
+                        active: activeDivisionId === div.id && (activeTab === 'standings' || activeTab === 'matches'),
+                        onClick: () => { setActiveDivisionId(div.id); if (activeTab !== 'matches') setActiveTab('standings'); },
+                      }));
+                    if (ranking.format !== 'elimination' && ranking.divisions.length > 1) {
+                      chips.push({ id: 'global', label: 'Global', active: activeTab === 'global', onClick: () => setActiveTab('global') });
+                    }
+                    if ((ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0)) {
+                      chips.push({ id: 'history', label: 'Historial', active: activeTab === 'history', onClick: () => setActiveTab('history') });
+                    }
+                    if (chips.length < 2) return null;
+                    return (
+                      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
+                        {chips.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={c.onClick}
+                            className={`flex-none h-8 px-3.5 rounded-full text-[13px] font-medium border transition-colors ${c.active ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}
+                          >
+                            {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  {(activeTab === 'standings' || activeTab === 'matches') && followOptions.length > 0 && (
+                    <FollowCard
+                      options={followOptions}
+                      followed={followed}
+                      onFollow={setFollowed}
+                      players={players}
+                      isPairs={isPairFormat}
+                      standing={followedStanding}
+                      nextMatch={followedNext}
+                    />
                   )}
                 </div>
               )}
 
-              {/* Single Group Tabs */}
-              {(ranking.format === 'mexicano' || ranking.format === 'americano') && (
-                <div className="flex overflow-x-auto pb-2 gap-2 border-b border-gray-200 mb-4">
-                  <button
-                    onClick={() => setActiveTab('standings')}
-                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'standings' || activeTab === 'matches'
-                      ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
-                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                      } `}
-                  >
-                    <Trophy size={16} /> Competición
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('rules')}
-                    className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'rules'
-                      ? 'bg-white border-b-2 border-primary text-primary shadow-sm'
-                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                      } `}
-                  >
-                    <BookOpen size={16} /> Normas
-                  </button>
-                </div>
-              )}
+              {/* Tabs: divisions first, then the views of the whole tournament */}
+              {(() => {
+                const singleGroup = (ranking.format === 'mexicano' || ranking.format === 'americano') && ranking.divisions.length <= 1;
+                const showDivisionTabs = ((ranking.format !== 'mexicano' && ranking.format !== 'americano') || ranking.divisions.length > 1) && (ranking.divisions.length > 1 || (ranking.history && ranking.history.length > 0) || ranking.format === 'individual' || ranking.format === 'classic' || ranking.format === 'pairs' || (ranking.format === 'hybrid'));
+                if (!singleGroup && !showDivisionTabs) return null;
+                const hasHistory = (ranking.phaseHistory || []).length > 0 || (ranking.history && ranking.history.length > 0);
+                const inDivision = activeTab === 'standings' || activeTab === 'matches';
+                const tabs: { id: string; label: string; active: boolean; onClick: () => void }[] = singleGroup
+                  ? [{ id: 'competition', label: 'Competición', active: inDivision, onClick: () => setActiveTab('standings') }]
+                  : ranking.divisions
+                    .filter(div => div.type !== 'consolation' && div.stage !== 'playoff')
+                    .sort((x, y) => x.numero - y.numero)
+                    .map(div => ({
+                      id: div.id,
+                      label: (div.category || div.name || `División ${div.numero}`)
+                        .replace(/Cuadro Principal/gi, '').replace(/Cuadro Consolación/gi, '')
+                        .replace(/\s*-\s*Principal/gi, '').replace(/\s*-\s*Consolación/gi, '').trim() || `División ${div.numero}`,
+                      active: activeDivisionId === div.id && inDivision,
+                      onClick: () => { setActiveDivisionId(div.id); if (!inDivision) setActiveTab('standings'); },
+                    }));
+                if (!singleGroup && ranking.format !== 'elimination') tabs.push({ id: 'global', label: 'Global', active: activeTab === 'global', onClick: () => setActiveTab('global') });
+                tabs.push({ id: 'rules', label: 'Normas', active: activeTab === 'rules', onClick: () => setActiveTab('rules') });
+                if (!singleGroup && hasHistory) {
+                  tabs.push({ id: 'history', label: 'Historial', active: activeTab === 'history', onClick: () => setActiveTab('history') });
+                  tabs.push({ id: 'advstats', label: 'Estadísticas', active: activeTab === 'advstats', onClick: () => setActiveTab('advstats') });
+                }
+                return (
+                  <div className={`rg ${showPlayerMobile ? 'hidden md:flex' : 'flex'} items-end gap-6 border-b border-rg-line overflow-x-auto scrollbar-hide mb-4`} role="tablist">
+                    {tabs.map(t => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={t.active}
+                        onClick={t.onClick}
+                        className={`py-2.5 -mb-px border-b-2 text-[14px] whitespace-nowrap transition-colors ${t.active ? 'border-court text-rg-ink font-semibold' : 'border-transparent text-rg-muted hover:text-rg-ink'}`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                    {isAdmin && onAddDivision && !singleGroup && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddDivModalOpen(true)}
+                        className="py-2.5 -mb-px border-b-2 border-transparent text-[14px] text-court font-medium whitespace-nowrap inline-flex items-center gap-1 hover:text-court-ink"
+                        title="Añadir nueva división"
+                      >
+                        <Plus size={15} /> División
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Rules Content */}
               {activeTab === 'rules' && (
@@ -1999,27 +2104,30 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
               {/* Division/Global Content-Hidden for elimination format and new analytical tabs */}
               {activeTab !== 'rules' && activeTab !== 'history' && activeTab !== 'advstats' && ranking.format !== 'elimination' && (
-                <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-4">
-                  <h3 className="font-bold text-gray-700 px-2 lg:text-lg">
-                    {activeTab === 'global' ? 'Estadísticas Globales' :
-                      `División ${activeDivision?.numero} `}
-                  </h3>
-                  {activeTab !== 'global' && (
-                    <div className="bg-gray-100 p-1 rounded-lg flex">
-                      <button
-                        onClick={() => setActiveTab('standings')}
-                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'standings' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
-                      >
-                        Clasificación
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('matches')}
-                        className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'matches' ? 'bg-white shadow-sm text-primary' : 'text-gray-500 hover:text-gray-700'} `}
-                      >
-                        Partidos
-                      </button>
+                <div className={`rg ${showPlayerMobile ? 'hidden md:flex' : 'flex'} flex-wrap justify-between items-center gap-3 mb-4`}>
+                  {activeTab === 'global' ? (
+                    <h2 className="text-[16px] font-semibold">Estadísticas globales</h2>
+                  ) : (
+                    <div className="inline-flex bg-rg-raised rounded-lg p-[3px]" role="tablist" aria-label="Vista de la división">
+                      {(['standings', 'matches'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          type="button"
+                          role="tab"
+                          aria-selected={activeTab === tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={`h-[30px] px-3.5 rounded-md text-[13.5px] transition-colors ${activeTab === tab ? 'bg-white text-rg-ink font-semibold' : 'text-rg-muted hover:text-rg-ink'}`}
+                        >
+                          {tab === 'standings' ? 'Clasificación' : 'Partidos'}
+                        </button>
+                      ))}
                     </div>
                   )}
+                  {activeTab !== 'global' && activeDivision && (() => {
+                    const played = activeDivision.matches.filter(m => m.status === 'finalizado').length;
+                    const total = activeDivision.matches.filter(m => m.status !== 'descanso').length;
+                    return total > 0 ? <span className="hidden md:inline text-[13px] text-rg-muted num">{played} de {total} partidos jugados</span> : null;
+                  })()}
                 </div>
               )}
 
@@ -2037,12 +2145,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   </div>
 
                   {/* Desktop View */}
-                  <Card className="overflow-hidden !p-0 hidden md:block">
-                    <div className="p-4 border-b bg-gray-50">
-                      <h3 className="font-semibold text-gray-700 flex items-center gap-2"><BarChart size={18} className="text-primary" /> Estadísticas Globales</h3>
-                      <p className="text-xs text-gray-500 mt-1">Comparativa de rendimiento entre todos los participantes.</p>
-                    </div>
-                    <div className="p-4">
+                  <section className="rg hidden md:block bg-white border border-rg-line rounded-lg overflow-hidden" aria-label="Estadísticas globales">
+                    <p className="px-4 pt-3.5 pb-2 text-[13px] text-rg-muted">Todos los participantes del torneo, sumando todas las divisiones.</p>
+                    <div>
                       <StandingsTable
                         standings={globalStandings}
                         players={players}
@@ -2058,7 +2163,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                         }}
                       />
                     </div>
-                  </Card >
+                  </section>
                 </div>
               )}
 
@@ -2252,7 +2357,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               {/* Category Header for Elimination-shows category name */}
               {
                 ranking.format === 'elimination' && activeDivision && activeTab === 'standings' && (
-                  <div className="mb-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+                  <div className={`rg mb-4 px-4 py-3 bg-white rounded-lg border border-rg-line ${showPlayerMobile ? 'hidden' : 'flex'} items-center justify-between`}>
                     {isEditingCategory ? (
                       <div className="flex items-center gap-2 w-full">
                         <input
@@ -2341,9 +2446,9 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
               {
                 activeTab === 'standings' && (
-                  <Card className="overflow-hidden !p-0">
+                  <Card className={`overflow-hidden !p-0 ${ranking.format !== 'elimination' ? '!bg-transparent !border-0 !shadow-none !rounded-none !overflow-visible' : showPlayerMobile ? '!bg-transparent !border-0 !shadow-none !rounded-none' : '!shadow-none !rounded-lg !border-rg-line'}`}>
                     {ranking.format !== 'elimination' && (
-                      <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                      <div className="hidden">
                         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
                           <Trophy size={18} className="text-yellow-500" />
                           Tabla de Clasificación
@@ -2353,8 +2458,38 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
 
                     {ranking.format === 'elimination' ? (
                       <>
+                        {/* Player-facing mobile bracket: the one view that scrolls sideways */}
+                        {showPlayerMobile && (
+                          <div className="md:p-4">
+                            {ranking.config?.eliminationConfig?.consolation && (
+                              <div className="rg flex gap-2 mb-3">
+                                {(['main', 'consolation'] as const).map(type => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setBracketType(type)}
+                                    className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${bracketType === type ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}
+                                  >
+                                    {type === 'main' ? 'Principal' : 'Consolación'}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {activeDivision ? (
+                              <MobileBracket
+                                divisions={categoryDivisions}
+                                players={players}
+                                bracketType={bracketType}
+                                followed={followed}
+                              />
+                            ) : (
+                              <p className="rg text-sm text-rg-muted">Elige una categoría.</p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Sub-tabs for Main and Consolation brackets */}
-                        <div className="flex gap-2 p-3 border-b bg-gray-50">
+                        <div className={`${showPlayerMobile ? 'hidden' : 'flex'} rg gap-2 p-3 border-b border-rg-line`}>
                           <button
                             onClick={() => setBracketType('main')}
                             className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${bracketType === 'main'
@@ -2386,7 +2521,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                           </button>
                         </div>
                         {activeDivision ? (
-                          <div className="p-4 bg-gray-50/50 min-h-[400px]">
+                          <div className={`p-4 min-h-[400px] ${showPlayerMobile ? 'hidden' : ''}`}>
                             <BracketView
                               divisions={categoryDivisions}
                               players={players}
@@ -2403,166 +2538,86 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                       </>
                     ) : (
                       <>
-                        {/* Mobile Card View */}
+                        {/* Mobile: two-line rows, nothing scrolls sideways */}
                         <div className="md:hidden">
-                          {activeTab === 'standings' && standings.map((row) => {
-                            let displayName = 'Desconocido';
-                            const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
-                            const isHybrid = ranking.format === 'hybrid';
-
-                            const promotionCount = ranking.config?.promotionCount !== undefined ? ranking.config.promotionCount : 0;
-                            const relegationCount = ranking.config?.relegationCount !== undefined ? ranking.config.relegationCount : 0;
-                            const qualifiersCount = ranking.config?.hybridConfig?.qualifiersPerGroup !== undefined ? ranking.config.hybridConfig.qualifiersPerGroup : 2;
-                            const consolationCount = ranking.config?.hybridConfig?.consolationQualifiersPerGroup !== undefined ? ranking.config.hybridConfig.consolationQualifiersPerGroup : 0;
-
-                            const isPromoted = !isHybrid && !isAmericanoOrMexicano && row.pos <= promotionCount;
-                            const isRelegated = !isHybrid && !isAmericanoOrMexicano && row.pos > standings.length - relegationCount;
-                            const isQualified = isHybrid && row.pos <= qualifiersCount;
-                            const isConsolation = isHybrid && row.pos > qualifiersCount && row.pos <= (qualifiersCount + consolationCount);
-
-                            const formatCompactName = (name: string, surname?: string) => {
-                              if (!name) return '?';
-                              return `${name} ${surname ? surname.charAt(0) + '.' : ''}`;
-                            };
-
-                            if (ranking.format === 'pairs' || ranking.format === 'hybrid') {
-                              const [p1Id, p2Id] = row.playerId.split('::');
-                              const p1 = players[p1Id];
-                              const p2 = players[p2Id];
-                              displayName = `${formatCompactName(p1?.nombre || '?', p1?.apellidos)} / ${formatCompactName(p2?.nombre || '?', p2?.apellidos)}`;
-                            } else {
-                              const player = players[row.playerId];
-                              if (player) displayName = formatCompactName(player.nombre, player.apellidos);
-                            }
-
-                            const winrate = row.pj > 0 ? Math.round((row.pg / row.pj) * 100) : 0;
-
-                            return (
-                              <div key={row.playerId} className={`p-4 border-b border-gray-100 last:border-0 ${isPromoted || isQualified ? 'bg-green-50/30' : isConsolation ? 'bg-red-50/30' : isRelegated ? 'bg-red-50/30' : 'bg-white'}`}>
-                                <div className="flex justify-between items-start mb-3">
-                                  <div className="flex items-center gap-3">
-                                    <span className={`font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full ${isAmericanoOrMexicano && row.pos === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                      isAmericanoOrMexicano && row.pos === 2 ? 'bg-gray-100 text-gray-700' :
-                                        isAmericanoOrMexicano && row.pos === 3 ? 'bg-orange-100 text-orange-800' :
-                                          isConsolation ? 'bg-red-100 text-red-700' :
-                                            'text-gray-500 bg-gray-50'
-                                      }`}>
-                                      #{row.pos}
-                                    </span>
-                                    <div>
-                                      {isPlayerClickEnabled && onPlayerClick ? (
-                                        <button
-                                          onClick={() => onPlayerClick(row.playerId)}
-                                          className="font-semibold text-gray-900 text-base hover:text-primary hover:underline text-left"
-                                        >
-                                          {displayName}
-                                        </button>
-                                      ) : (
-                                        <div className="font-semibold text-gray-900 text-base">{displayName}</div>
-                                      )}
-                                      <div className="text-xs text-gray-400 font-medium">
-                                        {isPromoted && <span className="text-green-600 flex items-center gap-1">🟢 Ascenso</span>}
-                                        {isRelegated && <span className="text-red-600 flex items-center gap-1">🔴 Descenso</span>}
-                                        {isQualified && <span className="text-green-600 flex items-center gap-1">✅ Clasificado</span>}
-                                        {isConsolation && <span className="text-red-600 flex items-center gap-1 font-bold italic">🚩 Consolación</span>}
-                                        {!isAmericanoOrMexicano && !isPromoted && !isRelegated && !isQualified && !isConsolation && 'Permanencia'}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-col items-end">
-                                    <div className="flex items-center gap-1">
-                                      {isAdmin && onUpdateRanking && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            // Open unified Stats Modal
-                                            setEditingPlayerId(row.playerId);
-                                            setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
-                                            setIsStatsModalOpen(true);
-                                          }}
-                                          className="p-1.5 bg-amber-100 text-amber-700 rounded-lg mb-1 hover:bg-amber-200 transition-colors"
-                                        >
-                                          <Edit2 size={14} />
-                                        </button>
-                                      )}
-                                      <div className="text-2xl font-bold text-primary leading-none flex items-center gap-1">
-                                        {row.pts}
-                                        {row.manualAdjustment !== undefined && row.manualAdjustment !== 0 && (
-                                          <span className="text-[10px] bg-amber-100 text-amber-600 px-1 rounded flex items-center gap-0.5" title={`Ajuste manual: ${row.manualAdjustment > 0 ? '+' : ''}${row.manualAdjustment}`}>
-                                            <AlertCircle size={8} />
-                                            {row.manualAdjustment > 0 ? '+' : ''}{row.manualAdjustment}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">Puntos</div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between border-t border-gray-50 pt-4 px-1">
-                                  <div className="flex flex-col items-center">
-                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">PJ</div>
-                                    <div className="text-xs font-black text-gray-900">{row.pj}</div>
-                                  </div>
-                                  <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">PG</div>
-                                    <div className="text-xs font-black text-gray-900">{row.pg}</div>
-                                  </div>
-                                  <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">PP</div>
-                                    <div className="text-xs font-black text-gray-900">{row.pp}</div>
-                                  </div>
-                                  <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">DS</div>
-                                    <div className="text-xs font-black text-gray-900">
-                                      {row.setsDiff > 0 ? '+' : ''}{row.setsDiff}
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">DJ</div>
-                                    <div className="text-xs font-black text-gray-900">
-                                      {row.gamesDiff > 0 ? '+' : ''}{row.gamesDiff}
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-col items-center border-l border-gray-100 pl-3">
-                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mb-0.5">%</div>
-                                    <div className="text-xs font-black text-gray-900">{Math.round(row.winRate)}%</div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div className="space-y-4 hidden md:block">
-                          <StandingsTable
+                          <MobileStandingsList
                             standings={standings}
                             players={players}
-                            onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
-                            columns={getVisibleColumns(['americano', 'mexicano', 'pozo'].includes(ranking.format) ? FORMAT_COLUMN_PRESETS.pointBasedFormat : FORMAT_COLUMN_PRESETS.setBasedFormat)}
-                            isAmericanoOrMexicano={['americano', 'mexicano', 'pozo'].includes(ranking.format)}
-                            isHybrid={ranking.format === 'hybrid'}
-                            isAdmin={isAdmin}
-                            onEditStats={(row) => {
-                              setEditingPlayerId(row.playerId);
-                              setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
-                              setIsStatsModalOpen(true);
-                            }}
+                            format={ranking.format}
+                            title={activeDivision ? (activeDivision.category || activeDivision.name || `División ${activeDivision.numero}`) : 'Clasificación'}
+                            subtitle={activeDivision ? (() => {
+                              const played = activeDivision.matches.filter(m => m.status === 'finalizado').length;
+                              const total = activeDivision.matches.filter(m => m.status !== 'descanso').length;
+                              return total > 0 ? `${played} de ${total} partidos jugados` : undefined;
+                            })() : undefined}
+                            followed={showPlayerMobile ? followed : null}
                             promotionCount={ranking.config?.promotionCount}
                             relegationCount={ranking.config?.relegationCount}
                             qualifiersCount={ranking.config?.hybridConfig?.qualifiersPerGroup}
                             consolationCount={ranking.config?.hybridConfig?.consolationQualifiersPerGroup}
+                            onOpenDetail={isPlayerClickEnabled && onPlayerClick ? onPlayerClick : undefined}
+                            onEditStats={isAdmin && onUpdateRanking ? (row) => {
+                              setEditingPlayerId(row.playerId);
+                              setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
+                              setIsStatsModalOpen(true);
+                            } : undefined}
                           />
+                        </div>
 
-                          <div className="p-4 bg-gray-50 text-[10px] sm:text-xs text-gray-400 flex flex-wrap gap-4 justify-end border-t rounded-b-xl">
-                            {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
-                              <>
-                                {activeDivision && activeDivision.numero > 1 && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-200"></div> Zona Ascenso</span>}
-                                {!isLastDivision && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-200"></div> Zona Descenso</span>}
-                                {ranking.format === 'hybrid' && <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div> Zona Consolación</span>}
-                              </>
-                            )}
-                          </div>
+                        <div className="hidden md:grid rg grid-cols-6 gap-4 items-start">
+                          <section className={`${showPlayerMobile || nextRound ? 'col-span-6 xl:col-span-4' : 'col-span-6'} bg-white border border-rg-line rounded-lg overflow-hidden`} aria-labelledby="clasificacion-titulo">
+                            <div className="flex items-baseline justify-between gap-3 px-4 pt-3.5 pb-2">
+                              <h2 id="clasificacion-titulo" className="text-[16px] font-semibold">Clasificación</h2>
+                              {!['americano', 'mexicano', 'pozo'].includes(ranking.format || '') && (
+                                <span className="text-[13px] text-rg-muted">Desempate: puntos, sets y juegos</span>
+                              )}
+                            </div>
+                            <StandingsTable
+                              standings={standings}
+                              players={players}
+                              onPlayerClick={isPlayerClickEnabled ? onPlayerClick : undefined}
+                              columns={getVisibleColumns(['americano', 'mexicano', 'pozo'].includes(ranking.format) ? FORMAT_COLUMN_PRESETS.pointBasedFormat : FORMAT_COLUMN_PRESETS.setBasedFormat)}
+                              isAmericanoOrMexicano={['americano', 'mexicano', 'pozo'].includes(ranking.format)}
+                              isHybrid={ranking.format === 'hybrid'}
+                              isAdmin={isAdmin}
+                              onEditStats={(row) => {
+                                setEditingPlayerId(row.playerId);
+                                setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
+                                setIsStatsModalOpen(true);
+                              }}
+                              promotionCount={ranking.config?.promotionCount}
+                              relegationCount={ranking.config?.relegationCount}
+                              qualifiersCount={ranking.config?.hybridConfig?.qualifiersPerGroup}
+                              consolationCount={ranking.config?.hybridConfig?.consolationQualifiersPerGroup}
+                              highlightEntry={showPlayerMobile ? followed : null}
+                            />
+                          </section>
+                          {(showPlayerMobile || nextRound) && (
+                            <div className="col-span-6 xl:col-span-2 grid gap-4 md:grid-cols-2 xl:grid-cols-1 items-start">
+                              {showPlayerMobile && followOptions.length > 0 && (
+                                <FollowCard
+                                  options={followOptions}
+                                  followed={followed}
+                                  onFollow={setFollowed}
+                                  players={players}
+                                  isPairs={isPairFormat}
+                                  standing={followedStanding}
+                                  nextMatch={followedNext}
+                                />
+                              )}
+                              {nextRound && (
+                                <section aria-labelledby="proxima-jornada">
+                                  <h2 id="proxima-jornada" className="sr-only">{nextRound.pending ? 'Próxima jornada' : 'Última jornada'}</h2>
+                                  <MobileMatchList
+                                    matches={nextRound.matches}
+                                    players={players}
+                                    followed={showPlayerMobile ? followed : null}
+                                    onMatchClick={isAdmin ? handleMatchClick : undefined}
+                                  />
+                                </section>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -2580,189 +2635,39 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                   const maxJornada = activeDivision.matches.reduce((m, x) => Math.max(m, x.jornada || 0), 0);
                   const firstVueltaJornada = isDoubleLeg && maxJornada > 0 ? Math.floor(maxJornada / 2) + 1 : Infinity;
                   return (
-                  <div className="space-y-8">
-                    {Object.entries(
-                      activeDivision.matches.reduce((acc, m) => {
-                        if (!acc[m.jornada]) acc[m.jornada] = [];
-                        acc[m.jornada].push(m);
-                        return acc;
-                      }, {} as Record<number, Match[]>)
-                    ).sort((a, b) => Number(a[0]) - Number(b[0])).map(([round, matches]) => (
-                      <div key={round} className="animate-fade-in">
-                        {isDoubleLeg && Number(round) === 1 && (
-                          <div className="text-xs font-extrabold tracking-[0.3em] text-primary/70 uppercase mb-2 border-l-4 border-primary pl-3">Ida</div>
-                        )}
-                        {isDoubleLeg && Number(round) === firstVueltaJornada && (
-                          <div className="text-xs font-extrabold tracking-[0.3em] text-amber-600 uppercase mb-2 mt-6 border-l-4 border-amber-500 pl-3">Vuelta</div>
-                        )}
-                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-                          <Calendar size={20} className="text-primary" /> Jornada {round}
-                        </h3>
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                          {matches.map((m) => {
-                            const p1 = players[m.pair1.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p1Id };
-                            const p2 = players[m.pair1.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair1.p2Id };
-                            const p3 = players[m.pair2.p1Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p1Id };
-                            const p4 = players[m.pair2.p2Id] || { nombre: 'Desconocido', apellidos: '', id: m.pair2.p2Id };
-
-                            if (m.status === 'descanso') {
-                              return (
-                                <div key={m.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 opacity-75">
-                                  <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                                    <Badge type="neutral">Descanso</Badge>
-                                  </div>
-                                  <div className="text-center py-2">
-                                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pareja que descansa</div>
-                                    <div className="font-bold text-gray-700">
-                                      {p1.nombre} {p1.apellidos} - {p2.nombre} {p2.apellidos}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div
-                                key={m.id}
-                                className={`bg-white p-0 rounded-xl border transition-all ${isAdmin ? 'hover:border-primary hover:shadow-md' : 'border-gray-100'}`}
-                              >
-                                {/* Main Clickable Area -> Opens MatchModal (Score) */}
-                                <div
-                                  className={`p-4 ${isAdmin ? 'cursor-pointer' : ''}`}
-                                  onClick={() => isAdmin && handleMatchClick(m)}
-                                >
-                                  <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Jornada {m.jornada}</span>
-                                    {/* Removed Court Badge from here, moving to Schedule Area */}
-                                    {m.status === 'finalizado' ? (
-                                      <Badge type={m.score?.isIncomplete ? 'incomplete' : 'success'}>
-                                        {m.score?.isIncomplete ? 'Incompleto' : 'Finalizado'}
-                                      </Badge>
-                                    ) : (
-                                      <Badge>Pendiente</Badge>
-                                    )}
-                                  </div>
-
-                                  <div className="text-center mb-2">
-                                    <div className="text-sm font-medium text-gray-900 border-b pb-2 mb-2 border-dashed border-gray-100">
-                                      <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2">
-                                        <div className="text-right pr-2">
-                                          <span className="block font-bold">{p1.nombre} {p1.apellidos}</span>
-                                          <span className="block font-bold">{p2.nombre} {p2.apellidos}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center justify-center px-1">
-                                          <div className="w-px h-3 bg-gray-100"></div>
-                                          <span className="text-[10px] font-bold text-gray-300 italic">VS</span>
-                                          <div className="w-px h-3 bg-gray-100"></div>
-                                        </div>
-                                        <div className="text-left pl-2">
-                                          <span className="block font-bold">{p3.nombre} {p3.apellidos}</span>
-                                          <span className="block font-bold">{p4.nombre} {p4.apellidos}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {m.status === 'finalizado' && (
-                                    <div className="bg-gray-50 rounded-lg p-2 text-center">
-                                      <span className="font-mono font-bold text-lg text-gray-800 tracking-widest">
-                                        {m.score?.set1 ? (
-                                          <>
-                                            {m.score.set1.p1}-{m.score.set1.p2}
-                                            {m.score.set2 && `  ${m.score.set2.p1}-${m.score.set2.p2}`}
-                                            {m.score.set3 && `  ${m.score.set3.p1}-${m.score.set3.p2}`}
-                                          </>
-                                        ) : (
-                                          <span>{m.points?.p1 || 0} - {m.points?.p2 || 0}</span>
-                                        )}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Dedicated Schedule Area-Bottom of Card */}
-                                {/* Only show for formats that use scheduling */}
-                                {ranking.format !== 'americano' && ranking.format !== 'mexicano' && (
-                                  <div
-                                    className={`border-t border-gray-100 py-2 px-4 bg-gray-50 flex items-center justify-between rounded-b-xl transition-colors ${isAdmin ? 'cursor-pointer hover:bg-blue-50 group' : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Avoid opening Score Modal
-                                      if (isAdmin) setSchedulingMatch(m);
-                                    }}
-                                  >
-                                    {/* Content based on state */}
-                                    {(m.startTime || m.court) ? (
-                                      <div className="flex items-center gap-3 text-xs font-semibold text-blue-700 w-full">
-                                        <div className="flex items-center gap-1">
-                                          <Clock size={14} />
-                                          {m.startTime ? new Date(m.startTime).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                                        </div>
-                                        {m.court && (
-                                          <div className="flex items-center gap-1 border-l border-blue-200 pl-3 ml-auto">
-                                            <span>Pista {m.court}</span>
-                                          </div>
-                                        )}
-
-                                        <ScheduleStatusBadges match={m} ranking={ranking} showConflicts={!!isAdmin} />
-
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center justify-center w-full text-xs font-medium text-gray-400 group-hover:text-blue-600 gap-1">
-                                        {isAdmin ? (
-                                          <>
-                                            <Calendar size={14} /> Programar Partido
-                                          </>
-                                        ) : (
-                                          <span>Sin programar</span>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Resting Players Section-Only for Americano/Mexicano */}
-                        {(ranking.format === 'americano' || ranking.format === 'mexicano') && (() => {
-                          const restingPlayers = getRestingPlayers(activeDivision.players, activeDivision.matches, Number(round));
-
-                          if (restingPlayers.length === 0) return null;
-
-                          return (
-                            <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
-                              <div className="flex items-center gap-2 mb-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <rect x="9" y="9" width="6" height="6" />
-                                </svg>
-                                <h4 className="font-semibold text-gray-700 text-sm">
-                                  Descansan esta ronda ({restingPlayers.length})
-                                </h4>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {restingPlayers.map(playerId => {
-                                  const player = players[playerId];
-                                  if (!player) return null;
-
-                                  return (
-                                    <div
-                                      key={playerId}
-                                      className="px-3 py-1.5 bg-white rounded-md border border-gray-300 text-sm text-gray-700 font-medium shadow-sm"
-                                    >
-                                      {player.nombre} {player.apellidos}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })()}
+                  <>
+                  <div>
+                    {showPlayerMobile && followed && (
+                      <div className="rg flex gap-2 mb-3">
+                        <button type="button" onClick={() => setOnlyMine(false)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${!onlyMine ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}>Todos</button>
+                        <button type="button" onClick={() => setOnlyMine(true)} className={`h-8 px-3.5 rounded-full text-[13px] font-medium border ${onlyMine ? 'bg-rg-ink border-rg-ink text-white' : 'bg-white border-rg-line text-rg-muted'}`}>Solo los míos</button>
                       </div>
-                    ))}
+                    )}
+                    <MobileMatchList
+                      matches={activeDivision.matches}
+                      players={players}
+                      followed={showPlayerMobile ? followed : null}
+                      onlyFollowed={showPlayerMobile && onlyMine}
+                      firstSecondLegRound={isDoubleLeg && Number.isFinite(firstVueltaJornada) ? firstVueltaJornada : undefined}
+                      restingFor={ranking.format === 'americano' || ranking.format === 'mexicano'
+                        ? (round) => getRestingPlayers(activeDivision.players, activeDivision.matches, round)
+                        : undefined}
+                      onMatchClick={isAdmin ? handleMatchClick : undefined}
+                      onScheduleClick={isAdmin && ranking.format !== 'americano' && ranking.format !== 'mexicano' ? setSchedulingMatch : undefined}
+                      conflictsOf={isAdmin ? (m) => {
+                        // Same reasons the scheduler badges give: availability, windows and a court booked twice
+                        const reasons = (m.scheduleConflict ?? []).map(c => c.reason);
+                        if (m.startTime && m.court) {
+                          const start = new Date(m.startTime);
+                          const end = SchedulerEngine.addMinutes(start, ranking.schedulerConfig?.slotDurationMinutes || 90);
+                          if (SchedulerEngine.checkMatchConflict(start, end, m.court, SchedulerEngine.getAllOccupiedSlots(ranking, m.id))) reasons.push(`Pista ${m.court} ocupada`);
+                        }
+                        return reasons;
+                      } : undefined}
+                      twoColumns
+                    />
                   </div>
+                  </>
                   );
                 })()
               }
@@ -3046,6 +2951,56 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
           setIsSchedulerConfigModalOpen(true);
         }}
       />
+
+      {/* Player-facing mobile: thumb navigation */}
+      {showPlayerMobile && (() => {
+        const hybridPlayoff = ranking.format === 'hybrid' && ranking.phase === 'playoff';
+        const goGroups = () => {
+          if (ranking.format === 'hybrid' && viewMode !== 'groups') {
+            setViewMode('groups');
+            const d = ranking.divisions.find(d => d.stage === 'group' || (!d.stage && d.type !== 'main' && d.type !== 'consolation'));
+            if (d) setActiveDivisionId(d.id);
+          }
+        };
+        const inBracket = hybridPlayoff && viewMode === 'playoff';
+        const items = [
+          ranking.format === 'elimination'
+            ? { id: 'standings', label: 'Cuadro', Icon: Network, active: !inBracket && activeTab === 'standings', onClick: () => setActiveTab('standings') }
+            : { id: 'standings', label: 'Clasificación', Icon: ListOrdered, active: !inBracket && ['standings', 'global', 'history', 'advstats'].includes(activeTab), onClick: () => { goGroups(); setActiveTab('standings'); } },
+          { id: 'matches', label: 'Partidos', Icon: CalendarDays, active: !inBracket && activeTab === 'matches', onClick: () => { goGroups(); setActiveTab('matches'); } },
+          ...(hybridPlayoff ? [{
+            id: 'bracket', label: 'Cuadro', Icon: Network, active: inBracket, onClick: () => {
+              setViewMode('playoff');
+              const d = ranking.divisions.find(d => d.stage === 'playoff' || d.type === 'main');
+              if (d) setActiveDivisionId(d.id);
+            },
+          }] : []),
+          { id: 'rules', label: 'Normas', Icon: BookOpen, active: !inBracket && activeTab === 'rules', onClick: () => { goGroups(); setActiveTab('rules'); } },
+        ];
+        return (
+          <>
+            <div className="md:hidden h-20" aria-hidden="true" />
+            <nav
+              className="rg md:hidden fixed inset-x-0 bottom-0 z-40 bg-white border-t border-rg-line grid"
+              style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)`, paddingBottom: 'env(safe-area-inset-bottom)' }}
+              aria-label="Secciones del torneo"
+            >
+              {items.map(({ id, label, Icon, active, onClick }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => { onClick(); window.scrollTo({ top: 0 }); }}
+                  aria-current={active ? 'page' : undefined}
+                  className={`h-16 flex flex-col items-center justify-center gap-1 text-[11.5px] transition-colors ${active ? 'text-court font-semibold' : 'text-rg-muted active:text-rg-ink'}`}
+                >
+                  <Icon size={20} strokeWidth={1.75} />
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </>
+        );
+      })()}
     </div >
   );
 };

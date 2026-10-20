@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle, Clock } from 'lucide-react';
 import { Modal, Button } from './ui/Components';
 import { Match, Ranking } from '../types';
 import { SchedulerEngine, ANY_PAIR } from '../services/SchedulerEngine';
@@ -45,77 +45,86 @@ export const ScheduleModal = ({ isOpen, onClose, match, onSave, schedulerConfig,
 
     if (!match) return null;
 
+    const pairText = (pair: { p1Id: string; p2Id?: string; placeholder?: string }) =>
+        pair.p1Id ? pairLabel(pair.p2Id ? `${pair.p1Id}::${pair.p2Id}` : pair.p1Id, players ?? {}) : (pair.placeholder || 'Por decidir');
+    const courtCount = schedulerConfig?.courts || 0;
+    const timeChanged = !!match.startTime && startTime !== toLocalInput(match.startTime);
+
+    // Conflicts of the slot being chosen: a court booked twice, a pair that cannot play, a time outside the phase
+    const alerts: { key: string; text: string; tone: 'negative' | 'warning' }[] = [];
+    if (startTime && schedulerConfig) {
+        const start = new Date(startTime);
+        const end = SchedulerEngine.addMinutes(start, schedulerConfig.slotDurationMinutes);
+        if (court && occupationSlots && SchedulerEngine.checkMatchConflict(start, end, parseInt(court), occupationSlots)) {
+            alerts.push({ key: 'court', text: `La pista ${court} ya está ocupada a esa hora.`, tone: 'negative' });
+        }
+        if (ranking) {
+            (SchedulerEngine.computeConflicts({ ...match, startTime: start.toISOString() }, ranking) ?? []).forEach((c, i) => alerts.push({
+                key: `c${i}`,
+                text: c.pairKey === ANY_PAIR ? c.reason : `${pairLabel(c.pairKey, players ?? {})}: ${c.reason}`,
+                tone: 'warning',
+            }));
+        }
+    }
+
+    const fieldClass = 'w-full h-10 px-3 rounded-md border border-rg-control bg-white text-[15px] num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track';
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`Programar: Jornada ${match.jornada}`}>
-            <div className="space-y-6">
-                {/* Scheduling Section */}
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-3">
-                    <h4 className="text-sm font-bold text-blue-800 flex items-center gap-2">
-                        <Calendar size={16} /> Horario y Pista
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-blue-700 mb-1">Fecha y Hora</label>
-                            <input
-                                type="datetime-local"
-                                value={startTime}
-                                onChange={(e) => setStartTime(e.target.value)}
-                                className="w-full text-sm border-blue-200 rounded p-2"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-blue-700 mb-1">Pista</label>
-                            <input
-                                type="number"
-                                min="1"
-                                placeholder="Nº"
-                                value={court}
-                                onChange={(e) => setCourt(e.target.value)}
-                                className="w-full text-sm border-blue-200 rounded p-2"
-                            />
-                        </div>
-                    </div>
-                    {match.startTime && startTime !== toLocalInput(match.startTime) && (
-                        <div className="text-xs text-blue-600 italic mt-1">
-                            Cambiar el horario notificará a los jugadores
-                        </div>
-                    )}
-                    {/* Real Conflict Check */}
-                    {(() => {
-                        if (!startTime || !schedulerConfig) return null;
-                        const start = new Date(startTime);
-                        const end = SchedulerEngine.addMinutes(start, schedulerConfig.slotDurationMinutes);
-
-                        const alerts = [];
-
-                        // 1. Court conflict
-                        if (court && occupationSlots && SchedulerEngine.checkMatchConflict(start, end, parseInt(court), occupationSlots)) {
-                            alerts.push(
-                                <div key="court" className="flex items-center gap-2 p-2 bg-red-100 text-red-700 rounded text-xs font-bold animate-pulse">
-                                    <AlertTriangle size={14} />
-                                    <span>¡Conflicto! Pista {court} ocupada.</span>
-                                </div>
-                            );
-                        }
-
-                        // 2. Pair availability and phase window
-                        if (ranking) {
-                            const conflicts = SchedulerEngine.computeConflicts({ ...match, startTime: start.toISOString() }, ranking) ?? [];
-                            conflicts.forEach((c, i) => alerts.push(
-                                <div key={`c${i}`} className="flex items-center gap-2 p-2 bg-orange-100 text-orange-800 rounded text-xs font-bold">
-                                    <Clock size={14} />
-                                    <span>{c.pairKey === ANY_PAIR ? c.reason : `${pairLabel(c.pairKey, players ?? {})}: ${c.reason}`}</span>
-                                </div>
-                            ));
-                        }
-
-                        return alerts.length > 0 ? <div className="space-y-2 mt-2">{alerts}</div> : null;
-                    })()}
+        <Modal isOpen={isOpen} onClose={onClose} title={`Programar · ${match.roundName || `Jornada ${match.jornada}`}`}>
+            <div className="rg space-y-5">
+                {/* Which match */}
+                <div className="rounded-lg bg-rg-raised px-4 py-3 text-[14px] leading-snug">
+                    <p className="font-semibold truncate">{pairText(match.pair1)}</p>
+                    <p className="font-semibold truncate">{pairText(match.pair2)}</p>
+                    {match.scheduleEstimated && <p className="text-[13px] text-rg-muted mt-1">La hora actual es una estimación: la fijas al guardar.</p>}
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t">
+                <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+                    <div>
+                        <label htmlFor="schedule-time" className="block text-[13px] font-medium mb-1.5">Día y hora</label>
+                        <input id="schedule-time" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={fieldClass} />
+                        {schedulerConfig?.slotDurationMinutes && (
+                            <p className="text-[12px] text-rg-muted mt-1 num">Cada partido ocupa {schedulerConfig.slotDurationMinutes} minutos.</p>
+                        )}
+                    </div>
+                    <div>
+                        <span id="schedule-court" className="block text-[13px] font-medium mb-1.5">Pista</span>
+                        {courtCount > 0 && courtCount <= 8 ? (
+                            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-labelledby="schedule-court">
+                                {Array.from({ length: courtCount }, (_, i) => String(i + 1)).map(c => (
+                                    <button
+                                        key={c}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={court === c}
+                                        onClick={() => setCourt(court === c ? '' : c)}
+                                        className={`w-10 h-10 rounded-md text-[15px] font-semibold num transition-colors ${court === c ? 'bg-court text-white' : 'bg-white border border-rg-control hover:bg-rg-raised'}`}
+                                    >
+                                        {c}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <input type="number" min="1" placeholder="Nº" aria-labelledby="schedule-court" value={court} onChange={(e) => setCourt(e.target.value)} className={`${fieldClass} sm:w-24`} />
+                        )}
+                    </div>
+                </div>
+
+                {(alerts.length > 0 || timeChanged) && (
+                    <ul className="space-y-2" aria-live="polite">
+                        {alerts.map(a => (
+                            <li key={a.key} className={`flex items-start gap-2 rounded-md px-3 py-2 text-[14px] ${a.tone === 'negative' ? 'bg-[#ffedea] text-[#831c1e]' : 'bg-[#fffbeb] text-[#92400e]'}`}>
+                                {a.tone === 'negative' ? <AlertTriangle size={16} className="flex-none mt-0.5" /> : <Clock size={16} className="flex-none mt-0.5" />}
+                                <span>{a.text}</span>
+                            </li>
+                        ))}
+                        {timeChanged && <li className="text-[13px] text-rg-muted">Al cambiar la hora, los jugadores la verán actualizada en su vista del torneo.</li>}
+                    </ul>
+                )}
+
+                <div className="flex justify-end gap-2 pt-4 border-t border-rg-line">
                     <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-                    <Button onClick={handleSave}>Guardar Horario</Button>
+                    <Button onClick={handleSave}>Guardar horario</Button>
                 </div>
             </div>
         </Modal>

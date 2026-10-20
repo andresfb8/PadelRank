@@ -93,9 +93,9 @@ export const AmericanoAssignments = ({
         return (
             <div>
                 <div className="flex flex-wrap items-center gap-4 mb-4">
-                    <h3 className="font-bold text-gray-800">2. Grupos / Divisiones (Manual)</h3>
+                    <h3 className="text-[15px] font-semibold">Divisiones</h3>
                     <div className="flex items-center gap-2">
-                        <span className="text-sm">Num. Divisiones:</span>
+                        <span className="text-sm">Divisiones:</span>
                         <input
                             type="number" min="1" max="20"
                             value={numDivisions}
@@ -104,7 +104,7 @@ export const AmericanoAssignments = ({
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-sm">Jugadores/Div:</span>
+                        <span className="text-sm">Jugadores por división:</span>
                         <input
                             type="number" min="2" max="100"
                             value={individualMaxPlayers || 4}
@@ -119,9 +119,9 @@ export const AmericanoAssignments = ({
                     <Button
                         onClick={handleAutoDistributeIndividual}
                         variant="secondary"
-                        className="ml-2 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
+                        className="ml-2 text-[13px] !bg-court-soft !text-court-ink hover:!bg-court-track !border-court-track"
                     >
-                        <Wand2 size={14} className="mr-1" /> Distribución Aleatoria
+                        <Wand2 size={14} className="mr-1" /> Repartir al azar
                     </Button>
                 </div>
 
@@ -172,9 +172,9 @@ export const AmericanoAssignments = ({
     return (
         <div>
             <div className="flex flex-wrap items-center gap-4 mb-4">
-                <h3 className="font-bold text-gray-800">2. Divisiones (Parejas)</h3>
+                <h3 className="text-[15px] font-semibold">Divisiones</h3>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm">Num. Divisiones:</span>
+                    <span className="text-sm">Divisiones:</span>
                     <input
                         type="number" min="1" max="20"
                         value={numDivisions}
@@ -183,7 +183,7 @@ export const AmericanoAssignments = ({
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm">Parejas/Div:</span>
+                    <span className="text-sm">Parejas por división:</span>
                     <input
                         type="number" min="2" max="50"
                         value={individualMaxPlayers || 4}
@@ -198,9 +198,9 @@ export const AmericanoAssignments = ({
                 <Button
                     onClick={handleAutoDistributePairs}
                     variant="secondary"
-                    className="ml-2 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200"
+                    className="ml-2 text-[13px] !bg-court-soft !text-court-ink hover:!bg-court-track !border-court-track"
                 >
-                    <Wand2 size={14} className="mr-1" /> Distribución Aleatoria
+                    <Wand2 size={14} className="mr-1" /> Repartir al azar
                 </Button>
             </div>
 

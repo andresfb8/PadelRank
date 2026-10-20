@@ -17,7 +17,7 @@ export const LeagueConfig = ({
 }: LeagueConfigProps) => {
     return (
         <div className="border-t pt-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Sistema de Puntuación</h3>
+            <h3 className="text-[17px] font-semibold mb-4">Puntuación</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
                 <Input type="number" label="Victoria 2-0" value={config.pointsPerWin2_0}
                     onChange={(e: any) => setConfig({ ...config, pointsPerWin2_0: parseInt(e.target.value) || 0 })} />
@@ -32,11 +32,11 @@ export const LeagueConfig = ({
             </div>
 
             <div className="grid md:grid-cols-4 gap-4">
-                <Input type="number" label="Nº Divisiones" value={numDivisions}
+                <Input type="number" label="Divisiones" value={numDivisions}
                     onChange={(e: any) => setNumDivisions(Math.max(1, parseInt(e.target.value) || 1))} />
                 <Input
                     type="number"
-                    label={format === 'pairs' ? 'Parejas/Div' : 'Jugadores/Div'}
+                    label={format === 'pairs' ? 'Parejas por división' : 'Jugadores por división'}
                     value={individualMaxPlayers}
                     onChange={(e: any) => {
                         const newValue = Math.max(0, parseInt(e.target.value) || 0);

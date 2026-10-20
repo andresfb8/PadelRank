@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Trophy, ChevronRight, Calendar, Trash2, User as UserIcon, Copy, LayoutGrid, List, Building, ArrowLeft, Search, Share2, Link as LinkIcon, Activity, RotateCcw } from 'lucide-react';
-import { Button } from './ui/Components';
+import React, { useEffect, useRef, useState } from 'react';
+import { Plus, Trash2, Copy, ArrowLeft, Search, Link as LinkIcon, RotateCcw, MoreHorizontal, ChevronDown } from 'lucide-react';
 import { Ranking, User, RankingFormat } from '../types';
 
 interface Props {
@@ -15,656 +14,73 @@ interface Props {
   onPermanentDelete?: (id: string) => void;
 }
 
-export const RankingList = ({ rankings, deletedRankings = [], users, onSelect, onCreateClick, onDelete, onDuplicate, onRestore, onPermanentDelete }: Props) => {
+const FORMAT_LABEL: Record<string, string> = {
+  classic: 'Liga', americano: 'Americano', mexicano: 'Mexicano', individual: 'Liga individual',
+  pairs: 'Liga por parejas', elimination: 'Eliminatoria', hybrid: 'Liga + playoff', pozo: 'Pozo',
+};
+const formatLabel = (format?: RankingFormat) => FORMAT_LABEL[format || 'classic'] || 'Liga';
 
-  const [tab, setTab] = React.useState<'activos' | 'historial' | 'papelera'>('activos');
-  const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClientId, setSelectedClientId] = useState<string>('all');
-  const [selectedFormat, setSelectedFormat] = useState<RankingFormat | 'all'>('all');
+const STATUS = {
+  activo: { label: 'En juego', dot: 'bg-rg-positive' },
+  pausado: { label: 'En pausa', dot: 'bg-[#d97706]' },
+  finalizado: { label: 'Finalizado', dot: 'bg-rg-muted' },
+} as const;
 
-  // --- HELPERS ---
-  const handleCopyLink = (url?: string) => {
-    if (!url) return;
-    navigator.clipboard.writeText(url);
-    alert('¡Enlace copiado al portapapeles!');
-  };
+const formatDate = (iso?: string) => {
+  if (!iso) return '—';
+  const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '');
+};
 
-  const getFormatLabel = (format?: RankingFormat) => {
-    switch (format) {
-      case 'americano': return 'Americano';
-      case 'mexicano': return 'Mexicano';
-      case 'individual': return 'Individual';
-      case 'pairs': return 'Parejas';
-      case 'elimination': return 'Eliminación';
-      case 'hybrid': return 'Híbrido';
-      case 'pozo': return 'Pozo';
-      case 'classic': return 'Liga';
-      default: return 'Liga';
-    }
-  };
+const progressOf = (ranking: Ranking) => {
+  const matches = ranking.divisions.flatMap(d => d.matches).filter(m => m.status !== 'descanso');
+  const done = matches.filter(m => m.status === 'finalizado').length;
+  const pending = matches.filter(m => m.status === 'pendiente').length;
+  return { done, total: matches.length, pending, pct: matches.length ? Math.round((done / matches.length) * 100) : 0 };
+};
 
-  const getFormatStyles = (format?: RankingFormat) => {
-    switch (format) {
-      case 'mexicano':
-        return {
-          bg: 'bg-emerald-50',
-          text: 'text-emerald-700',
-          border: 'border-emerald-100',
-          accent: 'bg-emerald-500',
-          gradient: 'from-emerald-400 to-teal-500'
-        };
-      case 'americano':
-        return {
-          bg: 'bg-indigo-50',
-          text: 'text-indigo-700',
-          border: 'border-indigo-100',
-          accent: 'bg-indigo-500',
-          gradient: 'from-indigo-400 to-fuchsia-500'
-        };
-      case 'hybrid':
-        return {
-          bg: 'bg-blue-50',
-          text: 'text-blue-700',
-          border: 'border-blue-100',
-          accent: 'bg-blue-500',
-          gradient: 'from-blue-400 to-indigo-500'
-        };
-      case 'elimination':
-        return {
-          bg: 'bg-rose-50',
-          text: 'text-rose-700',
-          border: 'border-rose-100',
-          accent: 'bg-rose-500',
-          gradient: 'from-rose-400 to-pink-500'
-        };
-      case 'pozo':
-        return {
-          bg: 'bg-amber-50',
-          text: 'text-amber-700',
-          border: 'border-amber-100',
-          accent: 'bg-amber-500',
-          gradient: 'from-amber-400 to-orange-500'
-        };
-      default:
-        return {
-          bg: 'bg-slate-50',
-          text: 'text-slate-700',
-          border: 'border-slate-200',
-          accent: 'bg-primary',
-          gradient: 'from-primary to-primary-light'
-        };
-    }
-  };
+const participants = (ranking: Ranking) => {
+  const ids = new Set<string>();
+  ranking.divisions.forEach(d => d.players.forEach(id => ids.add(id)));
+  return ids.size;
+};
 
-  const calculateProgress = (ranking: Ranking) => {
-    const totalMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.length, 0);
-    const completedMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'finalizado').length, 0);
-    const pendingMatches = ranking.divisions.reduce((acc, d) => acc + d.matches.filter(m => m.status === 'pendiente').length, 0);
-    const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
-    return { percentage, completedMatches, totalMatches, pendingMatches };
-  };
-
-  // --- DERIVED STATE ---
-  const isSuperAdmin = users && users.length > 0;
-
-  // Decide if we show the Client Directory or the Tournament List
-  // Show Directory if: SuperAdmin AND No Client Selected AND No Search Active
-  const showClientDirectory = isSuperAdmin && selectedClientId === 'all' && !searchQuery;
-
-  // Filter Rankings (Same logic as before, but only runs if we are NOT in directory mode)
-  const filteredRankings = rankings.filter(r => {
-    // 1. Tab Filter
-    const matchesTab = tab === 'activos'
-      ? (r.status === 'activo' || r.status === 'pausado')
-      : tab === 'historial'
-        ? r.status === 'finalizado'
-        : false;
-    if (!matchesTab) return false;
-
-    // 2. Client Filter (SuperAdmin)
-    if (isSuperAdmin && selectedClientId !== 'all') {
-      if (r.ownerId !== selectedClientId) return false;
-    }
-
-    // 3. Format Filter
-    if (selectedFormat !== 'all') {
-      const format = r.format || 'classic';
-      if (format !== selectedFormat) return false;
-    }
-
-    // 4. Search Filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesName = r.nombre.toLowerCase().includes(query);
-      const categoryMatches = r.categoria.toLowerCase().includes(query);
-
-      // Also search by owner name if SuperAdmin
-      let matchesOwner = false;
-      if (isSuperAdmin && r.ownerId) {
-        const owner = users.find(u => u.id === r.ownerId);
-        matchesOwner = owner?.name.toLowerCase().includes(query) || owner?.email.toLowerCase().includes(query) || false;
-      }
-
-      return matchesName || categoryMatches || matchesOwner;
-    }
-
-    return true;
-  });
-
-  // Helper to group by owner (only used if showing list mode with 'all' clients, e.g. search results)
-  const groupedRankings = () => {
-    if (!isSuperAdmin) return { 'Mis Torneos': filteredRankings };
-
-    const groups: Record<string, Ranking[]> = {};
-    const ownerMap = new Map(users.map(u => [u.id, u.name || u.email || 'Usuario Desconocido']));
-
-    filteredRankings.forEach(r => {
-      const ownerName = r.ownerId ? (ownerMap.get(r.ownerId) || 'Desconocido') : 'Sin Propietario';
-      const key = r.ownerId ? ownerName : 'Públicos / Sin Asignar';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(r);
-    });
-
-    return groups;
-  };
-
-  // Logic for Client Directory
-  const getClientStats = (userId: string) => {
-    const userRankings = rankings.filter(r => r.ownerId === userId);
-    return {
-      total: userRankings.length,
-      active: userRankings.filter(r => r.status === 'activo').length,
-      finalized: userRankings.filter(r => r.status === 'finalizado').length
-    };
-  };
-
-  // Render Client Directory
-  if (showClientDirectory && users) {
-    // Sort users: Most active tournaments first
-    const sortedUsers = [...users].sort((a, b) => {
-      const statsA = getClientStats(a.id);
-      const statsB = getClientStats(b.id);
-      return statsB.active - statsA.active;
-    });
-
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Control Central</h2>
-            <p className="text-gray-500">Selecciona un cliente para gestionar sus torneos</p>
-          </div>
-
-          {/* Global Search in Directory */}
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Buscar torneo global..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none w-full shadow-sm"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {sortedUsers.map(user => {
-            const stats = getClientStats(user.id);
-            return (
-              <div
-                key={user.id}
-                onClick={() => setSelectedClientId(user.id)}
-                className="bg-white p-5 rounded-xl border border-gray-200 hover:border-primary hover:shadow-lg cursor-pointer transition-all group relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Building size={80} className="text-primary" />
-                </div>
-
-                <div className="flex items-start gap-4 mb-4 relative z-10">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-sm ${stats.active > 0 ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                    {user.name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-gray-900 truncate" title={user.name}>{user.name || 'Sin Nombre'}</h3>
-                    <p className="text-xs text-gray-400 truncate" title={user.email}>{user.email}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium border uppercase ${user.plan === 'pro' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100'
-                        }`}>
-                        {user.plan || 'Basic'}
-                      </span>
-                      {user.clubName && (
-                        <span className="text-[10px] bg-gray-50 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200 truncate max-w-[100px]">
-                          {user.clubName}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 relative z-10">
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-100">
-                    <div className="text-lg font-bold text-gray-900">{stats.active}</div>
-                    <div className="text-xs text-gray-500">Activos</div>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-100">
-                    <div className="text-lg font-bold text-gray-900">{stats.total}</div>
-                    <div className="text-xs text-gray-500">Totales</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Add 'All Public' Card if needed, or just handle users */}
-        </div>
-      </div>
-    );
-  }
-
-  // --- TOURNAMENT LIST VIEW (Filtered or Standard) ---
-
-  const groups = groupedRankings();
-  const hasMultipleGroups = Object.keys(groups).length > 1;
-  const activeClientName = users?.find(u => u.id === selectedClientId)?.name || users?.find(u => u.id === selectedClientId)?.email || 'Cliente';
-
+/** One row action menu: open with the kebab, close on outside click or Escape */
+const RowMenu = ({ items }: { items: { label: string; icon: React.ComponentType<{ size?: number }>; onClick: () => void; danger?: boolean; disabled?: boolean }[] }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+  }, [open]);
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          {/* Breadcrumb / Back Button logic */}
-          {isSuperAdmin && selectedClientId !== 'all' ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setSelectedClientId('all');
-                  setSearchQuery('');
-                }}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <ArrowLeft size={24} className="text-gray-600" />
-              </button>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{activeClientName}</h2>
-                <p className="text-gray-500 text-sm">Gestionando sus torneos</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {searchQuery ? `Resultados: "${searchQuery}"` : 'Torneos'}
-              </h2>
-              <p className="text-gray-500">Gestiona las competiciones y rankings</p>
-            </>
-          )}
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
-          {/* Search */}
-          {/* Only show search if we are NOT in the specific client view (to avoid confusion) OR if we want to allow searching inside a client */}
-          {/* Let's allow searching inside the client view too */}
-          <div className="relative w-full md:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder={selectedClientId !== 'all' ? "Filtrar estos torneos..." : "Buscar torneo..."}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none w-full md:w-64"
-            />
-          </div>
-
-          <div className="relative w-full md:w-auto">
-            <select
-              value={selectedFormat}
-              onChange={(e) => setSelectedFormat(e.target.value as RankingFormat | 'all')}
-              className="w-full md:w-auto pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 outline-none focus:ring-2 focus:ring-primary shadow-sm appearance-none cursor-pointer"
-            >
-              <option value="all">Todos los formatos</option>
-              <option value="classic">Liga (Estándar)</option>
-              <option value="americano">Americano</option>
-              <option value="mexicano">Mexicano</option>
-              <option value="individual">Individual</option>
-              <option value="pairs">Parejas</option>
-              <option value="elimination">Eliminación</option>
-              <option value="hybrid">Híbrido</option>
-              <option value="pozo">Pozo</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <ChevronRight size={14} className="rotate-90" />
-            </div>
-          </div>
-
-          <div className="bg-gray-100 p-1 rounded-lg flex text-sm font-medium">
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        className="w-8 h-8 grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised transition-colors"
+        aria-label="Más acciones"
+        aria-expanded={open}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-rg-line shadow-[0_8px_24px_rgba(15,23,41,0.12)] py-1 z-40" role="menu">
+          {items.map(it => (
             <button
-              onClick={() => setTab('activos')}
-              className={`px-4 py-1.5 rounded-md transition-all ${tab === 'activos' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              key={it.label}
+              type="button"
+              role="menuitem"
+              disabled={it.disabled}
+              onClick={(e) => { e.stopPropagation(); setOpen(false); it.onClick(); }}
+              className={`w-full h-9 px-3 flex items-center gap-2.5 text-[14px] text-left transition-colors disabled:opacity-50 ${it.danger ? 'text-rg-negative hover:bg-[#ffedea]' : 'hover:bg-rg-raised'}`}
             >
-              Activos
+              <it.icon size={15} /> {it.label}
             </button>
-            <button
-              onClick={() => setTab('historial')}
-              className={`px-4 py-1.5 rounded-md transition-all ${tab === 'historial' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              Historial
-            </button>
-            <button
-              onClick={() => setTab('papelera')}
-              className={`px-4 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${tab === 'papelera' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              <Trash2 size={13} />
-              Papelera
-              {deletedRankings.length > 0 && (
-                <span className="bg-red-100 text-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                  {deletedRankings.length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="bg-gray-100 p-1 rounded-lg flex items-center">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-              title="Vista Lista"
-            >
-              <List size={20} />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-              title="Vista Cuadrícula"
-            >
-              <LayoutGrid size={20} />
-            </button>
-          </div>
-
-          <Button onClick={onCreateClick} className="flex items-center gap-2">
-            <Plus size={18} /> Nuevo Ranking
-          </Button>
-        </div>
-      </div>
-
-      {/* Papelera View */}
-      {tab === 'papelera' && (
-        <div className="space-y-4">
-          {deletedRankings.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
-              <Trash2 size={48} className="mx-auto text-gray-300 mb-3" />
-              <h3 className="text-lg font-medium text-gray-900">La papelera está vacía</h3>
-              <p className="text-gray-500">Los torneos eliminados aparecerán aquí durante 30 días.</p>
-            </div>
-          ) : (
-            <>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-800">
-                <Trash2 size={16} className="shrink-0" />
-                Los torneos en la papelera se eliminan definitivamente pasados 30 días. Puedes restaurarlos antes de que expire el plazo.
-              </div>
-              <div className="grid gap-3">
-                {deletedRankings.map(ranking => {
-                  const deletedDate = ranking.deletedAt ? new Date(ranking.deletedAt) : new Date();
-                  const expiresDate = new Date(deletedDate);
-                  expiresDate.setDate(expiresDate.getDate() + 30);
-                  const daysLeft = Math.ceil((expiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                  const styles = getFormatStyles(ranking.format);
-
-                  return (
-                    <div key={ranking.id} className="bg-white p-4 rounded-xl border border-red-100 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className={`w-1.5 h-12 rounded-full bg-gray-300`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-base font-bold text-gray-500 truncate">{ranking.nombre}</h3>
-                            <span className={`text-[10px] border px-2 py-0.5 rounded uppercase font-black tracking-wider ${styles.bg} ${styles.text} ${styles.border} opacity-60`}>
-                              {getFormatLabel(ranking.format)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                            <span className="flex items-center gap-1"><Calendar size={11} /> {ranking.fechaInicio}</span>
-                            <span>•</span>
-                            <span className={`font-bold ${daysLeft <= 5 ? 'text-red-500' : 'text-gray-400'}`}>
-                              Expira en {daysLeft} día{daysLeft !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {onRestore && (
-                          <button
-                            onClick={() => onRestore(ranking.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
-                            title="Restaurar torneo"
-                          >
-                            <RotateCcw size={14} /> Restaurar
-                          </button>
-                        )}
-                        {onPermanentDelete && (
-                          <button
-                            onClick={() => onPermanentDelete(ranking.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
-                            title="Eliminar definitivamente"
-                          >
-                            <Trash2 size={14} /> Eliminar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {tab !== 'papelera' && filteredRankings.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
-          <Trophy size={48} className="mx-auto text-gray-300 mb-3" />
-          <h3 className="text-lg font-medium text-gray-900">No hay torneos en esta sección</h3>
-          <p className="text-gray-500 mb-4">{tab === 'activos' ? 'Crea un nuevo torneo para comenzar' : 'Los torneos finalizados aparecerán aquí'}</p>
-        </div>
-      )}
-
-      {tab !== 'papelera' && filteredRankings.length > 0 && (
-        <div className="space-y-8">
-          {Object.entries(groups).map(([groupName, groupRankings]) => (
-            <div key={groupName} className="space-y-4">
-              {/* Only show header if we are displaying multiple groups (i.e. Search Mode across all clients) */}
-              {(hasMultipleGroups && selectedClientId === 'all') && (
-                <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                  <UserIcon size={20} className="text-gray-400" />
-                  <h3 className="text-lg font-bold text-gray-700">{groupName}</h3>
-                  <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{groupRankings.length}</span>
-                </div>
-              )}
-
-              <div className={viewMode === 'grid'
-                ? "grid gap-4 md:grid-cols-2 lg:grid-cols-3"
-                : "grid gap-3 grid-cols-1 md:grid-cols-2"
-              }>
-                {groupRankings.map((ranking) => {
-                  const { percentage, completedMatches, totalMatches, pendingMatches } = calculateProgress(ranking);
-                  const styles = getFormatStyles(ranking.format);
-
-                  return viewMode === 'grid' ? (
-                    <div
-                      key={ranking.id}
-                      onClick={() => onSelect(ranking)}
-                      className={`group bg-white p-6 rounded-2xl border ${styles.border} hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 cursor-pointer transition-all relative overflow-hidden flex flex-col h-full`}
-                    >
-                      {/* Background Decoration */}
-                      <div className="absolute -top-4 -right-4 p-8 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all">
-                        <Trophy size={80} className={styles.text} />
-                      </div>
-
-                      <div className="relative z-10 flex flex-col h-full">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex flex-wrap gap-2">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${ranking.status === 'activo' ? 'bg-green-50 text-green-700 border-green-100' :
-                              ranking.status === 'pausado' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                                'bg-gray-50 text-gray-600 border-gray-100'
-                              }`}>
-                              {ranking.status === 'activo' ? 'Activo' : ranking.status === 'pausado' ? 'Pausado' : 'Finalizado'}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${styles.bg} ${styles.text} ${styles.border}`}>
-                              {getFormatLabel(ranking.format)}
-                            </span>
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyLink(ranking.publicUrl);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                              title="Copiar link público"
-                            >
-                              <LinkIcon size={16} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDuplicate(ranking.id);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                              title="Duplicar torneo"
-                            >
-                              <Copy size={16} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDelete(ranking.id);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Eliminar torneo"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="mb-4">
-                          <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-primary transition-colors line-clamp-1">{ranking.nombre}</h3>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                            <span className="uppercase tracking-wide text-[10px] font-bold text-gray-400">{ranking.categoria}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                            <span>{ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} JUGADORES</span>
-                          </div>
-                        </div>
-
-                        {/* Progress Section */}
-                        <div className="space-y-2 mb-6">
-                          <div className="flex justify-between items-center text-[10px] font-black tracking-widest text-gray-400 uppercase">
-                            <span>Progreso</span>
-                            <span className={percentage === 100 ? 'text-green-600' : 'text-primary'}>{percentage}%</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${styles.gradient}`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold text-gray-400">
-                              {completedMatches} de {totalMatches} PARTIDOS
-                            </span>
-                            {ranking.status === 'activo' && pendingMatches > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-black text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
-                                <Activity size={10} /> {pendingMatches} PENDIENTES
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-50">
-                          <div className="flex items-center text-xs text-gray-400 font-bold gap-1">
-                            <Calendar size={14} className="opacity-50" />
-                            <span>{ranking.fechaInicio}</span>
-                          </div>
-                          <div className="flex items-center text-primary text-xs font-black uppercase tracking-widest">
-                            Gestionar <ChevronRight size={16} className="ml-0.5 group-hover:translate-x-1 transition-transform" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      key={ranking.id}
-                      onClick={() => onSelect(ranking)}
-                      className="group bg-white p-4 rounded-xl border border-gray-200 hover:border-primary hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className={`w-1.5 h-12 rounded-full ${styles.accent}`}></div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-1">
-                            <h3 className="text-base font-bold text-gray-900 truncate">{ranking.nombre}</h3>
-                            <span className={`text-[10px] border px-2 py-0.5 rounded uppercase font-black tracking-wider ${styles.bg} ${styles.text} ${styles.border}`}>
-                              {getFormatLabel(ranking.format)}
-                            </span>
-                            {percentage > 0 && (
-                              <span className="text-[10px] font-black text-gray-400">{percentage}% COMPLETADO</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-[11px] text-gray-500 font-medium">
-                            <span className="flex items-center gap-1 uppercase tracking-tight"><Calendar size={12} /> {ranking.fechaInicio}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                            <span className="uppercase tracking-tight">{ranking.categoria}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                            <span className="uppercase tracking-tight">{ranking.divisions.reduce((acc, d) => acc + d.players.length, 0)} Jugadores</span>
-                            {pendingMatches > 0 && ranking.status === 'activo' && (
-                              <>
-                                <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                                <span className="text-orange-500 font-black uppercase tracking-tight">{pendingMatches} PENDIENTES</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyLink(ranking.publicUrl);
-                            }}
-                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                            title="Copiar link"
-                          >
-                            <LinkIcon size={18} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDuplicate(ranking.id);
-                            }}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Duplicar"
-                          >
-                            <Copy size={18} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete(ranking.id);
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-primary transition-transform group-hover:translate-x-1" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           ))}
         </div>
       )}
@@ -672,3 +88,299 @@ export const RankingList = ({ rankings, deletedRankings = [], users, onSelect, o
   );
 };
 
+export const RankingList = ({ rankings, deletedRankings = [], users, onSelect, onCreateClick, onDelete, onDuplicate, onRestore, onPermanentDelete }: Props) => {
+  const [tab, setTab] = useState<'activos' | 'historial' | 'papelera'>('activos');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState<string>('all');
+  const [selectedFormat, setSelectedFormat] = useState<RankingFormat | 'all'>('all');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // The saved public link, or the /ranking/<id> route the app always understands
+  const handleCopyLink = (ranking: Ranking) => {
+    navigator.clipboard.writeText(ranking.publicUrl || `${window.location.origin}/ranking/${ranking.id}`);
+    setCopiedId(ranking.id);
+    window.setTimeout(() => setCopiedId(c => (c === ranking.id ? null : c)), 2000);
+  };
+
+  // --- DERIVED STATE ---
+  const isSuperAdmin = !!users && users.length > 0;
+  const showClientDirectory = isSuperAdmin && selectedClientId === 'all' && !searchQuery;
+
+  const inScope = (r: Ranking) => !isSuperAdmin || selectedClientId === 'all' || r.ownerId === selectedClientId;
+  const counts = {
+    activos: rankings.filter(r => inScope(r) && (r.status === 'activo' || r.status === 'pausado')).length,
+    historial: rankings.filter(r => inScope(r) && r.status === 'finalizado').length,
+    papelera: deletedRankings.length,
+  };
+
+  const filteredRankings = rankings.filter(r => {
+    const matchesTab = tab === 'activos' ? (r.status === 'activo' || r.status === 'pausado') : tab === 'historial' ? r.status === 'finalizado' : false;
+    if (!matchesTab || !inScope(r)) return false;
+    if (selectedFormat !== 'all' && (r.format || 'classic') !== selectedFormat) return false;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      let matchesOwner = false;
+      if (isSuperAdmin && r.ownerId) {
+        const owner = users!.find(u => u.id === r.ownerId);
+        matchesOwner = owner?.name?.toLowerCase().includes(query) || owner?.email?.toLowerCase().includes(query) || false;
+      }
+      return r.nombre.toLowerCase().includes(query) || r.categoria.toLowerCase().includes(query) || matchesOwner;
+    }
+    return true;
+  });
+
+  // Group by owner only when a superadmin searches across all clients
+  const groups: Record<string, Ranking[]> = (() => {
+    if (!isSuperAdmin || selectedClientId !== 'all') return { '': filteredRankings };
+    const ownerMap = new Map(users!.map(u => [u.id, u.name || u.email || 'Usuario desconocido']));
+    const out: Record<string, Ranking[]> = {};
+    filteredRankings.forEach(r => {
+      const key = r.ownerId ? (ownerMap.get(r.ownerId) || 'Desconocido') : 'Públicos / sin asignar';
+      (out[key] = out[key] || []).push(r);
+    });
+    return out;
+  })();
+
+  const activeClient = users?.find(u => u.id === selectedClientId);
+
+  // ---------------- Superadmin: client directory ----------------
+  if (showClientDirectory && users) {
+    const stats = (userId: string) => {
+      const own = rankings.filter(r => r.ownerId === userId);
+      return { total: own.length, active: own.filter(r => r.status === 'activo').length };
+    };
+    const sortedUsers = [...users].sort((a, b) => stats(b.id).active - stats(a.id).active);
+    return (
+      <div className="rg space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-[24px] font-bold tracking-[-0.015em]">Control central</h1>
+            <p className="text-[15px] text-rg-muted mt-0.5 num">{users.length} clientes · elige uno para gestionar sus torneos</p>
+          </div>
+          <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Buscar un torneo en todos los clientes" />
+        </div>
+        <div className="bg-white border border-rg-line rounded-lg overflow-hidden">
+          <table className="w-full border-collapse num">
+            <thead>
+              <tr className="text-[12.5px] text-rg-muted">
+                <th className="text-left font-normal px-4 pt-3 pb-2">Cliente</th>
+                <th className="text-left font-normal px-3 pt-3 pb-2 hidden md:table-cell">Club</th>
+                <th className="text-left font-normal px-3 pt-3 pb-2 hidden md:table-cell">Plan</th>
+                <th className="text-right font-normal px-3 pt-3 pb-2">En curso</th>
+                <th className="text-right font-normal px-4 pt-3 pb-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedUsers.map(user => {
+                const st = stats(user.id);
+                return (
+                  <tr key={user.id} onClick={() => setSelectedClientId(user.id)} className="border-t border-rg-rule cursor-pointer hover:bg-rg-ground transition-colors">
+                    <td className="px-4 py-3">
+                      <button type="button" className="text-left min-w-0" onClick={() => setSelectedClientId(user.id)}>
+                        <span className="block text-[14px] font-semibold truncate">{user.name || 'Sin nombre'}</span>
+                        <span className="block text-[13px] text-rg-muted truncate">{user.email}</span>
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-[14px] hidden md:table-cell">{user.clubName || <span className="text-rg-muted">—</span>}</td>
+                    <td className="px-3 py-3 text-[14px] hidden md:table-cell capitalize">{user.plan || 'basic'}</td>
+                    <td className="px-3 py-3 text-right text-[14px]">{st.active}</td>
+                    <td className="px-4 py-3 text-right text-[14px]">{st.total}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------- Tournament list ----------------
+  const title = isSuperAdmin && selectedClientId !== 'all' ? (activeClient?.name || activeClient?.email || 'Cliente') : 'Torneos';
+  const shown = tab === 'papelera' ? deletedRankings.length : filteredRankings.length;
+
+  return (
+    <div className="rg space-y-5">
+      {/* Title row */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-start gap-2">
+          {isSuperAdmin && selectedClientId !== 'all' && (
+            <button type="button" onClick={() => { setSelectedClientId('all'); setSearchQuery(''); }} className="w-9 h-9 -ml-1 mt-0.5 grid place-items-center rounded-md text-rg-muted hover:text-rg-ink hover:bg-rg-raised" aria-label="Volver a los clientes">
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div>
+            <h1 className="text-[24px] font-bold tracking-[-0.015em]">{title}</h1>
+            <p className="text-[15px] text-rg-muted mt-0.5 num">
+              {counts.activos} en curso · {counts.historial} {counts.historial === 1 ? 'finalizado' : 'finalizados'}
+            </p>
+          </div>
+        </div>
+        <button type="button" onClick={onCreateClick} className="h-9 px-3.5 rounded-md bg-court text-white text-[14px] font-semibold inline-flex items-center gap-2 hover:bg-[#174CB0] transition-colors">
+          <Plus size={16} /> Nuevo torneo
+        </button>
+      </div>
+
+      {/* Tabs on a full-width rule */}
+      <div className="flex gap-6 border-b border-rg-line overflow-x-auto scrollbar-hide" role="tablist">
+        {([['activos', 'En curso'], ['historial', 'Finalizados'], ['papelera', 'Papelera']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`py-2.5 -mb-px border-b-2 text-[14px] whitespace-nowrap transition-colors num ${tab === id ? 'border-court text-rg-ink font-semibold' : 'border-transparent text-rg-muted hover:text-rg-ink'}`}
+          >
+            {label} <span className={tab === id ? 'text-rg-muted font-normal' : ''}>{counts[id]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      {tab !== 'papelera' && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchField value={searchQuery} onChange={setSearchQuery} placeholder={selectedClientId !== 'all' ? 'Buscar en sus torneos' : 'Buscar por nombre o categoría'} />
+          <div className="relative">
+            <select
+              value={selectedFormat}
+              onChange={(e) => setSelectedFormat(e.target.value as RankingFormat | 'all')}
+              className="h-9 pl-3 pr-8 rounded-md border border-rg-control bg-white text-[14px] appearance-none cursor-pointer focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track"
+              aria-label="Formato"
+            >
+              <option value="all">Todos los formatos</option>
+              {Object.entries(FORMAT_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-rg-muted" />
+          </div>
+          <span className="ml-auto text-[13px] text-rg-muted num">{shown} {shown === 1 ? 'torneo' : 'torneos'}</span>
+        </div>
+      )}
+
+      {/* Trash */}
+      {tab === 'papelera' && (
+        deletedRankings.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-rg-control px-4 py-3 text-[14px] text-rg-muted">
+            La papelera está vacía. Los torneos que elimines se quedan aquí 30 días antes de borrarse.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <p className="rounded-lg bg-[#fffbeb] border border-[#fde68a] px-4 py-2.5 text-[14px] text-[#92400e]">
+              Los torneos de la papelera se borran para siempre a los 30 días. Hasta entonces puedes restaurarlos.
+            </p>
+            <div className="bg-white border border-rg-line rounded-lg overflow-hidden">
+              <ul>
+                {deletedRankings.map((ranking, i) => {
+                  const deletedDate = ranking.deletedAt ? new Date(ranking.deletedAt) : new Date();
+                  const daysLeft = Math.ceil((deletedDate.getTime() + 30 * 86400000 - Date.now()) / 86400000);
+                  return (
+                    <li key={ranking.id} className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${i ? 'border-t border-rg-rule' : ''}`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-semibold truncate">{ranking.nombre}</p>
+                        <p className="text-[13px] text-rg-muted num">
+                          {formatLabel(ranking.format)} · empezó el {formatDate(ranking.fechaInicio)} · <span className={daysLeft <= 5 ? 'text-rg-negative font-medium' : ''}>se borra en {daysLeft} {daysLeft === 1 ? 'día' : 'días'}</span>
+                        </p>
+                      </div>
+                      <div className="flex gap-4">
+                        {onRestore && <button type="button" onClick={() => onRestore(ranking.id)} className="inline-flex items-center gap-1.5 text-[14px] font-medium text-court hover:text-court-ink"><RotateCcw size={14} /> Restaurar</button>}
+                        {onPermanentDelete && <button type="button" onClick={() => onPermanentDelete(ranking.id)} className="inline-flex items-center gap-1.5 text-[14px] font-medium text-rg-negative"><Trash2 size={14} /> Borrar ya</button>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* Empty list */}
+      {tab !== 'papelera' && filteredRankings.length === 0 && (
+        <p className="rounded-lg border border-dashed border-rg-control px-4 py-3 text-[14px] text-rg-muted">
+          {searchQuery || selectedFormat !== 'all'
+            ? 'Ningún torneo coincide con la búsqueda.'
+            : tab === 'activos'
+              ? <>No hay torneos en curso. <button type="button" onClick={onCreateClick} className="text-court font-medium">Crear uno</button></>
+              : 'Los torneos finalizados aparecerán aquí.'}
+        </p>
+      )}
+
+      {/* The list */}
+      {tab !== 'papelera' && filteredRankings.length > 0 && Object.entries(groups).map(([groupName, groupRankings]) => (
+        <section key={groupName || 'mine'} className="space-y-2">
+          {groupName && Object.keys(groups).length > 1 && (
+            <h2 className="text-[15px] font-semibold pt-2 num">{groupName} <span className="text-rg-muted font-normal">· {groupRankings.length}</span></h2>
+          )}
+          <div className="bg-white border border-rg-line rounded-lg">
+            <table className="w-full border-collapse num">
+              <thead className="hidden md:table-header-group">
+                <tr className="text-[12.5px] text-rg-muted">
+                  <th className="text-left font-normal px-4 pt-3 pb-2">Torneo</th>
+                  <th className="text-left font-normal px-3 pt-3 pb-2">Estado</th>
+                  <th className="text-left font-normal px-3 pt-3 pb-2 hidden lg:table-cell">Progreso</th>
+                  <th className="text-right font-normal px-3 pt-3 pb-2">Jugados</th>
+                  <th className="text-right font-normal px-3 pt-3 pb-2 hidden lg:table-cell">Pendientes</th>
+                  <th className="text-right font-normal px-3 pt-3 pb-2 hidden lg:table-cell">Inicio</th>
+                  <th className="w-12 pt-3 pb-2"><span className="sr-only">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupRankings.map((ranking, i) => {
+                  const p = progressOf(ranking);
+                  const status = STATUS[ranking.status] || STATUS.activo;
+                  const n = participants(ranking);
+                  const menu = (
+                    <RowMenu items={[
+                      { label: copiedId === ranking.id ? 'Enlace copiado' : 'Copiar enlace público', icon: LinkIcon, onClick: () => handleCopyLink(ranking) },
+                      { label: 'Duplicar', icon: Copy, onClick: () => onDuplicate(ranking.id) },
+                      { label: 'Mover a la papelera', icon: Trash2, onClick: () => onDelete(ranking.id), danger: true },
+                    ]} />
+                  );
+                  return (
+                    <tr key={ranking.id} onClick={() => onSelect(ranking)} className={`cursor-pointer hover:bg-rg-ground transition-colors ${i ? 'border-t border-rg-rule' : 'md:border-t md:border-rg-rule'}`}>
+                      <td className="px-4 py-3 w-full max-w-0">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onSelect(ranking); }} className="text-left min-w-0 block w-full">
+                          <span className="block text-[14px] font-semibold truncate hover:text-court">{ranking.nombre}</span>
+                          <span className="block text-[13px] text-rg-muted truncate">
+                            {formatLabel(ranking.format)} · {ranking.categoria} · {n} {n === 1 ? 'jugador' : 'jugadores'}
+                            <span className="md:hidden"> · {status.label}</span>
+                          </span>
+                        </button>
+                      </td>
+                      <td className="px-3 py-3 hidden md:table-cell">
+                        <span className="inline-flex items-center gap-1.5 text-[14px] whitespace-nowrap"><span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />{status.label}</span>
+                      </td>
+                      <td className="px-3 py-3 hidden lg:table-cell">
+                        <span className="block w-32 h-1.5 rounded-full bg-rg-raised overflow-hidden" title={`${p.pct} %`}>
+                          <span className="block h-full bg-court rounded-full" style={{ width: `${p.pct}%` }} />
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right text-[14px] whitespace-nowrap">{p.done} <span className="text-rg-muted">/ {p.total || '—'}</span></td>
+                      <td className="px-3 py-3 text-right text-[14px] hidden lg:table-cell">{ranking.status === 'finalizado' ? <span className="text-rg-muted">—</span> : p.pending}</td>
+                      <td className="px-3 py-3 text-right text-[14px] whitespace-nowrap hidden lg:table-cell">{formatDate(ranking.fechaInicio)}</td>
+                      <td className="pr-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>{menu}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+};
+
+const SearchField = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => (
+  <label className="relative w-full sm:w-72">
+    <span className="sr-only">Buscar</span>
+    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-rg-muted pointer-events-none" />
+    <input
+      type="search"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full h-9 pl-9 pr-3 rounded-md border border-rg-control bg-white text-[14px] placeholder:text-rg-muted focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track"
+    />
+  </label>
+);

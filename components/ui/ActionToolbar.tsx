@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MoreHorizontal } from 'lucide-react';
-import { Button } from './Components';
 
 export interface ToolbarAction {
     id: string;
@@ -89,17 +88,22 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
             );
         }
 
+        const tone = action.variant === 'primary'
+            ? 'bg-court text-white hover:bg-[#174CB0] border-court'
+            : action.variant === 'danger'
+                ? 'bg-white text-rg-negative border-rg-control hover:bg-[#ffedea]'
+                : 'bg-white text-rg-ink border-rg-control hover:bg-rg-raised';
         return (
-            <Button
+            <button
                 key={action.id}
+                type="button"
                 onClick={action.onClick}
-                variant={action.variant || 'secondary'}
-                className={`flex items-center gap-2 ${action.className || ''}`}
+                className={`rg h-9 px-3.5 rounded-md border text-[14px] font-semibold inline-flex items-center gap-2 whitespace-nowrap transition-colors active:scale-[0.98] ${tone}`}
                 title={action.title || action.label}
             >
-                <Icon size={18} />
+                <Icon size={16} />
                 <span className="hidden sm:inline">{action.label}</span>
-            </Button>
+            </button>
         );
     };
 
@@ -128,14 +132,16 @@ export const ActionToolbar: React.FC<ActionToolbarProps> = ({
 
             {overflowActions.length > 0 && (
                 <div className="relative" ref={overflowRef}>
-                    <Button
+                    <button
+                        type="button"
                         onClick={() => setShowOverflow(!showOverflow)}
-                        variant="secondary"
-                        className="text-gray-600 flex items-center gap-2 hover:bg-gray-100"
+                        className="h-9 w-9 rounded-md border border-rg-control bg-white text-rg-ink grid place-items-center hover:bg-rg-raised transition-colors"
                         title="Más acciones"
+                        aria-label="Más acciones"
+                        aria-expanded={showOverflow}
                     >
                         <MoreHorizontal size={18} />
-                    </Button>
+                    </button>
 
                     {showOverflow && (
                         <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
