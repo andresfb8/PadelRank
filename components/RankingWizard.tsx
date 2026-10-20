@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Trophy, Users, ArrowRight, Settings, Grid, CheckCircle, Info, X, UserPlus, Shield, Wand2, Trash2, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { Button, Card, Input } from './ui/Components';
+import { Button, Input } from './ui/Components';
 import * as PozoEngine from '../services/PozoEngine';
 import { SearchableSelect } from './SearchableSelect';
 import { MatchGenerator } from '../services/matchGenerator';
@@ -115,24 +115,24 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
     // --- Steps Renderers ---
 
     const renderStep1 = () => (
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-3" role="radiogroup" aria-label="Formato del torneo">
             {[
                 {
                     id: 'classic',
-                    label: 'Ranking clásica CPSJ',
+                    label: 'Liga clásica (CPSJ)',
                     desc: 'Grupos de 4 jugadores. Todos contra todos en cada división. Ascensos y descensos.',
                     color: 'blue'
                 },
                 {
                     id: 'individual',
-                    label: 'Ranking Individual',
+                    label: 'Liga individual',
                     desc: 'Liga individual con divisiones. Partidos con parejas rotatorias o aleatorias.',
                     color: 'purple'
                 },
                 {
                     id: 'pairs',
-                    label: 'Ranking por Parejas',
-                    desc: 'Liga de Parejas Fijas. 2 vs 2. Partidos Round Robin.',
+                    label: 'Liga por parejas',
+                    desc: 'Parejas fijas que juegan todas contra todas, por divisiones.',
                     color: 'indigo'
                 },
                 {
@@ -144,25 +144,26 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 {
                     id: 'mexicano',
                     label: 'Mexicano',
-                    desc: 'Partidos nivelados. Los ganadores juegan entre sí. El mejor sistema competitvo rápido.',
+                    desc: 'Partidos nivelados: en cada ronda los que van ganando juegan entre sí.',
                     color: 'orange' // Mexicano usually relates to fun/dynamic
                 },
                 {
                     id: 'elimination',
-                    label: 'Eliminación Directa (Torneo) (BETA)',
-                    desc: 'Cuadro principal y de consolación. Cabezas de serie y avance por rondas.',
+                    label: 'Eliminatoria',
+                    beta: true,
+                    desc: 'Cuadro principal y de consolación, con cabezas de serie y avance por rondas.',
                     color: 'red'
                 },
                 {
                     id: 'hybrid',
-                    label: 'Híbrido (Liga + Playoff)',
-                    desc: 'Fase de Grupos (Liga) seguida de Fase Final (Eliminatoria). Ideal para "Mundialitos" o "Champions".',
+                    label: 'Liga + playoff',
+                    desc: 'Fase de grupos y después un cuadro final. Ideal para un «mundialito».',
                     color: 'pink'
                 },
                 {
                     id: 'pozo',
-                    label: 'Pozo / King of the Court',
-                    desc: 'Sube y baja de pista. Ganadores suben, Perdedores bajan. Individual o Parejas.',
+                    label: 'Pozo',
+                    desc: 'Los que ganan suben de pista y los que pierden bajan. Individual o por parejas.',
                     color: 'yellow'
                 }
             ]
@@ -171,11 +172,15 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     const isDisabled = !formatCheck.allowed;
 
                     return (
-                        <div
+                        <button
                             key={f.id}
-                            className={`p-6 rounded-xl border-2 transition-all ${isDisabled
-                                ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
-                                : `cursor-pointer hover:scale-[1.02] ${format === f.id ? `border-${f.color}-500 bg-${f.color}-50 ring-2 ring-${f.color}-200` : 'border-gray-200 hover:border-gray-300 bg-white'}`
+                            type="button"
+                            role="radio"
+                            aria-checked={format === f.id && !isDisabled}
+                            aria-disabled={isDisabled}
+                            className={`text-left p-4 rounded-lg transition-colors ${isDisabled
+                                ? 'border border-rg-line bg-rg-raised cursor-not-allowed'
+                                : format === f.id ? 'border-2 border-court bg-court-soft' : 'border border-rg-control bg-white hover:bg-rg-ground'
                                 }`}
                             onClick={() => {
                                 if (isDisabled) {
@@ -205,22 +210,13 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 }
                                 // Update Config Points if Classic
                                 else if (f.id === 'classic') {
-                                    setIndividualMaxPlayers(4); // Reset if coming from pairs
+                                    // CPSJ scoring: 4 for 2-0, 3 for 2-1, 2 for a draw, 1 for 1-2, 0 for 0-2
+                                    setIndividualMaxPlayers(4); // Groups of 4
                                     setConfig(prev => ({
                                         ...prev,
                                         pointsPerWin2_0: 4,
                                         pointsPerWin2_1: 3,
                                         pointsDraw: 2,
-                                        pointsPerLoss2_1: 1,
-                                        pointsPerLoss2_0: 0
-                                    }));
-                                    // Reset to defaults for other formats
-                                    setIndividualMaxPlayers(12); // Default
-                                    setConfig(prev => ({
-                                        ...prev,
-                                        pointsPerWin2_0: 3,
-                                        pointsPerWin2_1: 2,
-                                        pointsDraw: 1,
                                         pointsPerLoss2_1: 1,
                                         pointsPerLoss2_0: 0
                                     }));
@@ -273,63 +269,62 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 }
                             }}
                         >
-                            <div className="flex justify-between items-start mb-2">
-                                <h3 className={`text-lg font-bold text-gray-900`}>{f.label}</h3>
-                                {format === f.id && <CheckCircle className={`text-${f.color}-500`} size={24} />}
-                            </div>
-                            <p className="text-gray-500 text-sm">{f.desc}</p>
+                            <span className="flex items-start justify-between gap-3">
+                                <span className={`text-[16px] font-semibold ${format === f.id && !isDisabled ? 'text-court-ink' : isDisabled ? 'text-rg-muted' : ''}`}>
+                                    {f.label}
+                                    {(f as any).beta && <span className="pill bg-[#fffbeb] text-[#92400e] ml-2 align-middle">En pruebas</span>}
+                                </span>
+                                <span className={`mt-0.5 w-5 h-5 rounded-full flex-none grid place-items-center ${format === f.id && !isDisabled ? 'bg-court' : 'border border-rg-control bg-white'}`} aria-hidden="true">
+                                    {format === f.id && !isDisabled && <span className="w-2 h-2 rounded-full bg-white" />}
+                                </span>
+                            </span>
+                            <span className="block text-[14px] text-rg-muted mt-1 leading-snug">{f.desc}</span>
                             {isDisabled && (
-                                <div className="mt-2 text-xs text-orange-600 font-medium">
-                                    🔒 Mejora tu plan para acceder
-                                </div>
+                                <span className="block mt-2 text-[13px] text-[#92400e]">Disponible en un plan superior</span>
                             )}
-                        </div>
+                        </button>
                     );
                 })
             }
-        </div >
+        </div>
     );
 
     const renderStep2 = () => (
         <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">Datos Generales</h3>
-            <div className="grid md:grid-cols-2 gap-4">
-                <Input label="Nombre del Torneo" placeholder="Ej: Super Cup 2025" value={name} onChange={(e) => setName(e.target.value)} />
+            <h2 className="text-[17px] font-semibold">Datos del torneo</h2>
+            <div className="grid md:grid-cols-3 gap-4">
+                <div className="md:col-span-3">
+                    <Input label="Nombre del torneo" placeholder="Por ejemplo: Liga de Otoño 2026" value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-                    <select className="input-field w-full border p-2 rounded-lg" value={category} onChange={(e) => setCategory(e.target.value)}>
+                    <label htmlFor="wizard-category" className="block text-[13px] font-medium mb-1.5">Categoría</label>
+                    <select id="wizard-category" className="w-full h-10 px-3 rounded-md border border-rg-control bg-white text-[15px] focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" value={category} onChange={(e) => setCategory(e.target.value as any)}>
                         <option value="Mixto">Mixto</option>
                         <option value="Masculino">Masculino</option>
                         <option value="Femenino">Femenino</option>
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Inicio</label>
-                    <input type="date" className="input-field w-full border p-2 rounded-lg" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <label htmlFor="wizard-start" className="block text-[13px] font-medium mb-1.5">Empieza el</label>
+                    <input id="wizard-start" type="date" className="w-full h-10 px-3 rounded-md border border-rg-control bg-white text-[15px] num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
             </div>
 
-            {/* Official Toggle */}
-            <div className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${isOfficial ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                onClick={() => setIsOfficial(!isOfficial)}>
-                <div className={`mt-1 p-1 rounded-full ${isOfficial ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                    <Shield size={16} />
-                </div>
-                <div className="flex-1">
-                    <div className="flex justify-between items-center">
-                        <h4 className="font-bold text-gray-800">{isOfficial ? 'Torneo Oficial (Cuenta para Ranking)' : 'Torneo NO Oficial'}</h4>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full font-medium">Click para cambiar</span>
-                            {isOfficial ? <CheckCircle size={18} className="text-blue-600" /> : <div className="w-[18px] h-[18px] rounded-full border-2 border-gray-300" />}
-                        </div>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
+            {/* Official switch */}
+            <label className="flex items-start gap-4 p-4 rounded-lg bg-rg-raised cursor-pointer">
+                <span className="flex-1">
+                    <span className="block text-[15px] font-semibold">Cuenta para las estadísticas de los jugadores</span>
+                    <span className="block text-[14px] text-rg-muted mt-0.5">
                         {isOfficial
-                            ? 'Los partidos afectarán a las estadísticas globales (PJ, PG, Winrate) de los jugadores registrados.'
-                            : 'Torneo AMISTOSO. Los resultados NO contarán para el historial ni estadísticas globales de los jugadores. Opcion RECOMENDADA para torneos rápidos (Americano/Mexicano) para no desvirtuar estadisticas.'}
-                    </p>
-                </div>
-            </div>
+                            ? 'Los partidos suman a los partidos jugados, ganados y al porcentaje de victorias de cada jugador.'
+                            : 'Torneo amistoso: no cambia las estadísticas de nadie. Es lo recomendado para americanos y mexicanos.'}
+                    </span>
+                </span>
+                <input type="checkbox" role="switch" checked={isOfficial} onChange={() => setIsOfficial(!isOfficial)} className="sr-only peer" />
+                <span aria-hidden="true" className={`mt-1 w-10 h-6 rounded-full flex-none relative transition-colors ${isOfficial ? 'bg-court' : 'bg-rg-control'} peer-focus-visible:ring-2 peer-focus-visible:ring-court-track`}>
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${isOfficial ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                </span>
+            </label>
 
             {/* Format-specific config */}
             {(format === 'americano' || format === 'mexicano') && (
@@ -368,7 +363,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
 
     const renderStep3 = () => (
         <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-800">Jugadores y Asignaciones</h3>
+            <h2 className="text-[17px] font-semibold">Jugadores y divisiones</h2>
             {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
             {format === 'elimination' && <EliminationAssignments config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} onCreateGuest={handleCreateGuest} />}
             {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} setDrawSeed={setDrawSeed} />}
@@ -423,54 +418,58 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         onSave(newRanking);
     };
 
+    const goTo = (n: number) => { setStep(n); window.scrollTo({ top: 0 }); };
+    // A format the plan does not include can be the initial value: it never counts as chosen
+    const formatAllowed = canUseFormat(format, userPlan, currentUser?.role === 'superadmin').allowed;
+
     return (
-        <div className="max-w-5xl mx-auto space-y-6 pb-20 animate-fade-in text-gray-800">
-            {/* Header */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
-                <h2 className="text-2xl font-bold flex items-center gap-2"><Trophy className="text-primary" /> Nuevo Torneo</h2>
-                <Button variant="secondary" onClick={onCancel}><X size={20} /></Button>
+        <div className="rg max-w-5xl mx-auto space-y-5">
+            {/* Title row */}
+            <div className="flex items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-[24px] font-bold tracking-[-0.015em]">Nuevo torneo</h1>
+                    <p className="text-[15px] text-rg-muted mt-0.5 num">Paso {step} de {STEPS.length}: {STEPS[step - 1].title.toLowerCase()}</p>
+                </div>
+                <button type="button" onClick={onCancel} className="h-9 px-3 rounded-md text-[14px] font-medium text-rg-muted hover:text-rg-ink hover:bg-rg-raised">Cancelar</button>
             </div>
 
-            {/* Stepper */}
-            <div className="flex justify-center mb-6 md:mb-8 overflow-x-auto px-2">
-                {STEPS.map((s, idx) => (
-                    <div key={s.number} className="flex items-center">
-                        <div className={`flex flex-col items-center gap-1 md:gap-2 relative z-10 ${step >= s.number ? 'text-primary' : 'text-gray-400'}`}>
-                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base transition-all ${step >= s.number ? 'bg-primary text-white shadow-lg scale-110' : 'bg-gray-100'}`}>
-                                {s.number}
-                            </div>
-                            <span className="text-[10px] md:text-xs font-bold uppercase whitespace-nowrap">{s.title}</span>
-                        </div>
-                        {idx < STEPS.length - 1 && (
-                            <div className={`w-8 md:w-24 h-1 -mt-5 mx-1 md:mx-2 transition-colors ${step > s.number ? 'bg-primary' : 'bg-gray-100'}`} />
-                        )}
-                    </div>
+            {/* Steps */}
+            <ol className="grid grid-cols-3 gap-2" aria-label="Pasos">
+                {STEPS.map(st => (
+                    <li key={st.number}>
+                        <button
+                            type="button"
+                            onClick={() => st.number < step && goTo(st.number)}
+                            disabled={st.number >= step}
+                            aria-current={st.number === step ? 'step' : undefined}
+                            className="w-full text-left disabled:cursor-default"
+                        >
+                            <span className={`block h-1 rounded-full ${st.number <= step ? 'bg-court' : 'bg-court-track'}`} />
+                            <span className={`block mt-1.5 text-[13px] ${st.number === step ? 'font-semibold text-rg-ink' : st.number < step ? 'text-court hover:text-court-ink' : 'text-rg-muted'}`}>{st.title}</span>
+                        </button>
+                    </li>
                 ))}
-            </div>
+            </ol>
 
             {/* Content */}
-            <Card className="min-h-[400px]">
+            <div className="bg-white border border-rg-line rounded-lg p-4 md:p-6">
                 {step === 1 && renderStep1()}
                 {step === 2 && renderStep2()}
                 {step === 3 && renderStep3()}
-            </Card>
+            </div>
 
-            {/* Footer Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-[60] flex justify-between max-w-5xl mx-auto items-center pb-safe">
-                <Button disabled={step === 1} variant="secondary" onClick={() => setStep(step - 1)}>Atrás</Button>
-
-                <div className="flex gap-2">
-                    {step < 3 ? (
-                        <Button onClick={() => setStep(step + 1)}>Siguiente <ArrowRight size={16} className="ml-2" /></Button>
-                    ) : (
-                        <Button onClick={handleSaveRanking} className="bg-green-600 hover:bg-green-700 text-white">Crear Torneo <CheckCircle size={16} className="ml-2" /></Button>
-                    )}
-                </div>
+            {/* Footer actions, kept in view at the bottom of the page */}
+            <div className="sticky bottom-20 lg:bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 py-3 bg-rg-ground flex justify-between items-center">
+                <Button disabled={step === 1} variant="secondary" onClick={() => goTo(step - 1)}>Atrás</Button>
+                {step < 3 ? (
+                    <span className="flex items-center gap-3">
+                        {step === 1 && !formatAllowed && <span className="text-[13px] text-rg-muted">Elige un formato para seguir</span>}
+                        <Button disabled={step === 1 && !formatAllowed} onClick={() => goTo(step + 1)}>Siguiente <ArrowRight size={16} /></Button>
+                    </span>
+                ) : (
+                    <Button onClick={handleSaveRanking}>Crear torneo <CheckCircle size={16} /></Button>
+                )}
             </div>
         </div>
     );
 };
-
-
-// Missing X definition
-

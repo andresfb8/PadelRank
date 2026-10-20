@@ -65,7 +65,7 @@ export const EliminationAssignments = ({
     // Only pairs type is fully implemented for categories
     if (config.eliminationConfig?.type !== 'pairs') {
         return (
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm text-yellow-800">
+            <div className="bg-[#fffbeb] border border-[#fde68a] p-4 rounded-lg text-[14px] text-[#92400e]">
                 La asignación individual por categorías estará disponible próximamente. Usa la modalidad <strong>Parejas</strong> para la inscripción por categorías.
             </div>
         );
@@ -74,7 +74,7 @@ export const EliminationAssignments = ({
     return (
         <div>
             <div className="flex items-center gap-4 mb-4">
-                <h3 className="font-bold text-gray-800">2. Inscripción de Parejas por Categoría</h3>
+                <h3 className="text-[15px] font-semibold">Parejas por categoría</h3>
             </div>
 
             {categories.map((catName, catIdx) => {
@@ -134,7 +134,7 @@ export const EliminationAssignments = ({
                                 };
 
                                 return (
-                                    <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded border shadow-sm">
+                                    <div key={pairIdx} className="flex gap-2 items-center bg-white p-2 rounded-md border border-rg-line">
                                         <span className="text-xs font-bold text-gray-400 w-16">Pareja {pairIdx + 1}</span>
                                         <div className="flex-1 grid grid-cols-2 gap-2">
                                             <SearchableSelect
@@ -174,8 +174,8 @@ export const EliminationAssignments = ({
                                         Añadir pareja invitada
                                     </button>
                                 ) : (
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
-                                        <p className="text-xs font-semibold text-blue-800 mb-2">Nueva pareja invitada</p>
+                                    <div className="bg-court-soft rounded-lg p-3 mt-2">
+                                        <p className="text-[13px] font-semibold text-court-ink mb-2">Nueva pareja invitada</p>
                                         <div className="grid grid-cols-2 gap-3 mb-3">
                                             {/* Player 1 */}
                                             <div>

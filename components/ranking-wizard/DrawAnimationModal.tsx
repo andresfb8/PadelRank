@@ -84,11 +84,11 @@ export const DrawAnimationModal = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
-                <div className="p-6 flex justify-between items-center sticky top-0 bg-gradient-to-r from-slate-900/95 to-purple-900/95 backdrop-blur z-10 rounded-t-3xl border-b border-white/10">
-                    <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Trophy className="text-yellow-400" size={26} />
+        <div className="rg fixed inset-0 z-[60] flex items-center justify-center bg-[#0F1729]/70 p-4">
+            <div className="bg-rg-night rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.35)] w-full max-w-3xl max-h-[90vh] overflow-y-auto relative">
+                <div className="px-5 h-14 flex justify-between items-center sticky top-0 bg-rg-night z-10 border-b border-white/10">
+                    <h3 className="text-[16px] font-semibold text-white flex items-center gap-2">
+                        <Trophy className="text-[#7FA6EE]" size={18} />
                         Sorteo de Grupos
                     </h3>
                     <div className="flex items-center gap-2">
@@ -121,12 +121,12 @@ export const DrawAnimationModal = ({
                                         initial={{ opacity: 0, y: -20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.3 }}
-                                        className="bg-white/5 backdrop-blur rounded-2xl p-4 border border-white/10"
+                                        className="bg-white/5 rounded-lg p-4"
                                     >
                                         <motion.h4
                                             initial={{ scale: 0.9 }}
                                             animate={{ scale: 1 }}
-                                            className="text-lg font-extrabold text-yellow-300 mb-3 uppercase tracking-wider"
+                                            className="text-[16px] font-semibold text-white mb-3"
                                         >
                                             {group.label}
                                         </motion.h4>
@@ -143,7 +143,7 @@ export const DrawAnimationModal = ({
                                                         stiffness: 180,
                                                         damping: 14,
                                                     }}
-                                                    className="bg-white rounded-xl p-3 shadow-lg border border-white/20"
+                                                    className="bg-white rounded-md p-3"
                                                 >
                                                     <div className="text-xs font-bold text-gray-400 mb-1">Pareja {pIdx + 1}</div>
                                                     <div className="text-sm font-bold text-gray-900 truncate">
@@ -169,7 +169,7 @@ export const DrawAnimationModal = ({
                         >
                             <button
                                 onClick={onClose}
-                                className="px-6 py-2.5 rounded-xl font-bold bg-yellow-400 text-slate-900 hover:bg-yellow-300 transition shadow-lg"
+                                className="h-10 px-5 rounded-md font-semibold bg-court text-white hover:bg-[#174CB0] transition-colors"
                             >
                                 Cerrar
                             </button>

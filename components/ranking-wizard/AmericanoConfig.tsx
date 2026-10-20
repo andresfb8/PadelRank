@@ -34,7 +34,7 @@ export const AmericanoConfig = ({
                     <button
                         onClick={() => setVariant('individual')}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${variant === 'individual' || !variant
-                            ? 'bg-white shadow-sm text-primary'
+                            ? 'bg-white text-rg-ink font-semibold'
                             : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
@@ -43,7 +43,7 @@ export const AmericanoConfig = ({
                     <button
                         onClick={() => setVariant('pairs')}
                         className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${variant === 'pairs'
-                            ? 'bg-white shadow-sm text-primary'
+                            ? 'bg-white text-rg-ink font-semibold'
                             : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
@@ -76,7 +76,7 @@ export const AmericanoConfig = ({
 
             {/* Scoring Mode */}
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sistema de Puntuación</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Puntuación</label>
                 <select
                     className="input-field w-full border p-2 rounded-lg mb-2"
                     value={config.scoringMode || '24'}
