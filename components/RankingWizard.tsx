@@ -18,6 +18,7 @@ import { LeagueConfig } from './ranking-wizard/LeagueConfig';
 import { LeagueAssignments } from './ranking-wizard/LeagueAssignments';
 import { PozoConfig } from './ranking-wizard/PozoConfig';
 import { TieBreakConfig } from './ranking-wizard/TieBreakConfig';
+import { SponsorsEditor, LogoPicker, Sponsor } from './ranking-settings/PresentationFields';
 
 interface Props {
     players: Record<string, Player>;
@@ -31,6 +32,7 @@ const STEPS = [
     { number: 1, title: 'Formato', icon: Trophy },
     { number: 2, title: 'Configuración', icon: Settings },
     { number: 3, title: 'Jugadores', icon: Users },
+    { number: 4, title: 'Presentación', icon: Grid },
 ];
 
 export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, onCancel, onSave }: Props) => {
@@ -44,6 +46,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
     const [category, setCategory] = useState<'Masculino' | 'Femenino' | 'Mixto'>('Mixto');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [isOfficial, setIsOfficial] = useState(true); // Default true, but will update based on format
+    const [sponsors, setSponsors] = useState<Sponsor[]>([]);
 
     // Config
     const [config, setConfig] = useState<RankingConfig>({
@@ -356,7 +359,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             )}
 
             {format !== 'pozo' && format !== 'elimination' && (
-                <TieBreakConfig config={config} setConfig={setConfig} />
+                <TieBreakConfig config={config} setConfig={setConfig} pointBased={format === 'americano' || format === 'mexicano'} />
             )}
         </div>
     );
@@ -367,6 +370,30 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
             {format === 'elimination' && <EliminationAssignments config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} onCreateGuest={handleCreateGuest} />}
             {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} setDrawSeed={setDrawSeed} />}
+        </div>
+    );
+
+    const renderStep4 = () => (
+        <div className="space-y-7">
+            <div>
+                <h2 className="text-[17px] font-semibold">Presentación</h2>
+                <p className="text-[14px] text-rg-muted mt-0.5">Opcional. Puedes cambiarlo cuando quieras en los ajustes del torneo, en «Presentación».</p>
+            </div>
+            <section className="space-y-3">
+                <div>
+                    <h3 className="text-[15px] font-semibold">Logo del torneo</h3>
+                    <p className="text-[13px] text-rg-muted mt-0.5">Sale en la vista pública y en el modo TV. Si no subes uno, se usa el del club.</p>
+                </div>
+                <LogoPicker logoUrl={config.branding?.logoUrl} allowed={['pro', 'star', 'weekend', 'trial'].includes(userPlan)}
+                    onChange={(logoUrl) => setConfig(prev => ({ ...prev, branding: { ...prev.branding, logoUrl } }))} />
+            </section>
+            <section className="space-y-3">
+                <div>
+                    <h3 className="text-[15px] font-semibold">Patrocinadores</h3>
+                    <p className="text-[13px] text-rg-muted mt-0.5">Salen en el modo TV, en la pantalla del club. Mejor en PNG con fondo transparente.</p>
+                </div>
+                <SponsorsEditor sponsors={sponsors} onChange={setSponsors} />
+            </section>
         </div>
     );
 
@@ -413,6 +440,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             isOfficial,
             guestPlayers: activeGuestPlayers,
             ...(format === 'hybrid' && drawSeed !== undefined ? { drawSeed } : {}),
+            ...(sponsors.length ? { tvConfig: { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors } } : {}),
         };
 
         onSave(newRanking);
@@ -434,7 +462,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             </div>
 
             {/* Steps */}
-            <ol className="grid grid-cols-3 gap-2" aria-label="Pasos">
+            <ol className="grid grid-cols-4 gap-2" aria-label="Pasos">
                 {STEPS.map(st => (
                     <li key={st.number}>
                         <button
@@ -456,12 +484,13 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 {step === 1 && renderStep1()}
                 {step === 2 && renderStep2()}
                 {step === 3 && renderStep3()}
+                {step === 4 && renderStep4()}
             </div>
 
             {/* Footer actions, kept in view at the bottom of the page */}
             <div className="sticky bottom-20 lg:bottom-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 py-3 bg-rg-ground flex justify-between items-center">
                 <Button disabled={step === 1} variant="secondary" onClick={() => goTo(step - 1)}>Atrás</Button>
-                {step < 3 ? (
+                {step < STEPS.length ? (
                     <span className="flex items-center gap-3">
                         {step === 1 && !formatAllowed && <span className="text-[13px] text-rg-muted">Elige un formato para seguir</span>}
                         <Button disabled={step === 1 && !formatAllowed} onClick={() => goTo(step + 1)}>Siguiente <ArrowRight size={16} /></Button>

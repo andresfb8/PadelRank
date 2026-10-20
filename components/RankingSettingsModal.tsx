@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Trophy, ArrowUpCircle, ArrowDownCircle, Info, Hash, Target, Image as ImageIcon, Upload, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, Plus, BarChart2 } from 'lucide-react';
-import { Ranking, RankingConfig, ScoringMode, DEFAULT_TIE_BREAK_ORDER, TieBreakCriterion } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Trash2, Lock, Minus, Plus } from 'lucide-react';
+import { Match, Ranking, RankingConfig, ScoringMode, TVConfig } from '../types';
 import { Button } from './ui/Components';
-import { processLogoUpload } from '../utils/imageProcessor';
+import { SponsorsEditor, LogoPicker } from './ranking-settings/PresentationFields';
+import { calculateMatchPoints } from '../services/logic';
+import { TieBreakConfig } from './ranking-wizard/TieBreakConfig';
 
 interface Props {
     isOpen: boolean;
@@ -13,1010 +15,421 @@ interface Props {
     userPlan?: string; // 'pro', 'star', 'weekend', etc.
 }
 
+/*
+ * The tournament's settings come in four tabs, always in this order, and each format
+ * fills them with its own settings (a tab with nothing to say for a format is left out):
+ *   Puntuación    points per result and tie-breaks
+ *   (per format)  promotions, playoff qualifiers, brackets or court rotation
+ *   Estructura    divisions, groups, categories or courts
+ *   Presentación  public columns, TV mode, sponsors and logo
+ * What changes the structure of the tournament is locked once a match has been played.
+ */
+
+type Section = 'win' | 'advance' | 'setup' | 'look';
+
+const FORMAT_LABEL: Record<string, string> = {
+    classic: 'Liga clásica', individual: 'Liga individual', pairs: 'Liga por parejas', americano: 'Americano',
+    mexicano: 'Mexicano', elimination: 'Eliminatoria', hybrid: 'Liga + playoff', pozo: 'Pozo',
+};
+
+// Singular, plural, and whether the word is feminine
+const UNIT: Record<string, [string, string, boolean?]> = {
+    classic: ['División', 'Divisiones', true], individual: ['División', 'Divisiones', true], pairs: ['División', 'Divisiones', true],
+    americano: ['Grupo', 'Grupos'], mexicano: ['Grupo', 'Grupos'], hybrid: ['Grupo', 'Grupos'],
+    elimination: ['Categoría', 'Categorías', true], pozo: ['Pista', 'Pistas', true],
+};
+
+const DEFAULT_TV: TVConfig = { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] };
+const ALL_COLUMNS = ['pts', 'pj', 'pg', 'pp', 'setsWon', 'setsLost', 'setsDiff', 'gamesWon', 'gamesLost', 'gamesDiff', 'winRate'];
+
+// ---------- small controls in the app's style ----------
+
+const Switch = ({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string; disabled?: boolean }) => (
+    <label className={`flex items-start gap-4 py-3 ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+        <span className="flex-1 min-w-0">
+            <span className="block text-[14px] font-medium">{label}</span>
+            {description && <span className="block text-[13px] text-rg-muted mt-0.5">{description}</span>}
+        </span>
+        <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
+        <span aria-hidden="true" className={`mt-0.5 w-10 h-6 rounded-full flex-none relative transition-colors ${checked ? 'bg-court' : 'bg-rg-control'} peer-focus-visible:ring-2 peer-focus-visible:ring-court-track`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+        </span>
+    </label>
+);
+
+const Stepper = ({ label, value, onChange, min = 0, max = 99, description, disabled }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; description?: string; disabled?: boolean }) => (
+    <div className={`bg-rg-raised rounded-lg p-4 ${disabled ? 'opacity-70' : ''}`}>
+        <p className="text-[14px] font-medium">{label}</p>
+        {description && <p className="text-[13px] text-rg-muted mt-0.5">{description}</p>}
+        <div className="flex items-center gap-3 mt-3">
+            <button type="button" disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - 1))} className="w-10 h-10 rounded-md bg-white border border-rg-control grid place-items-center disabled:opacity-40" aria-label={`Restar uno a ${label}`}><Minus size={16} /></button>
+            <span className="w-10 text-center text-[24px] font-semibold num" aria-live="polite">{value}</span>
+            <button type="button" disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + 1))} className="w-10 h-10 rounded-md bg-white border border-rg-control grid place-items-center disabled:opacity-40" aria-label={`Sumar uno a ${label}`}><Plus size={16} /></button>
+        </div>
+    </div>
+);
+
+const Fact = ({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) => (
+    <div className="py-2.5 flex items-start justify-between gap-4 border-t border-rg-rule first:border-t-0">
+        <span className="text-[14px] text-rg-muted">{label}</span>
+        <span className="text-right">
+            <span className="block text-[14px] font-medium num">{value}</span>
+            {note && <span className="block text-[12px] text-rg-muted">{note}</span>}
+        </span>
+    </div>
+);
+
+const Block = ({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) => (
+    <section className="space-y-3">
+        <div>
+            <h3 className="text-[15px] font-semibold">{title}</h3>
+            {description && <p className="text-[13px] text-rg-muted mt-0.5">{description}</p>}
+        </div>
+        {children}
+    </section>
+);
+
+const LockedNote = ({ children }: { children: React.ReactNode }) => (
+    <p className="flex items-start gap-2 text-[13px] text-rg-muted"><Lock size={14} className="flex-none mt-0.5" />{children}</p>
+);
+
+// ---------- the modal ----------
+
 export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking, isAdmin, userPlan }: Props) => {
     const [config, setConfig] = useState<RankingConfig>(ranking.config || {});
-    const [activeTab, setActiveTab] = useState<'general' | 'points' | 'promotions' | 'tv' | 'divisions' | 'branding' | 'stats'>('general');
-    const [isUploading, setIsUploading] = useState(false);
+    const [tv, setTv] = useState<TVConfig>({ ...DEFAULT_TV, ...(ranking.tvConfig || {}) });
+    const [names, setNames] = useState<Record<string, string>>({});
+    const [removed, setRemoved] = useState<Set<string>>(new Set());
+
+    const format = ranking.format || 'classic';
+    const isLeague = format === 'classic' || format === 'individual' || format === 'pairs';
+    const isPointBased = format === 'americano' || format === 'mexicano';
+    const isHybrid = format === 'hybrid';
+    const isElimination = format === 'elimination';
+    const isPozo = format === 'pozo';
+
+    const sections = useMemo(() => ([
+        { id: 'win' as Section, label: 'Puntuación', show: !isElimination && !isPozo },
+        { id: 'advance' as Section, label: isHybrid ? 'Playoff' : isElimination ? 'Cuadros' : isPozo ? 'Rotación de pistas' : 'Ascensos y descensos', show: !isPointBased },
+        { id: 'setup' as Section, label: 'Estructura', show: true },
+        { id: 'look' as Section, label: 'Presentación', show: true },
+    ].filter(s => s.show)), [isElimination, isPozo, isPointBased, isHybrid]);
+    const [section, setSection] = useState<Section>(sections[0].id);
 
     useEffect(() => {
-        if (isOpen) {
-            setConfig(ranking.config || {});
-        }
-    }, [isOpen, ranking]);
+        if (!isOpen) return;
+        setConfig(ranking.config || {});
+        setTv({ ...DEFAULT_TV, ...(ranking.tvConfig || {}) });
+        setNames({});
+        setRemoved(new Set());
+        setSection(sections[0].id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, ranking.id]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
-    const handleSave = () => {
-        if (onUpdateRanking) {
-            const updatedRanking = {
-                ...ranking,
-                config: config
-            };
-            onUpdateRanking(updatedRanking);
-            onClose();
-        }
-    };
-
-    // Logo Upload Handler
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        try {
-            const base64 = await processLogoUpload(file);
-            setConfig(prev => ({
-                ...prev,
-                branding: {
-                    ...prev.branding,
-                    logoUrl: base64
-                }
-            }));
-        } catch (error: any) {
-            alert(error.message);
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    const handleRemoveLogo = () => {
-        setConfig(prev => ({
-            ...prev,
-            branding: {
-                ...prev.branding,
-                logoUrl: undefined
-            }
-        }));
-    };
-
-    const handleChange = (key: keyof RankingConfig, value: any) => {
-        setConfig(prev => ({
-            ...prev,
-            [key]: value
-        }));
-    };
-
-    // Defaults for display if undefined
-    const defaults = {
-        pointsPerWin2_0: 4,
-        pointsPerWin2_1: 3,
-        pointsDraw: 2,
-        pointsPerLoss2_1: 1,
-        pointsPerLoss2_0: 0,
-        promotionCount: 2,
-        relegationCount: 2,
-        scoringMode: '32' as ScoringMode,
-        customPoints: 32
-    };
-
     const isReadOnly = !isAdmin || !onUpdateRanking;
-
-    // Defines which tabs to show based on format
-    const isElimination = ranking.format === 'elimination';
-    const isClassic = ranking.format === 'classic' || ranking.format === 'individual' || ranking.format === 'pairs';
-    const isAmericanoOrMexicano = ranking.format === 'americano' || ranking.format === 'mexicano';
-    const showPointsTab = !isElimination;
-    const showStatsTab = !isElimination; // standings columns don't apply to brackets
-    const showPromotionsTab = isClassic;
-
-    // Branding Access: Pro, Star, Weekend
+    const allMatches = ranking.divisions.flatMap(d => d.matches);
+    const played = allMatches.filter(m => m.status === 'finalizado').length;
+    const total = allMatches.filter(m => m.status !== 'descanso').length;
+    const started = played > 0;
+    const playoffStarted = isHybrid && ranking.phase === 'playoff';
     const hasBrandingAccess = ['pro', 'star', 'weekend', 'trial'].includes(userPlan || '');
+    const [unit, units, feminine] = UNIT[format] || UNIT.classic;
+
+    const set = (patch: Partial<RankingConfig>) => setConfig(prev => ({ ...prev, ...patch }));
+    const points = {
+        pointsPerWin2_0: config.pointsPerWin2_0 ?? 4,
+        pointsPerWin2_1: config.pointsPerWin2_1 ?? 3,
+        pointsDraw: config.pointsDraw ?? 2,
+        pointsPerLoss2_1: config.pointsPerLoss2_1 ?? 1,
+        pointsPerLoss2_0: config.pointsPerLoss2_0 ?? 0,
+    };
+    const setPoints = (key: keyof typeof points, value: number) => {
+        const v = Number.isFinite(value) ? value : 0;
+        // Results read the top-level points; the hybrid keeps its own copy in step
+        setConfig(prev => ({
+            ...prev,
+            [key]: v,
+            ...(isHybrid && prev.hybridConfig ? { hybridConfig: { ...prev.hybridConfig, [key]: v } } : {}),
+        }));
+    };
+    const pointsChanged = JSON.stringify(points) !== JSON.stringify(
+        { pointsPerWin2_0: ranking.config?.pointsPerWin2_0 ?? 4, pointsPerWin2_1: ranking.config?.pointsPerWin2_1 ?? 3, pointsDraw: ranking.config?.pointsDraw ?? 2, pointsPerLoss2_1: ranking.config?.pointsPerLoss2_1 ?? 1, pointsPerLoss2_0: ranking.config?.pointsPerLoss2_0 ?? 0 },
+    );
+    const scoringModeChanged = config.scoringMode !== ranking.config?.scoringMode || config.customPoints !== ranking.config?.customPoints;
+    const dirty = JSON.stringify(config) !== JSON.stringify(ranking.config || {})
+        || JSON.stringify(tv) !== JSON.stringify({ ...DEFAULT_TV, ...(ranking.tvConfig || {}) })
+        || Object.keys(names).length > 0 || removed.size > 0;
+
+    const handleSave = () => {
+        if (!onUpdateRanking) return;
+        // Each match keeps the points it was given when it was closed, so new points mean redoing the played ones
+        const rescore = pointsChanged && !isPointBased && !isElimination && !isPozo;
+        const rescored = (m: Match): Match => {
+            if (!rescore || m.status !== 'finalizado' || !m.score?.set1) return m;
+            if (m.score.finalizationType === 'empate_manual') return { ...m, points: { p1: points.pointsDraw, p2: points.pointsDraw } };
+            const r = calculateMatchPoints(m.score.set1, m.score.set2, m.score.set3, !!m.score.isIncomplete, points, false, format === 'individual');
+            return { ...m, points: r.points, score: { ...m.score, finalizationType: r.finalizationType, description: r.description } };
+        };
+        const divisions = ranking.divisions
+            .filter(d => !removed.has(d.id))
+            .map(d => (names[d.id] !== undefined && names[d.id].trim() ? { ...d, name: names[d.id].trim() } : d))
+            .map(d => (rescore && d.stage !== 'playoff' ? { ...d, matches: d.matches.map(rescored) } : d));
+        onUpdateRanking({ ...ranking, config, tvConfig: tv, divisions });
+        onClose();
+    };
+
+    const numberField = 'w-full h-11 px-3 rounded-md border border-rg-control bg-white text-[18px] font-semibold text-center num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track disabled:bg-rg-raised';
+
+    // ---------------- sections ----------------
+
+    const renderWin = () => (
+        <div className="space-y-7">
+            {isPointBased ? (
+                <Block title="Puntos por partido" description="Cada partido se juega a un total de puntos que las dos parejas se reparten.">
+                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Puntos por partido">
+                        {(['16', '21', '24', '32', 'custom'] as ScoringMode[]).map(mode => {
+                            const active = (config.scoringMode || '32') === mode;
+                            return (
+                                <button key={mode} type="button" role="radio" aria-checked={active} disabled={isReadOnly} onClick={() => set({ scoringMode: mode })}
+                                    className={`h-10 px-4 rounded-md text-[14px] font-semibold num transition-colors ${active ? 'bg-court text-white' : 'bg-white border border-rg-control hover:bg-rg-raised'}`}>
+                                    {mode === 'custom' ? 'Otro' : `${mode} puntos`}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {config.scoringMode === 'custom' && (
+                        <div className="max-w-[200px]">
+                            <label htmlFor="custom-points" className="block text-[13px] font-medium mb-1.5">Total de puntos</label>
+                            <input id="custom-points" type="number" min={1} value={config.customPoints ?? ''} placeholder="50" onChange={(e) => set({ customPoints: parseInt(e.target.value) })} className={numberField} />
+                        </div>
+                    )}
+                </Block>
+            ) : (
+                <Block title="Puntos por resultado" description={isHybrid ? 'Se aplican en la fase de grupos.' : 'Lo que suma cada pareja o jugador según cómo acaba el partido.'}>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        {([
+                            ['pointsPerWin2_0', 'Victoria 2-0'], ['pointsPerWin2_1', 'Victoria 2-1'], ['pointsDraw', 'Empate'],
+                            ['pointsPerLoss2_1', 'Derrota 1-2'], ['pointsPerLoss2_0', 'Derrota 0-2'],
+                        ] as [keyof typeof points, string][]).map(([key, label]) => (
+                            <div key={key}>
+                                <label htmlFor={`pts-${key}`} className="block text-[13px] font-medium mb-1.5">{label}</label>
+                                <input id={`pts-${key}`} type="number" min={0} value={points[key]} disabled={isReadOnly} onChange={(e) => setPoints(key, parseInt(e.target.value))} className={numberField} />
+                            </div>
+                        ))}
+                    </div>
+                </Block>
+            )}
+            {!isPointBased && pointsChanged && started && (
+                <p className="rounded-md bg-[#fffbeb] border border-[#fde68a] px-3 py-2 text-[14px] text-[#92400e] num">
+                    Al guardar se recalculan los puntos de los {played} partidos jugados y cambia la clasificación.
+                </p>
+            )}
+            {isPointBased && scoringModeChanged && started && (
+                <p className="rounded-md bg-[#fffbeb] border border-[#fde68a] px-3 py-2 text-[14px] text-[#92400e] num">
+                    Se aplica a los partidos que faltan. Los {played} ya jugados conservan su resultado.
+                </p>
+            )}
+            <TieBreakConfig config={config} setConfig={setConfig as any} pointBased={isPointBased} />
+        </div>
+    );
+
+    const renderAdvance = () => (
+        <div className="space-y-6">
+            {isLeague && (
+                <Block title="Ascensos y descensos" description="Se aplican al finalizar la fase, al pasar a la siguiente.">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <Stepper label="Suben de división" value={config.promotionCount ?? 2} onChange={(v) => set({ promotionCount: v })} disabled={isReadOnly} />
+                        <Stepper label="Bajan de división" value={config.relegationCount ?? 2} onChange={(v) => set({ relegationCount: v })} disabled={isReadOnly} />
+                    </div>
+                </Block>
+            )}
+            {isHybrid && (
+                <Block title="Paso al playoff" description="Se usan al empezar el playoff, para formar los cuadros con los mejores de cada grupo.">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <Stepper label="Al cuadro principal" description="Por cada grupo" value={config.hybridConfig?.qualifiersPerGroup ?? 2} min={1}
+                            onChange={(v) => setConfig(prev => ({ ...prev, hybridConfig: { ...(prev.hybridConfig as any), qualifiersPerGroup: v } }))} disabled={isReadOnly || playoffStarted} />
+                        <Stepper label="Al cuadro de consolación" description="Por cada grupo, los siguientes" value={config.hybridConfig?.consolationQualifiersPerGroup ?? 0}
+                            onChange={(v) => setConfig(prev => ({ ...prev, hybridConfig: { ...(prev.hybridConfig as any), consolationQualifiersPerGroup: v } }))} disabled={isReadOnly || playoffStarted} />
+                    </div>
+                    {playoffStarted && <LockedNote>El playoff ya ha empezado: los cuadros están formados.</LockedNote>}
+                </Block>
+            )}
+            {isElimination && (
+                <Block title="Cuadros" description="Se deciden al crear el torneo, porque con ellos se genera el cuadro.">
+                    <div className="bg-white border border-rg-line rounded-lg px-4">
+                        <Fact label="Cuadro de consolación" value={config.eliminationConfig?.consolation ? 'Sí' : 'No'} note="Para quienes pierden su primer partido" />
+                        <Fact label="Partido por el 3.er puesto" value={config.eliminationConfig?.thirdPlaceMatch ? 'Sí' : 'No'} />
+                    </div>
+                </Block>
+            )}
+            {isPozo && (
+                <Block title="Subir y bajar de pista">
+                    <p className="text-[14px] leading-relaxed">En cada ronda, quienes ganan suben una pista y quienes pierden bajan una. La pista 1 es la más alta. No hay nada que ajustar aquí.</p>
+                </Block>
+            )}
+        </div>
+    );
+
+    const renderSetup = () => (
+        <div className="space-y-7">
+            <Block title="El torneo">
+                <div className="bg-white border border-rg-line rounded-lg px-4">
+                    <Fact label="Formato" value={FORMAT_LABEL[format] || format} />
+                    <Fact label="Categoría" value={ranking.categoria} />
+                    <Fact label="Empieza el" value={ranking.fechaInicio ? new Date(`${ranking.fechaInicio}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} />
+                    <Fact label="Cuenta para las estadísticas" value={ranking.isOfficial === false || config.isOfficial === false ? 'No, es amistoso' : 'Sí'} />
+                    {(format === 'pairs' || isHybrid) && (
+                        <Fact label="Ida y vuelta" value={(format === 'pairs' ? config.pairsConfig?.doubleRoundRobin : config.hybridConfig?.doubleRoundRobin) ? 'Sí' : 'No'} note="Se decide al generar los partidos" />
+                    )}
+                    {isHybrid && <Fact label="Parejas por grupo" value={config.hybridConfig?.pairsPerGroup ?? '—'} />}
+                    {(isPointBased || isPozo) && (
+                        <Fact label="Modalidad" value={(isPozo ? config.pozoConfig?.variant : (format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant)) === 'individual' ? 'Individual, parejas que cambian' : 'Parejas fijas'} />
+                    )}
+                    <Fact label="Partidos jugados" value={total ? `${played} de ${total}` : '—'} />
+                </div>
+            </Block>
+
+            {isPozo && (
+                <Block title="Pistas en juego" description="El cambio se aplica al generar la siguiente ronda.">
+                    <div className="max-w-xs">
+                        <Stepper label="Pistas" value={config.pozoConfig?.numCourts ?? ranking.divisions.length} min={1} max={20}
+                            onChange={(v) => setConfig(prev => ({ ...prev, pozoConfig: { ...(prev.pozoConfig as any), numCourts: v } }))} disabled={isReadOnly} />
+                    </div>
+                </Block>
+            )}
+
+            {!isPozo && (
+                <Block title={units} description={started ? `Puedes cambiar los nombres. Para quitar ${units.toLowerCase()} el torneo no debe haber empezado.` : `Cambia los nombres o quita ${feminine ? 'las' : 'los'} que no vayas a usar.`}>
+                    {ranking.divisions.filter(d => !removed.has(d.id)).length === 0 ? (
+                        <p className="rounded-lg border border-dashed border-rg-control px-4 py-3 text-[14px] text-rg-muted">No hay {units.toLowerCase()}.</p>
+                    ) : (
+                        <ul className="bg-white border border-rg-line rounded-lg">
+                            {ranking.divisions.filter(d => !removed.has(d.id)).map((div, i) => {
+                                const isPairs = div.players.length > 0 && (format === 'pairs' || isHybrid || isElimination);
+                                const people = isPairs ? Math.round(div.players.length / 2) : div.players.length;
+                                return (
+                                    <li key={div.id} className={`flex items-center gap-3 px-3 py-2.5 ${i ? 'border-t border-rg-rule' : ''}`}>
+                                        <div className="flex-1 min-w-0">
+                                            <label htmlFor={`div-${div.id}`} className="sr-only">Nombre de {unit.toLowerCase()} {div.numero}</label>
+                                            <input id={`div-${div.id}`} type="text" disabled={isReadOnly}
+                                                value={names[div.id] ?? (div.category || div.name || `${unit} ${div.numero}`)}
+                                                onChange={(e) => setNames(prev => ({ ...prev, [div.id]: e.target.value }))}
+                                                className="w-full h-9 px-2.5 rounded-md border border-transparent hover:border-rg-control focus:border-court focus:ring-2 focus:ring-court-track focus:outline-none text-[14px] font-medium bg-transparent" />
+                                            <p className="text-[12px] text-rg-muted px-2.5 num">{people} {isPairs ? (people === 1 ? 'pareja' : 'parejas') : (people === 1 ? 'jugador' : 'jugadores')} · {div.matches.length} {div.matches.length === 1 ? 'partido' : 'partidos'}</p>
+                                        </div>
+                                        {!isReadOnly && !started && (
+                                            <button type="button"
+                                                onClick={() => { if (confirm(`¿Quitar «${names[div.id] ?? div.name ?? `${unit} ${div.numero}`}»? Se aplica al guardar y no se puede deshacer.`)) setRemoved(prev => new Set(prev).add(div.id)); }}
+                                                className="w-9 h-9 grid place-items-center rounded-md text-rg-muted hover:text-rg-negative hover:bg-[#ffedea]" aria-label={`Quitar ${unit.toLowerCase()} ${div.numero}`}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                    {removed.size > 0 && <p className="text-[13px] text-rg-negative num">Se quitarán {removed.size} al guardar.</p>}
+                </Block>
+            )}
+        </div>
+    );
+
+    const renderLook = () => {
+        const visible = config.visibleColumns ?? ALL_COLUMNS;
+        const toggleColumn = (key: string, on: boolean) => set({ visibleColumns: on ? Array.from(new Set([...visible, key])) : visible.filter(k => k !== key) });
+        const columnOptions = isPointBased || isPozo
+            ? [{ key: 'pp', label: 'Partidos perdidos' }]
+            : [
+                { key: 'pp', label: 'Partidos perdidos' }, { key: 'setsWon', label: 'Sets ganados' }, { key: 'setsLost', label: 'Sets perdidos' },
+                { key: 'setsDiff', label: 'Diferencia de sets' }, { key: 'gamesWon', label: 'Juegos ganados' }, { key: 'gamesLost', label: 'Juegos perdidos' },
+                { key: 'gamesDiff', label: 'Diferencia de juegos' },
+            ];
+        return (
+            <div className="space-y-7">
+                {!isElimination && (
+                    <Block title="Columnas de la clasificación" description="Puntos, partidos jugados, ganados y % de victorias se ven siempre.">
+                        <div className="bg-white border border-rg-line rounded-lg px-4 divide-y divide-rg-rule">
+                            {columnOptions.map(col => (
+                                <Switch key={col.key} label={col.label} checked={visible.includes(col.key)} onChange={(on) => toggleColumn(col.key, on)} disabled={isReadOnly} />
+                            ))}
+                        </div>
+                    </Block>
+                )}
+
+                <Block title="Modo TV" description="La pantalla del club pasa de una diapositiva a otra sola.">
+                    <div className="bg-white border border-rg-line rounded-lg px-4 divide-y divide-rg-rule">
+                        <div className="py-3 flex items-center justify-between gap-4">
+                            <label htmlFor="tv-duration" className="text-[14px] font-medium">Segundos por diapositiva</label>
+                            <input id="tv-duration" type="number" min={5} value={tv.slideDuration} disabled={isReadOnly}
+                                onChange={(e) => setTv(prev => ({ ...prev, slideDuration: Math.max(5, parseInt(e.target.value) || 15) }))}
+                                className="w-20 h-9 px-2 rounded-md border border-rg-control text-center text-[15px] num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" />
+                        </div>
+                        <Switch label="Clasificación" checked={tv.showStandings} onChange={(v) => setTv(prev => ({ ...prev, showStandings: v }))} disabled={isReadOnly} />
+                        <Switch label="Partidos y horarios" checked={tv.showMatches} onChange={(v) => setTv(prev => ({ ...prev, showMatches: v }))} disabled={isReadOnly} />
+                        <Switch label="Código QR para seguirlo en el móvil" checked={tv.showQR} onChange={(v) => setTv(prev => ({ ...prev, showQR: v }))} disabled={isReadOnly} />
+                        <Switch label="Patrocinadores" checked={tv.showSponsors} onChange={(v) => setTv(prev => ({ ...prev, showSponsors: v }))} disabled={isReadOnly} />
+                    </div>
+                </Block>
+
+                <Block title="Patrocinadores del torneo" description="Salen en el modo TV. Mejor en PNG con fondo transparente.">
+                    <SponsorsEditor sponsors={tv.sponsors || []} onChange={(sponsors) => setTv(prev => ({ ...prev, sponsors }))} disabled={isReadOnly} />
+                </Block>
+
+                <Block title="Logo del torneo" description="Sale en la vista pública y en el modo TV. Si no subes uno, se usa el del club.">
+                    <LogoPicker logoUrl={config.branding?.logoUrl} allowed={hasBrandingAccess} disabled={isReadOnly}
+                        onChange={(logoUrl) => setConfig(prev => ({ ...prev, branding: { ...prev.branding, logoUrl } }))} />
+                </Block>
+            </div>
+        );
+    };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
-
+        <div className="rg fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#0F1729]/40 sm:p-4 animate-fade-in">
+            <div role="dialog" aria-modal="true" aria-labelledby="settings-title" className="bg-white w-full sm:max-w-3xl rounded-t-xl sm:rounded-xl shadow-[0_12px_40px_rgba(15,23,41,0.2)] max-h-[94vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-primary/10 p-2 rounded-full text-primary">
-                            {isReadOnly ? <Info size={24} /> : <Settings size={24} />}
+                <div className="px-5 pt-4 pb-0 border-b border-rg-line">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                            <h2 id="settings-title" className="text-[18px] font-semibold truncate">Ajustes de {ranking.nombre}</h2>
+                            <p className="text-[13px] text-rg-muted num">{FORMAT_LABEL[format] || format} · {total ? `${played} de ${total} partidos jugados` : 'sin partidos todavía'}</p>
                         </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900">Configuración del Torneo</h2>
-                            <p className="text-sm text-gray-500">
-                                {isReadOnly ? 'Información sobre el formato y puntuación' : 'Ajusta los parámetros del torneo en tiempo real'}
-                            </p>
-                        </div>
+                        <button type="button" onClick={onClose} className="w-9 h-9 -mr-2 rounded-md grid place-items-center text-rg-muted hover:text-rg-ink hover:bg-rg-raised" aria-label="Cerrar"><X size={18} /></button>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex border-b overflow-x-auto">
-                    <button
-                        onClick={() => setActiveTab('general')}
-                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'general' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Settings size={16} /> General
-                    </button>
-                    {showPointsTab && (
-                        <button
-                            onClick={() => setActiveTab('points')}
-                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'points' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <Trophy size={16} /> Puntuación
-                        </button>
-                    )}
-                    {showStatsTab && (
-                        <button
-                            onClick={() => setActiveTab('stats')}
-                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'stats' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <BarChart2 size={16} /> Estadísticas
-                        </button>
-                    )}
-                    {showPromotionsTab && (
-                        <button
-                            onClick={() => setActiveTab('promotions')}
-                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'promotions' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <ArrowUpCircle size={16} /> Ascensos/Descensos
-                        </button>
-                    )}
-                    <button
-                        onClick={() => setActiveTab('divisions')}
-                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'divisions' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Hash size={16} /> Divisiones
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('tv')}
-                        className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'tv' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Settings size={16} /> Modo TV
-                    </button>
-                    {hasBrandingAccess && (
-                        <button
-                            onClick={() => setActiveTab('branding')}
-                            className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'branding' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <ImageIcon size={16} /> Marca
-                        </button>
-                    )}
+                    <div className="flex gap-6 mt-3 overflow-x-auto scrollbar-hide" role="tablist">
+                        {sections.map(s => (
+                            <button key={s.id} type="button" role="tab" aria-selected={section === s.id} onClick={() => setSection(s.id)}
+                                className={`py-2.5 -mb-px border-b-2 text-[14px] whitespace-nowrap transition-colors ${section === s.id ? 'border-court text-rg-ink font-semibold' : 'border-transparent text-rg-muted hover:text-rg-ink'}`}>
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
-
-                    {activeTab === 'general' && (
-                        <div className="space-y-6">
-                            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
-                                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                    <Hash size={18} className="text-gray-400" /> Formato del Torneo
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs text-gray-500 uppercase font-bold">Tipo de Ranking</label>
-                                        <div className="text-lg font-medium text-gray-900 capitalize mt-1">
-                                            {ranking.format || 'Clásico (Individual)'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-gray-500 uppercase font-bold">Categoría</label>
-                                        <div className="text-lg font-medium text-gray-900 mt-1">
-                                            {ranking.categoria}
-                                        </div>
-                                    </div>
-                                    {isElimination && (
-                                        <>
-                                            <div>
-                                                <label className="text-xs text-gray-500 uppercase font-bold">Consolación</label>
-                                                <div className="text-lg font-medium text-gray-900 mt-1">
-                                                    {ranking.config?.eliminationConfig?.consolation ? 'Sí' : 'No'}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-gray-500 uppercase font-bold">3er y 4to Puesto</label>
-                                                <div className="text-lg font-medium text-gray-900 mt-1">
-                                                    {ranking.config?.eliminationConfig?.thirdPlaceMatch ? 'Sí' : 'No'}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'points' && showPointsTab && (
-                        <div className="space-y-4">
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
-                                <p className="text-sm text-blue-800 flex items-start gap-2">
-                                    <Info size={16} className="mt-0.5 shrink-0" />
-                                    {isAmericanoOrMexicano
-                                        ? "Configura el sistema de puntuación total para los partidos."
-                                        : "Estos valores determinan cuántos puntos obtiene cada jugador/pareja según el resultado del partido."}
-                                </p>
-                            </div>
-
-                            {isAmericanoOrMexicano ? (
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                        <Target size={18} className="text-blue-500" /> Puntos Totales por Partido
-                                    </h3>
-                                    <div className="grid gap-6">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Modo de Puntuación</label>
-                                            {isReadOnly ? (
-                                                <div className="text-xl font-bold text-gray-900">
-                                                    {config.scoringMode === 'custom'
-                                                        ? `Personalizado (${config.customPoints || defaults.customPoints} pts)`
-                                                        : `${config.scoringMode || defaults.scoringMode} Puntos`}
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    {['16', '21', '24', '32', 'custom'].map((mode) => (
-                                                        <button
-                                                            key={mode}
-                                                            onClick={() => handleChange('scoringMode', mode)}
-                                                            className={`px-4 py-3 rounded-lg border text-sm font-bold transition-all ${(config.scoringMode || defaults.scoringMode) === mode
-                                                                ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500'
-                                                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                                                                }`}
-                                                        >
-                                                            {mode === 'custom' ? 'Personalizado' : mode}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {config.scoringMode === 'custom' && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Puntos personalizados</label>
-                                                {isReadOnly ? (
-                                                    <div className="text-xl font-bold text-gray-900">{config.customPoints || defaults.customPoints}</div>
-                                                ) : (
-                                                    <input
-                                                        type="number"
-                                                        value={config.customPoints || ''}
-                                                        placeholder="Ej: 50"
-                                                        onChange={(e) => handleChange('customPoints', parseInt(e.target.value))}
-                                                        className="w-full text-xl font-bold p-3 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
-                                                    />
-                                                )}
-                                                <p className="text-xs text-gray-500 mt-1">Los puntos de cada pareja sumarán exactamente esta cantidad al final del partido.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                // Classic Scoring Inputs
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Victoria 2-0</label>
-                                        {isReadOnly ? (
-                                            <div className="text-2xl font-bold text-primary">{config.pointsPerWin2_0 ?? defaults.pointsPerWin2_0} pts</div>
-                                        ) : (
-                                            <input
-                                                type="number"
-                                                value={config.pointsPerWin2_0 ?? defaults.pointsPerWin2_0}
-                                                onChange={(e) => handleChange('pointsPerWin2_0', parseInt(e.target.value))}
-                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        )}
-                                    </div>
-
-                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Victoria 2-1</label>
-                                        {isReadOnly ? (
-                                            <div className="text-2xl font-bold text-primary">{config.pointsPerWin2_1 ?? defaults.pointsPerWin2_1} pts</div>
-                                        ) : (
-                                            <input
-                                                type="number"
-                                                value={config.pointsPerWin2_1 ?? defaults.pointsPerWin2_1}
-                                                onChange={(e) => handleChange('pointsPerWin2_1', parseInt(e.target.value))}
-                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        )}
-                                    </div>
-
-                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Empate</label>
-                                        {isReadOnly ? (
-                                            <div className="text-2xl font-bold text-gray-600">{config.pointsDraw ?? defaults.pointsDraw} pts</div>
-                                        ) : (
-                                            <input
-                                                type="number"
-                                                value={config.pointsDraw ?? defaults.pointsDraw}
-                                                onChange={(e) => handleChange('pointsDraw', parseInt(e.target.value))}
-                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        )}
-                                    </div>
-
-                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Derrota 1-2</label>
-                                        {isReadOnly ? (
-                                            <div className="text-2xl font-bold text-orange-600">{config.pointsPerLoss2_1 ?? defaults.pointsPerLoss2_1} pt</div>
-                                        ) : (
-                                            <input
-                                                type="number"
-                                                value={config.pointsPerLoss2_1 ?? defaults.pointsPerLoss2_1}
-                                                onChange={(e) => handleChange('pointsPerLoss2_1', parseInt(e.target.value))}
-                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        )}
-                                    </div>
-
-                                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Derrota 0-2</label>
-                                        {isReadOnly ? (
-                                            <div className="text-2xl font-bold text-red-600">{config.pointsPerLoss2_0 ?? defaults.pointsPerLoss2_0} pts</div>
-                                        ) : (
-                                            <input
-                                                type="number"
-                                                value={config.pointsPerLoss2_0 ?? defaults.pointsPerLoss2_0}
-                                                onChange={(e) => handleChange('pointsPerLoss2_0', parseInt(e.target.value))}
-                                                className="w-full text-xl font-bold p-2 border rounded focus:ring-2 focus:ring-primary outline-none"
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Tie Break Configuration */}
-                            {ranking.format !== 'pozo' && (
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-6">
-                                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                        <ArrowUpDown size={18} className="text-purple-500" /> Criterios de Desempate
-                                    </h3>
-                                    <p className="text-sm text-gray-500 mb-4">
-                                        Define el orden de prioridad para desempatar la clasificación.
-                                    </p>
-
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                        {(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).map((criterion, idx, arr) => {
-                                            const labels: Record<string, string> = {
-                                                pts: 'Puntos',
-                                                setsDiff: 'Diferencia de Sets',
-                                                gamesDiff: 'Diferencia de Juegos',
-                                                pg: 'Partidos Ganados',
-                                                setsWon: 'Sets Ganados',
-                                                gamesWon: 'Juegos Ganados',
-                                                winRate: '% Victorias',
-                                                directEncounter: 'Enfrentamiento Directo',
-                                                random: 'Sorteo (Aleatorio)'
-                                            };
-
-                                            const moveItem = (index: number, direction: 'up' | 'down') => {
-                                                if (isReadOnly) return;
-                                                const newCriteria = [...(config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER)];
-                                                const targetIndex = direction === 'up' ? index - 1 : index + 1;
-                                                if (targetIndex < 0 || targetIndex >= newCriteria.length) return;
-
-                                                [newCriteria[index], newCriteria[targetIndex]] = [newCriteria[targetIndex], newCriteria[index]];
-                                                setConfig({ ...config, tieBreakCriteria: newCriteria });
-                                            };
-
-                                            if (criterion === 'directEncounter' || criterion === 'random') {
-                                                return (
-                                                    <div key={criterion} className="flex items-center gap-3 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                                        <div className="text-blue-600 font-bold text-sm w-6 text-center">{idx + 1}º</div>
-                                                        <div className="flex-1 font-medium text-gray-800 flex items-center gap-2">
-                                                            {criterion === 'directEncounter' && <Users size={16} />}
-                                                            {criterion === 'random' && <Settings size={16} />}
-                                                            {labels[criterion]}
-                                                        </div>
-                                                        <div className="flex items-center gap-1">
-                                                            {!isReadOnly && (
-                                                                <>
-                                                                    <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-white rounded disabled:opacity-30"><ArrowUp size={16} /></button>
-                                                                    <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-white rounded disabled:opacity-30"><ArrowDown size={16} /></button>
-                                                                    <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== criterion) })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2"><X size={16} /></button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return (
-                                                <div key={criterion} className="flex items-center gap-3 mb-2 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-                                                    <div className="text-gray-400 font-bold text-sm w-6 text-center">{idx + 1}º</div>
-                                                    <div className="flex-1 font-medium text-gray-700">{labels[criterion]}</div>
-                                                    <div className="flex items-center gap-1">
-                                                        {!isReadOnly && (
-                                                            <>
-                                                                <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ArrowUp size={16} /></button>
-                                                                <button onClick={() => moveItem(idx, 'down')} disabled={idx === arr.length - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><ArrowDown size={16} /></button>
-                                                                <button onClick={() => setConfig({ ...config, tieBreakCriteria: arr.filter(c => c !== criterion) })} className="p-1 hover:bg-red-100 text-red-500 rounded ml-2"><X size={16} /></button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-
-                                        {!isReadOnly && (() => {
-                                            const allCriteria: TieBreakCriterion[] = ['pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon', 'winRate', 'directEncounter', 'random'];
-                                            const currentCriteria = config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER;
-                                            const missingCriteria = allCriteria.filter(c => !currentCriteria.includes(c));
-
-                                            if (missingCriteria.length === 0) return null;
-
-                                            const labels: Record<string, string> = {
-                                                pts: 'Puntos',
-                                                setsDiff: 'Diferencia de Sets',
-                                                gamesDiff: 'Diferencia de Juegos',
-                                                pg: 'Partidos Ganados',
-                                                setsWon: 'Sets Ganados',
-                                                gamesWon: 'Juegos Ganados',
-                                                winRate: '% Victorias',
-                                                directEncounter: 'Enfrentamiento Directo',
-                                                random: 'Sorteo (Aleatorio)'
-                                            };
-
-                                            return (
-                                                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                                                    <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Añadir Criterio Adicional</label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {missingCriteria.map(c => (
-                                                            <Button
-                                                                key={c}
-                                                                variant="secondary"
-                                                                onClick={() => {
-                                                                    const newCriteria = [...currentCriteria, c];
-                                                                    setConfig({ ...config, tieBreakCriteria: newCriteria });
-                                                                }}
-                                                                className="text-xs py-1 h-auto bg-white border border-gray-300 hover:border-primary hover:text-primary transition-colors"
-                                                            >
-                                                                <Plus size={12} className="mr-1" /> {labels[c]}
-                                                            </Button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                    )}
-
-                    {activeTab === 'promotions' && showPromotionsTab && (
-                        <div className="space-y-4">
-                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 mb-4">
-                                <p className="text-sm text-yellow-800 flex items-start gap-2">
-                                    <Info size={16} className="mt-0.5 shrink-0" />
-                                    ¡Atención! Cambiar estos valores a mitad de torneo afectará a cómo se calculan los ascensos en la siguiente fase.
-                                </p>
-                            </div>
-
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div className="bg-white p-6 rounded-xl border border-green-100 shadow-sm relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                                        <ArrowUpCircle size={100} className="text-green-500" />
-                                    </div>
-                                    <h3 className="text-lg font-bold text-green-700 mb-4 flex items-center gap-2">
-                                        <ArrowUpCircle size={20} /> Ascensos
-                                    </h3>
-                                    <p className="text-sm text-gray-500 mb-4">Número de jugadores que suben de división automáticamente al finalizar la fase.</p>
-
-                                    {isReadOnly ? (
-                                        <div className="text-4xl font-bold text-green-600">{config.promotionCount ?? defaults.promotionCount}</div>
-                                    ) : (
-                                        <div className="flex items-center gap-4">
-                                            <button
-                                                onClick={() => handleChange('promotionCount', Math.max(0, (config.promotionCount ?? defaults.promotionCount) - 1))}
-                                                className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl"
-                                            >-</button>
-                                            <span className="text-3xl font-bold w-12 text-center">{config.promotionCount ?? defaults.promotionCount}</span>
-                                            <button
-                                                onClick={() => handleChange('promotionCount', (config.promotionCount ?? defaults.promotionCount) + 1)}
-                                                className="w-10 h-10 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center font-bold text-xl"
-                                            >+</button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="bg-white p-6 rounded-xl border border-red-100 shadow-sm relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                                        <ArrowDownCircle size={100} className="text-red-500" />
-                                    </div>
-                                    <h3 className="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
-                                        <ArrowDownCircle size={20} /> Descensos
-                                    </h3>
-                                    <p className="text-sm text-gray-500 mb-4">Número de jugadores que bajan de división automáticamente al finalizar la fase.</p>
-
-                                    {isReadOnly ? (
-                                        <div className="text-4xl font-bold text-red-600">{config.relegationCount ?? defaults.relegationCount}</div>
-                                    ) : (
-                                        <div className="flex items-center gap-4">
-                                            <button
-                                                onClick={() => handleChange('relegationCount', Math.max(0, (config.relegationCount ?? defaults.relegationCount) - 1))}
-                                                className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl"
-                                            >-</button>
-                                            <span className="text-3xl font-bold w-12 text-center">{config.relegationCount ?? defaults.relegationCount}</span>
-                                            <button
-                                                onClick={() => handleChange('relegationCount', (config.relegationCount ?? defaults.relegationCount) + 1)}
-                                                className="w-10 h-10 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center font-bold text-xl"
-                                            >+</button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'tv' && (
-                        <div className="space-y-6">
-                            <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 mb-4">
-                                <p className="text-sm text-purple-800 flex items-start gap-2">
-                                    <Info size={16} className="mt-0.5 shrink-0" />
-                                    Configura el "Modo TV" para mostrar la clasificación y resultados en una pantalla grande.
-                                </p>
-                            </div>
-
-                            {/* Enable/Disable + Main Logic */}
-                            <div className="bg-white p-4 items-center gap-4 hidden">
-                                {/* Disabled for MVP - always enabled via URL */}
-                            </div>
-
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-lg border">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Duración Diapositivas (segundos)</label>
-                                    <input
-                                        type="number"
-                                        value={ranking.tvConfig?.slideDuration || 15}
-                                        onChange={(e) => {
-                                            const val = Math.max(5, parseInt(e.target.value) || 15);
-                                            onUpdateRanking?.({
-                                                ...ranking,
-                                                tvConfig: {
-                                                    ...(ranking.tvConfig || {
-                                                        enabled: true,
-                                                        showStandings: true,
-                                                        showMatches: true,
-                                                        showQR: true,
-                                                        showSponsors: true,
-                                                        sponsors: [],
-                                                        slideDuration: 15
-                                                    }),
-                                                    slideDuration: val
-                                                }
-                                            });
-                                        }}
-                                        disabled={isReadOnly}
-                                        className="w-full border rounded p-2"
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1">Mínimo 5 segundos.</p>
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-4 rounded-lg border divide-y">
-                                <h4 className="font-bold text-gray-800 mb-2">Contenido Visible</h4>
-
-                                {[
-                                    { key: 'showStandings', label: 'Mostrar Clasificación' },
-                                    { key: 'showMatches', label: 'Mostrar Partidos' },
-                                    { key: 'showQR', label: 'Mostrar Código QR' },
-                                    { key: 'showSponsors', label: 'Mostrar Patrocinadores' }
-                                ].map((item) => (
-                                    <div key={item.key} className="flex items-center justify-between py-3">
-                                        <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                                        <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                                            <input
-                                                type="checkbox"
-                                                name={item.key}
-                                                id={`toggle-${item.key}`}
-                                                checked={(ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true}
-                                                onChange={(e) => {
-                                                    const val = e.target.checked;
-                                                    onUpdateRanking?.({
-                                                        ...ranking,
-                                                        tvConfig: {
-                                                            ...(ranking.tvConfig || {
-                                                                enabled: true,
-                                                                slideDuration: 15,
-                                                                showStandings: true,
-                                                                showMatches: true,
-                                                                showQR: true,
-                                                                showSponsors: true,
-                                                                sponsors: []
-                                                            }), // Defaults if null
-                                                            [item.key]: val
-                                                        }
-                                                    });
-                                                }}
-                                                disabled={isReadOnly}
-                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                                                style={{
-                                                    right: (ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? '0' : 'auto',
-                                                    left: (ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? 'auto' : '0',
-                                                    borderColor: (ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? '#3b82f6' : '#e5e7eb'
-                                                }}
-                                            />
-                                            <label htmlFor={`toggle-${item.key}`} className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${(ranking.tvConfig?.[item.key as keyof import('../types').TVConfig] as boolean) ?? true ? 'bg-blue-500' : 'bg-gray-300'}`}></label>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Sponsor Management */}
-                            <div className="bg-white p-6 rounded-lg border border-gray-200 mt-6 pt-4 border-t">
-                                <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <Trophy size={18} className="text-yellow-500" /> Gestión de Patrocinadores
-                                </h4>
-
-                                {/* Sponsor List */}
-                                <div className="space-y-4 mb-6">
-                                    {(ranking.tvConfig?.sponsors || []).length > 0 ? (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                            {(ranking.tvConfig?.sponsors || []).map((sponsor, idx) => (
-                                                <div key={sponsor.id || idx} className="relative group bg-gray-50 rounded-lg p-3 border hover:border-blue-300 transition-colors">
-                                                    <div className="h-24 flex items-center justify-center mb-2 bg-white rounded border border-gray-100 p-2">
-                                                        {sponsor.url ? (
-                                                            <img src={sponsor.url} alt={sponsor.name} className="max-h-full max-w-full object-contain" />
-                                                        ) : (
-                                                            <span className="text-xs text-gray-400">Sin logo</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-center font-bold text-sm text-gray-700 truncate">{sponsor.name}</div>
-
-                                                    {!isReadOnly && (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (confirm('¿Eliminar patrocinador?')) {
-                                                                    const currentSponsors = ranking.tvConfig?.sponsors || [];
-                                                                    const newSponsors = currentSponsors.filter((_, i) => i !== idx);
-                                                                    onUpdateRanking?.({
-                                                                        ...ranking,
-                                                                        tvConfig: {
-                                                                            ...(ranking.tvConfig || { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] }),
-                                                                            sponsors: newSponsors
-                                                                        }
-                                                                    });
-                                                                }
-                                                            }}
-                                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity transform hover:scale-110"
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-400 text-sm">
-                                            No hay patrocinadores configurados.
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Add Sponsor Form */}
-                                {!isReadOnly && (
-                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                                        <h5 className="font-bold text-blue-800 text-sm mb-3">Añadir Nuevo Patrocinador</h5>
-                                        <div className="flex flex-col gap-3">
-                                            <input
-                                                id="new-sponsor-name"
-                                                type="text"
-                                                placeholder="Nombre del Patrocinador"
-                                                className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            />
-                                            <div className="flex items-center gap-2">
-                                                <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-blue-200 rounded-lg text-sm font-medium text-blue-700 cursor-pointer hover:bg-blue-100 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                    {isUploading ? <Upload size={16} className="animate-bounce" /> : <Upload size={16} />}
-                                                    {isUploading ? 'Procesando...' : 'Subir Logo'}
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="hidden"
-                                                        onChange={async (e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (!file) return;
-
-                                                            const nameInput = document.getElementById('new-sponsor-name') as HTMLInputElement;
-                                                            const name = nameInput.value.trim();
-
-                                                            if (!name) {
-                                                                alert('Por favor, introduce el nombre del patrocinador primero.');
-                                                                return;
-                                                            }
-
-                                                            setIsUploading(true);
-                                                            try {
-                                                                const base64 = await processLogoUpload(file);
-                                                                const newSponsor = {
-                                                                    id: Date.now().toString(),
-                                                                    name: name,
-                                                                    url: base64
-                                                                };
-
-                                                                onUpdateRanking?.({
-                                                                    ...ranking,
-                                                                    tvConfig: {
-                                                                        ...(ranking.tvConfig || { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] }),
-                                                                        sponsors: [...(ranking.tvConfig?.sponsors || []), newSponsor]
-                                                                    }
-                                                                });
-
-                                                                // Reset inputs
-                                                                nameInput.value = '';
-                                                                e.target.value = ''; // Reset file input
-                                                            } catch (error: any) {
-                                                                alert(error.message);
-                                                            } finally {
-                                                                setIsUploading(false);
-                                                            }
-                                                        }}
-                                                        disabled={isUploading}
-                                                    />
-                                                </label>
-                                            </div>
-                                            <p className="text-xs text-blue-400">Recomendado: Imágenes PNG con fondo transparente.</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'divisions' && (
-                        <div className="space-y-6">
-                            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
-                                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                    <Hash size={18} className="text-gray-400" /> Gestión de Divisiones
-                                </h3>
-                                <div className="space-y-3">
-                                    {ranking.divisions.map((div, index) => (
-                                        <div key={div.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                            <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full font-bold text-gray-500 border border-gray-200 shadow-sm">
-                                                {div.numero}
-                                            </div>
-                                            <div className="flex-1">
-                                                {isReadOnly ? (
-                                                    <div className="font-medium text-gray-900">{div.name || `División ${div.numero}`}</div>
-                                                ) : (
-                                                    <input
-                                                        type="text"
-                                                        defaultValue={div.name || `División ${div.numero}`}
-                                                        placeholder="Nombre de la división"
-                                                        className="w-full bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-primary outline-none"
-                                                        onBlur={(e) => {
-                                                            if (onUpdateRanking) {
-                                                                const newName = e.target.value;
-                                                                if (newName !== div.name) {
-                                                                    const updatedDivs = [...ranking.divisions];
-                                                                    updatedDivs[index] = { ...updatedDivs[index], name: newName };
-                                                                    onUpdateRanking({ ...ranking, divisions: updatedDivs });
-                                                                }
-                                                            }
-                                                        }}
-                                                    />
-                                                )}
-                                                <div className="text-xs text-gray-500 mt-0.5">{div.players.length} jugadores • {div.matches.length} partidos</div>
-                                            </div>
-                                            {!isReadOnly && (
-                                                <button
-                                                    onClick={() => {
-                                                        if (confirm(`¿Estás seguro de eliminar la División ${div.numero}? Esta acción no se puede deshacer.`)) {
-                                                            if (onUpdateRanking) {
-                                                                const updatedDivs = ranking.divisions.filter(d => d.id !== div.id);
-                                                                // Re-number divisions? Maybe better not to auto-renumber to avoid confusion match history
-                                                                onUpdateRanking({ ...ranking, divisions: updatedDivs });
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Eliminar división"
-                                                >
-                                                    <X size={18} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {ranking.divisions.length === 0 && (
-                                        <div className="text-center py-8 text-gray-400 italic">
-                                            No hay divisiones creadas.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'branding' && hasBrandingAccess && (
-                        <div className="space-y-6">
-                            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-xl border border-purple-100 mb-6">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-white p-2 rounded-lg shadow-sm text-purple-600">
-                                        <Trophy size={24} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-900">Personalización de Marca</h3>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                            Sube el logo de tu club o torneo para que aparezca en la vista pública y en el modo TV.
-                                            Reemplazará el logo de Racket Grid en la cabecera.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <ImageIcon size={18} className="text-gray-500" /> Logo del Torneo
-                                </h4>
-
-                                <div className="flex flex-col md:flex-row items-center gap-6">
-                                    {/* Preview Area */}
-                                    <div className="shrink-0">
-                                        <div className="w-40 h-40 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group">
-                                            {(config.branding?.logoUrl || ranking.config?.branding?.logoUrl) ? (
-                                                <>
-                                                    <img
-                                                        src={config.branding?.logoUrl || ranking.config?.branding?.logoUrl}
-                                                        alt="Logo Preview"
-                                                        className="w-full h-full object-contain p-2"
-                                                    />
-                                                    {!isReadOnly && (
-                                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button
-                                                                onClick={handleRemoveLogo}
-                                                                className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                                                                title="Eliminar logo"
-                                                            >
-                                                                <Trash2 size={20} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <div className="text-center text-gray-400 p-4">
-                                                    <ImageIcon size={32} className="mx-auto mb-2 opacity-50" />
-                                                    <span className="text-xs">Sin logo</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Controls */}
-                                    <div className="flex-1 space-y-4">
-                                        {!isReadOnly ? (
-                                            <>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Subir nueva imagen</label>
-                                                    <div className="flex items-center gap-3">
-                                                        <label className={`flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                            {isUploading ? <Upload size={16} className="animate-bounce" /> : <Upload size={16} />}
-                                                            {isUploading ? 'Procesando...' : 'Seleccionar Archivo'}
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                className="hidden"
-                                                                onChange={handleLogoUpload}
-                                                                disabled={isUploading}
-                                                            />
-                                                        </label>
-                                                        <span className="text-xs text-gray-500">Máx 10MB. Se optimizará automáticamente.</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-2 pt-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="hideDefaultLogo"
-                                                        checked={config.branding?.hideDefaultLogo ?? false}
-                                                        onChange={(e) => setConfig(prev => ({
-                                                            ...prev,
-                                                            branding: {
-                                                                ...prev.branding,
-                                                                hideDefaultLogo: e.target.checked
-                                                            }
-                                                        }))}
-                                                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                                                    />
-                                                    <label htmlFor="hideDefaultLogo" className="text-sm text-gray-700">
-                                                        Ocultar logo Racket Grid (si no hay logo personalizado)
-                                                    </label>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="text-sm text-gray-500 italic">
-                                                Solo el administrador puede cambiar el logo.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    {activeTab === 'stats' && (
-                        <div className="space-y-6">
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
-                                <p className="text-sm text-blue-800 flex items-start gap-2">
-                                    <Info size={16} className="mt-0.5 shrink-0" />
-                                    Elige qué estadísticas se muestran en la tabla de clasificación.
-                                </p>
-                            </div>
-
-                            <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                    <BarChart2 size={18} className="text-primary" /> Columnas Visibles
-                                </h3>
-
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {[
-                                            { key: 'pp', label: 'Partidos Perdidos (PP)', always: true },
-                                            { key: 'setsWon', label: 'Sets Ganados (SG)', setBasedOnly: true },
-                                            { key: 'setsLost', label: 'Sets Perdidos (SP)', setBasedOnly: true },
-                                            { key: 'setsDiff', label: 'Diferencia de Sets (DS)', setBasedOnly: true },
-                                            { key: 'gamesWon', label: 'Juegos Ganados (JG)', setBasedOnly: true },
-                                            { key: 'gamesLost', label: 'Juegos Perdidos (JP)', setBasedOnly: true },
-                                            { key: 'gamesDiff', label: 'Diferencia de Juegos (DJ)', setBasedOnly: true },
-                                        ].filter(col => {
-                                            const isPointBased = ['americano', 'mexicano', 'pozo'].includes(ranking.format);
-                                            if (isPointBased) {
-                                                return col.always;
-                                            }
-                                            return true;
-                                        }).map((col) => (
-                                            <div key={col.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                <span className="text-sm font-medium text-gray-700">{col.label}</span>
-                                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                                                    <input
-                                                        type="checkbox"
-                                                        name={col.key}
-                                                        id={`toggle-col-${col.key}`}
-                                                        checked={
-                                                            (config.visibleColumns === undefined) ||
-                                                            config.visibleColumns.includes(col.key)
-                                                        }
-                                                        onChange={(e) => {
-                                                            if (isReadOnly) return;
-                                                            const val = e.target.checked;
-                                                            let newVisible = config.visibleColumns;
-
-                                                            if (newVisible === undefined) {
-                                                                newVisible = ['pts', 'pj', 'pg', 'pp', 'setsWon', 'setsLost', 'setsDiff', 'gamesWon', 'gamesLost', 'gamesDiff', 'winRate'];
-                                                            }
-
-                                                            if (val) {
-                                                                if (!newVisible.includes(col.key)) newVisible = [...newVisible, col.key];
-                                                            } else {
-                                                                newVisible = newVisible.filter(k => k !== col.key);
-                                                            }
-
-                                                            setConfig({ ...config, visibleColumns: newVisible });
-                                                        }}
-                                                        disabled={isReadOnly}
-                                                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                                                        style={{
-                                                            right: ((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? '0' : 'auto',
-                                                            left: ((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? 'auto' : '0',
-                                                            borderColor: ((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? '#3b82f6' : '#e5e7eb'
-                                                        }}
-                                                    />
-                                                    <label htmlFor={`toggle-col-${col.key}`} className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${((config.visibleColumns === undefined) || config.visibleColumns.includes(col.key)) ? 'bg-blue-500' : 'bg-gray-300'}`}></label>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="text-xs text-gray-400 mt-2">
-                                        * Puntos, PJ, PG y % Victorias son siempre visibles.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                <div className="flex-1 overflow-y-auto px-5 py-5" role="tabpanel">
+                    {section === 'win' && renderWin()}
+                    {section === 'advance' && renderAdvance()}
+                    {section === 'setup' && renderSetup()}
+                    {section === 'look' && renderLook()}
                 </div>
 
-                {/* Footer */}
-                <div className="p-4 border-t bg-white flex justify-end gap-3">
-                    <Button variant="secondary" onClick={onClose}>
-                        {isReadOnly ? 'Cerrar' : 'Cancelar'}
-                    </Button>
-                    {!isReadOnly && (
-                        <Button onClick={handleSave} className="flex items-center gap-2">
-                            <Save size={18} /> Guardar Cambios
-                        </Button>
-                    )}
+                {/* Footer: one save for everything */}
+                <div className="px-5 py-3 border-t border-rg-line flex items-center justify-between gap-3">
+                    <span className="text-[13px] text-rg-muted">{dirty ? 'Hay cambios sin guardar' : ''}</span>
+                    <div className="flex gap-2">
+                        <Button variant="secondary" onClick={onClose}>{isReadOnly ? 'Cerrar' : 'Cancelar'}</Button>
+                        {!isReadOnly && <Button onClick={handleSave} disabled={!dirty}>Guardar cambios</Button>}
+                    </div>
                 </div>
             </div>
         </div>

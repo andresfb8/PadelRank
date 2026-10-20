@@ -66,7 +66,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
 
   if (!isOpen) return null;
   return (
-    <div className="rg fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0F1729]/40 sm:p-4 animate-fade-in">
+    <div className="rg fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#0F1729]/40 sm:p-4 animate-fade-in">
       <div role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} className={`bg-white rounded-t-xl sm:rounded-xl shadow-[0_12px_40px_rgba(15,23,41,0.2)] w-full ${maxWidth} max-h-[92vh] sm:max-h-[90vh] overflow-y-auto`}>
         <div className="px-5 h-14 border-b border-rg-line flex justify-between items-center sticky top-0 bg-white z-10">
           <h2 className="text-[16px] font-semibold truncate">{title}</h2>

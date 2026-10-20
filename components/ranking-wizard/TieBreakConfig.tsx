@@ -1,14 +1,18 @@
 import React from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Users, Wand2, Plus, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, Users, Wand2, Plus, X } from 'lucide-react';
 import { Button } from '../ui/Components';
 import { RankingConfig, TieBreakCriterion, DEFAULT_TIE_BREAK_ORDER } from '../../types';
 
 interface TieBreakConfigProps {
     config: RankingConfig;
     setConfig: (config: RankingConfig) => void;
+    /** Americano and mexicano: every match is a single set, so set criteria say nothing */
+    pointBased?: boolean;
 }
 
-const AVAILABLE_CRITERIA: TieBreakCriterion[] = [
+const SET_CRITERIA: TieBreakCriterion[] = ['setsDiff', 'setsWon'];
+
+const ALL_CRITERIA: TieBreakCriterion[] = [
     'pts', 'setsDiff', 'gamesDiff', 'pg', 'setsWon', 'gamesWon', 'winRate', 'directEncounter', 'random'
 ];
 
@@ -24,8 +28,10 @@ const LABELS: Record<string, string> = {
     random: 'Sorteo (Aleatorio)',
 };
 
-export const TieBreakConfig = ({ config, setConfig }: TieBreakConfigProps) => {
-    const currentCriteria = config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER;
+export const TieBreakConfig = ({ config, setConfig, pointBased }: TieBreakConfigProps) => {
+    const applies = (c: TieBreakCriterion) => !pointBased || !SET_CRITERIA.includes(c);
+    const currentCriteria = (config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).filter(applies);
+    const AVAILABLE_CRITERIA = ALL_CRITERIA.filter(applies);
 
     const moveItem = (index: number, direction: 'up' | 'down') => {
         const newCriteria = [...currentCriteria];
@@ -45,11 +51,9 @@ export const TieBreakConfig = ({ config, setConfig }: TieBreakConfigProps) => {
     };
 
     return (
-        <div className="border-t pt-4 mt-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <ArrowUpDown size={18} /> Desempates
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">Define el orden de prioridad para desempatar la clasificación.</p>
+        <div className="border-t border-rg-rule pt-5 mt-5">
+            <h3 className="text-[15px] font-semibold">Desempates</h3>
+            <p className="text-[13px] text-rg-muted mt-0.5 mb-3">Si hay empate a puntos, se mira cada criterio en este orden.</p>
 
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                 <div className="space-y-2 mb-4">
