@@ -1,4 +1,5 @@
-import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { User } from 'firebase/auth';
+import { collection, deleteDoc, doc, DocumentReference, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { Screen } from '../../types/screens';
 import { CODE_TTL_MS, generatePairingCode } from './pairingCode';
 import { screenDb, signInScreen } from './screenFirebase';
@@ -12,14 +13,16 @@ const RENEW_MARGIN_MS = 60 * 1000;
 const readId = () => { try { return localStorage.getItem(STORAGE_KEY); } catch { return null; } };
 const saveId = (id: string) => { try { localStorage.setItem(STORAGE_KEY, id); } catch { /* private mode: pairs again next time */ } };
 
-/**
- * Runs the TV side: finds or creates this browser's screen, keeps an unpaired screen showing a live
- * code, sends a signal of life, and reports every change. Returns a function that stops it all.
- */
-export async function startDeviceScreen(onChange: (screen: Screen) => void): Promise<() => void> {
+type Device = { user: User; screenRef: DocumentReference };
+
+// Shared while it runs: React StrictMode (dev) mounts the page twice, and two parallel runs would
+// each create a screen
+let finding: Promise<Device> | null = null;
+
+async function findOrCreateScreen(): Promise<Device> {
     const user = await signInScreen();
 
-    let ref = null as ReturnType<typeof doc> | null;
+    let ref: DocumentReference | null = null;
     const savedId = readId();
     if (savedId) {
         try {
@@ -36,7 +39,23 @@ export async function startDeviceScreen(onChange: (screen: Screen) => void): Pro
         await setDoc(ref, fresh);
         saveId(ref.id);
     }
-    const screenRef = ref;
+    return { user, screenRef: ref };
+}
+
+/**
+ * Runs the TV side: finds or creates this browser's screen, keeps an unpaired screen showing a live
+ * code, sends a signal of life, and reports every change. Returns a function that stops it all.
+ */
+export async function startDeviceScreen(onChange: (screen: Screen) => void): Promise<() => void> {
+    const attempt = finding ?? (finding = findOrCreateScreen());
+    let device: Device;
+    try {
+        device = await attempt;
+    } finally {
+        // Once settled, a later start (e.g. Reintentar) looks the screen up again from storage
+        if (finding === attempt) finding = null;
+    }
+    const { user, screenRef } = device;
 
     let current: Screen | null = null;
     let renewing = false;
