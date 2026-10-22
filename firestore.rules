@@ -5,9 +5,23 @@ service cloud.firestore {
     
     // --- Helper Functions ---
     
-    // Check if user is logged in
+    // A person with an account. TVs sign in anonymously and must never count as one.
     function isSignedIn() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Anyone with a session, TVs included
+    function isAuthed() {
       return request.auth != null;
+    }
+
+    // The club that owns something: its admin or the admin's staff
+    function isClub(ownerId) {
+      return isSignedIn() && (request.auth.uid == ownerId || isStaffOf(ownerId));
+    }
+
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
     
     // Check if user matches a specific ID
@@ -98,6 +112,47 @@ service cloud.firestore {
       allow update: if isSuperAdmin();
     }
     
+    // Club TVs (pages/ScreenPage.tsx). A TV signs in anonymously and owns its own document.
+    match /screenCodes/{code} {
+      allow create: if isAuthed()
+        && request.resource.data.deviceUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['screenId', 'deviceUid', 'expiresAt']);
+      allow get: if isSignedIn();
+      allow delete: if isAuthed() && resource.data.deviceUid == request.auth.uid;
+    }
+
+    match /screens/{screenId} {
+      allow create: if isAuthed()
+        && request.resource.data.deviceUid == request.auth.uid
+        && request.resource.data.ownerId == null
+        && request.resource.data.rankingId == null;
+
+      allow get: if isAuthed() && (
+        resource.data.deviceUid == request.auth.uid ||
+        (resource.data.ownerId != null && isClub(resource.data.ownerId)) ||
+        isSuperAdmin()
+      );
+
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isStaffOf(resource.data.ownerId));
+
+      allow update: if
+        // The TV renewing its code or saying it is alive
+        (isAuthed() && resource.data.deviceUid == request.auth.uid
+          && changedOnly(['pairingCode', 'codeExpiresAt', 'lastSeenAt']))
+        // A club pairing an unpaired TV whose code has not expired
+        || (resource.data.ownerId == null
+          && isClub(request.resource.data.ownerId)
+          && resource.data.codeExpiresAt != null
+          && resource.data.codeExpiresAt > request.time.toMillis()
+          && request.resource.data.pairingCode == null
+          && changedOnly(['ownerId', 'name', 'rankingId', 'clubName', 'clubLogoUrl', 'pairedAt', 'pairingCode', 'codeExpiresAt']))
+        // The club managing its TV, or unpairing it
+        || (resource.data.ownerId != null && isClub(resource.data.ownerId)
+          && changedOnly(['name', 'rankingId', 'clubName', 'clubLogoUrl', 'ownerId', 'pairedAt'])
+          && (request.resource.data.ownerId == resource.data.ownerId
+            || (request.resource.data.ownerId == null && request.resource.data.rankingId == null)));
+    }
+
     // Default Deny
     match /{document=**} {
       allow read, write: if false;
