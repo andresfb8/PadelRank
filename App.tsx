@@ -11,6 +11,16 @@ import { PaymentSuccess, PaymentCancel } from './pages/PaymentStatus';
 import { RegistrationFinalizer } from './components/RegistrationFinalizer';
 import { PublicRegistrationPage } from './pages/PublicRegistrationPage';
 
+// A TV's QR opens /?vincular=CODE. Remember the code before anything renders, so the admin
+// layout finds it on its first render and opens Screens after logging in.
+const capturePairCode = () => {
+  const pairCode = new URLSearchParams(window.location.search).get('vincular');
+  if (!pairCode) return;
+  try { sessionStorage.setItem('rg-pair-code', pairCode); } catch { /* typed by hand instead */ }
+  window.history.replaceState(null, '', window.location.pathname);
+};
+capturePairCode();
+
 const App = () => {
   const [publicRankingId, setPublicRankingId] = useState<string | null>(null);
   const [tvRankingId, setTvRankingId] = useState<string | null>(null);
@@ -34,13 +44,6 @@ const App = () => {
     // Extract Registration ID from pathname: /register/r-123 or /inscripcion/r-123
     const registerPathMatch = path.match(/^\/(?:register|inscripcion)\/(.+)$/);
     const registerPathId = registerPathMatch ? registerPathMatch[1] : null;
-
-    // A TV's QR opens /?vincular=CODE: remember the code for the Screens view after logging in
-    const pairCode = params.get('vincular');
-    if (pairCode) {
-      try { sessionStorage.setItem('rg-pair-code', pairCode); } catch { /* typed by hand instead */ }
-      window.history.replaceState(null, '', window.location.pathname);
-    }
 
     if (migration === 'true') {
       setIsMigration(true);

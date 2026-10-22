@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Monitor } from 'lucide-react';
+import { Check, ScreenShare } from 'lucide-react';
 import { Screen } from '../../types/screens';
 import { setScreenRanking, subscribeToClubScreens } from '../../services/screens/clubScreens';
 
@@ -21,7 +21,7 @@ export const SendToScreenMenu = ({ rankingId, clubId }: { rankingId: string; clu
         <div ref={box} className="relative">
             <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-haspopup="menu" title="Enseñar en una pantalla"
                 className="w-10 h-10 grid place-items-center rounded-lg border border-rg-line bg-white text-rg-muted hover:text-rg-ink">
-                <Monitor size={18} />
+                <ScreenShare size={18} />
             </button>
             {open && (
                 <div role="menu" className="absolute right-0 mt-2 w-64 bg-white border border-rg-line rounded-lg shadow-[0_12px_40px_rgba(15,23,41,0.15)] py-1 z-50">

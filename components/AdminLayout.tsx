@@ -190,11 +190,12 @@ export const AdminLayout = () => {
 
     // The TV's QR code was consumed by ScreensView: drop it so it does not reopen the dialog
     useEffect(() => {
-        if (view === 'screens' && pendingPairCode) {
+        // Only once ScreensView is on screen: before the profile loads it is not rendered yet
+        if (view === 'screens' && effectiveUser && pendingPairCode) {
             try { sessionStorage.removeItem('rg-pair-code'); } catch { /* ignore */ }
             setPendingPairCode(undefined); // the dialog already took it; leaving and returning must not reopen it
         }
-    }, [view, pendingPairCode]);
+    }, [view, effectiveUser, pendingPairCode]);
 
     // Auth Listener
     useEffect(() => {
