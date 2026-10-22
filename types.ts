@@ -85,6 +85,8 @@ export interface RankingConfig {
 
   /** Visible columns in standings table (keys from StandingsColumn) */
   visibleColumns?: string[];
+  /** Golden point at deuce. Informative only: shown to players, never used to score. */
+  goldenPoint?: boolean;
 
   // ===== FORMAT-SPECIFIC NAMESPACES =====
   /** Classic format configuration */
@@ -141,6 +143,10 @@ export interface TVConfig {
   showMatches: boolean;
   showQR: boolean;
   showSponsors: boolean;
+  /** Elimination and hybrid playoff: bracket slides. Default true. */
+  showBrackets?: boolean;
+  /** Elimination: schedule slide. Default true. */
+  showSchedule?: boolean;
   sponsors?: { id: string; url: string; name: string }[];
   theme?: 'dark' | 'light';
 }

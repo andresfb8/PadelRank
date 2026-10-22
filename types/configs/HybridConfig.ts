@@ -12,20 +12,21 @@ export interface HybridConfig {
     /** Number of teams from each group that qualify for consolation playoff */
     consolationQualifiersPerGroup: number;
 
+    /** @deprecated Points live at the top level of RankingConfig; kept only for tournaments created before 2026-10 */
     /** Points awarded for winning 2-0 */
-    pointsPerWin2_0: number;
+    pointsPerWin2_0?: number;
 
     /** Points awarded for winning 2-1 */
-    pointsPerWin2_1: number;
+    pointsPerWin2_1?: number;
 
     /** Points awarded for a draw (1-1) */
-    pointsDraw: number;
+    pointsDraw?: number;
 
     /** Points awarded for losing 1-2 */
-    pointsPerLoss2_1: number;
+    pointsPerLoss2_1?: number;
 
     /** Points awarded for losing 0-2 */
-    pointsPerLoss2_0: number;
+    pointsPerLoss2_0?: number;
 
     /** If true, each pair plays every other pair twice (home + away legs). */
     doubleRoundRobin?: boolean;
