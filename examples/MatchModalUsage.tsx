@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Components';
 import { SetBasedScoreInput, SetBasedScoreData } from '../components/match-inputs/SetBasedScoreInput';
 import { PointBasedScoreInput, PointBasedScoreData } from '../components/match-inputs/PointBasedScoreInput';
 import { RankingFormat, Match, RankingConfig } from '../types';
+import { getHybridConfig } from '../utils/configHelpers';
 
 interface MatchModalProps {
     match: Match;
@@ -88,7 +89,7 @@ export function MatchModalExample({ match, format, config, onSave, onClose }: Ma
                             config.classicConfig ||
                             config.individualConfig ||
                             config.pairsConfig ||
-                            config.hybridConfig
+                            getHybridConfig(config)
                         }
                     />
                 )}
