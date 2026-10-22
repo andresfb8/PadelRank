@@ -5,6 +5,7 @@ import { Button } from './ui/Components';
 import { SponsorsEditor, LogoPicker } from './ranking-settings/PresentationFields';
 import { calculateMatchPoints } from '../services/logic';
 import { TieBreakConfig } from './ranking-wizard/TieBreakConfig';
+import { getFormatSettings, goldenPointApplies, TVSlideKind } from '../config/formatSettings';
 
 interface Props {
     isOpen: boolean;
@@ -26,18 +27,6 @@ interface Props {
  */
 
 type Section = 'win' | 'advance' | 'setup' | 'look';
-
-const FORMAT_LABEL: Record<string, string> = {
-    classic: 'Liga clásica', individual: 'Liga individual', pairs: 'Liga por parejas', americano: 'Americano',
-    mexicano: 'Mexicano', elimination: 'Eliminatoria', hybrid: 'Liga + playoff', pozo: 'Pozo',
-};
-
-// Singular, plural, and whether the word is feminine
-const UNIT: Record<string, [string, string, boolean?]> = {
-    classic: ['División', 'Divisiones', true], individual: ['División', 'Divisiones', true], pairs: ['División', 'Divisiones', true],
-    americano: ['Grupo', 'Grupos'], mexicano: ['Grupo', 'Grupos'], hybrid: ['Grupo', 'Grupos'],
-    elimination: ['Categoría', 'Categorías', true], pozo: ['Pista', 'Pistas', true],
-};
 
 const DEFAULT_TV: TVConfig = { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] };
 const ALL_COLUMNS = ['pts', 'pj', 'pg', 'pp', 'setsWon', 'setsLost', 'setsDiff', 'gamesWon', 'gamesLost', 'gamesDiff', 'winRate'];
@@ -102,18 +91,19 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     const [removed, setRemoved] = useState<Set<string>>(new Set());
 
     const format = ranking.format || 'classic';
-    const isLeague = format === 'classic' || format === 'individual' || format === 'pairs';
-    const isPointBased = format === 'americano' || format === 'mexicano';
+    const fs = getFormatSettings(format);
+    const isPointBased = fs.scoring === 'points';
     const isHybrid = format === 'hybrid';
-    const isElimination = format === 'elimination';
     const isPozo = format === 'pozo';
+    const showGoldenPoint = goldenPointApplies(format, config);
+    const showPromotion = fs.advance === 'promotion' && ranking.divisions.length >= (fs.promotionMinDivisions ?? 1);
 
     const sections = useMemo(() => ([
-        { id: 'win' as Section, label: 'Puntuación', show: !isElimination && !isPozo },
-        { id: 'advance' as Section, label: isHybrid ? 'Playoff' : isElimination ? 'Cuadros' : isPozo ? 'Rotación de pistas' : 'Ascensos y descensos', show: !isPointBased },
+        { id: 'win' as Section, label: 'Puntuación', show: fs.scoring !== 'none' || showGoldenPoint },
+        { id: 'advance' as Section, label: { promotion: 'Ascensos y descensos', playoff: 'Playoff', brackets: 'Cuadros', rotation: 'Rotación de pistas' }[fs.advance as string] || '', show: fs.advance !== null && (fs.advance !== 'promotion' || showPromotion) },
         { id: 'setup' as Section, label: 'Estructura', show: true },
         { id: 'look' as Section, label: 'Presentación', show: true },
-    ].filter(s => s.show)), [isElimination, isPozo, isPointBased, isHybrid]);
+    ].filter(s => s.show)), [fs, showGoldenPoint, showPromotion]);
     const [section, setSection] = useState<Section>(sections[0].id);
 
     useEffect(() => {
@@ -142,7 +132,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     const started = played > 0;
     const playoffStarted = isHybrid && ranking.phase === 'playoff';
     const hasBrandingAccess = ['pro', 'star', 'weekend', 'trial'].includes(userPlan || '');
-    const [unit, units, feminine] = UNIT[format] || UNIT.classic;
+    const [unit, units, feminine] = fs.unit;
 
     const set = (patch: Partial<RankingConfig>) => setConfig(prev => ({ ...prev, ...patch }));
     const points = {
@@ -154,12 +144,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     };
     const setPoints = (key: keyof typeof points, value: number) => {
         const v = Number.isFinite(value) ? value : 0;
-        // Results read the top-level points; the hybrid keeps its own copy in step
-        setConfig(prev => ({
-            ...prev,
-            [key]: v,
-            ...(isHybrid && prev.hybridConfig ? { hybridConfig: { ...prev.hybridConfig, [key]: v } } : {}),
-        }));
+        setConfig(prev => ({ ...prev, [key]: v }));
     };
     const pointsChanged = JSON.stringify(points) !== JSON.stringify(
         { pointsPerWin2_0: ranking.config?.pointsPerWin2_0 ?? 4, pointsPerWin2_1: ranking.config?.pointsPerWin2_1 ?? 3, pointsDraw: ranking.config?.pointsDraw ?? 2, pointsPerLoss2_1: ranking.config?.pointsPerLoss2_1 ?? 1, pointsPerLoss2_0: ranking.config?.pointsPerLoss2_0 ?? 0 },
@@ -172,7 +157,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     const handleSave = () => {
         if (!onUpdateRanking) return;
         // Each match keeps the points it was given when it was closed, so new points mean redoing the played ones
-        const rescore = pointsChanged && !isPointBased && !isElimination && !isPozo;
+        const rescore = pointsChanged && fs.scoring === 'sets';
         const rescored = (m: Match): Match => {
             if (!rescore || m.status !== 'finalizado' || !m.score?.set1) return m;
             if (m.score.finalizationType === 'empate_manual') return { ...m, points: { p1: points.pointsDraw, p2: points.pointsDraw } };
@@ -193,58 +178,66 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
 
     const renderWin = () => (
         <div className="space-y-7">
-            {isPointBased ? (
-                <Block title="Puntos por partido" description="Cada partido se juega a un total de puntos que las dos parejas se reparten.">
-                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Puntos por partido">
-                        {(['16', '21', '24', '32', 'custom'] as ScoringMode[]).map(mode => {
-                            const active = (config.scoringMode || '32') === mode;
-                            return (
-                                <button key={mode} type="button" role="radio" aria-checked={active} disabled={isReadOnly} onClick={() => set({ scoringMode: mode })}
-                                    className={`h-10 px-4 rounded-md text-[14px] font-semibold num transition-colors ${active ? 'bg-court text-white' : 'bg-white border border-rg-control hover:bg-rg-raised'}`}>
-                                    {mode === 'custom' ? 'Otro' : `${mode} puntos`}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {config.scoringMode === 'custom' && (
-                        <div className="max-w-[200px]">
-                            <label htmlFor="custom-points" className="block text-[13px] font-medium mb-1.5">Total de puntos</label>
-                            <input id="custom-points" type="number" min={1} value={config.customPoints ?? ''} placeholder="50" onChange={(e) => set({ customPoints: parseInt(e.target.value) })} className={numberField} />
+            {fs.scoring !== 'none' && (<>
+                {isPointBased ? (
+                    <Block title="Puntos por partido" description="Cada partido se juega a un total de puntos que las dos parejas se reparten.">
+                        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Puntos por partido">
+                            {(['16', '21', '24', '32', 'custom'] as ScoringMode[]).map(mode => {
+                                const active = (config.scoringMode || '32') === mode;
+                                return (
+                                    <button key={mode} type="button" role="radio" aria-checked={active} disabled={isReadOnly} onClick={() => set({ scoringMode: mode })}
+                                        className={`h-10 px-4 rounded-md text-[14px] font-semibold num transition-colors ${active ? 'bg-court text-white' : 'bg-white border border-rg-control hover:bg-rg-raised'}`}>
+                                        {mode === 'custom' ? 'Otro' : `${mode} puntos`}
+                                    </button>
+                                );
+                            })}
                         </div>
-                    )}
-                </Block>
-            ) : (
-                <Block title="Puntos por resultado" description={isHybrid ? 'Se aplican en la fase de grupos.' : 'Lo que suma cada pareja o jugador según cómo acaba el partido.'}>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        {([
-                            ['pointsPerWin2_0', 'Victoria 2-0'], ['pointsPerWin2_1', 'Victoria 2-1'], ['pointsDraw', 'Empate'],
-                            ['pointsPerLoss2_1', 'Derrota 1-2'], ['pointsPerLoss2_0', 'Derrota 0-2'],
-                        ] as [keyof typeof points, string][]).map(([key, label]) => (
-                            <div key={key}>
-                                <label htmlFor={`pts-${key}`} className="block text-[13px] font-medium mb-1.5">{label}</label>
-                                <input id={`pts-${key}`} type="number" min={0} value={points[key]} disabled={isReadOnly} onChange={(e) => setPoints(key, parseInt(e.target.value))} className={numberField} />
+                        {config.scoringMode === 'custom' && (
+                            <div className="max-w-[200px]">
+                                <label htmlFor="custom-points" className="block text-[13px] font-medium mb-1.5">Total de puntos</label>
+                                <input id="custom-points" type="number" min={1} value={config.customPoints ?? ''} placeholder="50" onChange={(e) => set({ customPoints: parseInt(e.target.value) })} className={numberField} />
                             </div>
-                        ))}
-                    </div>
-                </Block>
+                        )}
+                    </Block>
+                ) : (
+                    <Block title="Puntos por resultado" description={isHybrid ? 'Se aplican en la fase de grupos.' : 'Lo que suma cada pareja o jugador según cómo acaba el partido.'}>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            {([
+                                ['pointsPerWin2_0', 'Victoria 2-0'], ['pointsPerWin2_1', 'Victoria 2-1'], ['pointsDraw', 'Empate'],
+                                ['pointsPerLoss2_1', 'Derrota 1-2'], ['pointsPerLoss2_0', 'Derrota 0-2'],
+                            ] as [keyof typeof points, string][]).map(([key, label]) => (
+                                <div key={key}>
+                                    <label htmlFor={`pts-${key}`} className="block text-[13px] font-medium mb-1.5">{label}</label>
+                                    <input id={`pts-${key}`} type="number" min={0} value={points[key]} disabled={isReadOnly} onChange={(e) => setPoints(key, parseInt(e.target.value))} className={numberField} />
+                                </div>
+                            ))}
+                        </div>
+                    </Block>
+                )}
+                {!isPointBased && pointsChanged && started && (
+                    <p className="rounded-md bg-[#fffbeb] border border-[#fde68a] px-3 py-2 text-[14px] text-[#92400e] num">
+                        Al guardar se recalculan los puntos de los {played} partidos jugados y cambia la clasificación.
+                    </p>
+                )}
+                {isPointBased && scoringModeChanged && started && (
+                    <p className="rounded-md bg-[#fffbeb] border border-[#fde68a] px-3 py-2 text-[14px] text-[#92400e] num">
+                        Se aplica a los partidos que faltan. Los {played} ya jugados conservan su resultado.
+                    </p>
+                )}
+                <TieBreakConfig config={config} setConfig={setConfig as any} pointBased={isPointBased} />
+            </>)}
+            {showGoldenPoint && (
+                <div className="bg-white border border-rg-line rounded-lg px-4">
+                    <Switch label="Se juega con punto de oro" description="Solo informativo: sale en la vista pública y en la TV."
+                        checked={!!(config.goldenPoint ?? config.pozoConfig?.goldenPoint)} onChange={(v) => set({ goldenPoint: v })} disabled={isReadOnly} />
+                </div>
             )}
-            {!isPointBased && pointsChanged && started && (
-                <p className="rounded-md bg-[#fffbeb] border border-[#fde68a] px-3 py-2 text-[14px] text-[#92400e] num">
-                    Al guardar se recalculan los puntos de los {played} partidos jugados y cambia la clasificación.
-                </p>
-            )}
-            {isPointBased && scoringModeChanged && started && (
-                <p className="rounded-md bg-[#fffbeb] border border-[#fde68a] px-3 py-2 text-[14px] text-[#92400e] num">
-                    Se aplica a los partidos que faltan. Los {played} ya jugados conservan su resultado.
-                </p>
-            )}
-            <TieBreakConfig config={config} setConfig={setConfig as any} pointBased={isPointBased} />
         </div>
     );
 
     const renderAdvance = () => (
         <div className="space-y-6">
-            {isLeague && (
+            {fs.advance === 'promotion' && (
                 <Block title="Ascensos y descensos" description="Se aplican al finalizar la fase, al pasar a la siguiente.">
                     <div className="grid sm:grid-cols-2 gap-3">
                         <Stepper label="Suben de división" value={config.promotionCount ?? 2} onChange={(v) => set({ promotionCount: v })} disabled={isReadOnly} />
@@ -263,7 +256,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     {playoffStarted && <LockedNote>El playoff ya ha empezado: los cuadros están formados.</LockedNote>}
                 </Block>
             )}
-            {isElimination && (
+            {fs.advance === 'brackets' && (
                 <Block title="Cuadros" description="Se deciden al crear el torneo, porque con ellos se genera el cuadro.">
                     <div className="bg-white border border-rg-line rounded-lg px-4">
                         <Fact label="Cuadro de consolación" value={config.eliminationConfig?.consolation ? 'Sí' : 'No'} note="Para quienes pierden su primer partido" />
@@ -271,7 +264,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     </div>
                 </Block>
             )}
-            {isPozo && (
+            {fs.advance === 'rotation' && (
                 <Block title="Subir y bajar de pista">
                     <p className="text-[14px] leading-relaxed">En cada ronda, quienes ganan suben una pista y quienes pierden bajan una. La pista 1 es la más alta. No hay nada que ajustar aquí.</p>
                 </Block>
@@ -283,7 +276,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
         <div className="space-y-7">
             <Block title="El torneo">
                 <div className="bg-white border border-rg-line rounded-lg px-4">
-                    <Fact label="Formato" value={FORMAT_LABEL[format] || format} />
+                    <Fact label="Formato" value={fs.label} />
                     <Fact label="Categoría" value={ranking.categoria} />
                     <Fact label="Empieza el" value={ranking.fechaInicio ? new Date(`${ranking.fechaInicio}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} />
                     <Fact label="Cuenta para las estadísticas" value={ranking.isOfficial === false || config.isOfficial === false ? 'No, es amistoso' : 'Sí'} />
@@ -294,6 +287,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     {(isPointBased || isPozo) && (
                         <Fact label="Modalidad" value={(isPozo ? config.pozoConfig?.variant : (format === 'americano' ? config.americanoConfig?.variant : config.mexicanoConfig?.variant)) === 'individual' ? 'Individual, parejas que cambian' : 'Parejas fijas'} />
                     )}
+                    {isPozo && <Fact label="Puntuación" value={(config.pozoConfig?.scoringMode ?? config.scoringMode ?? 'per-game') === 'per-game' ? 'Por juegos, 1 set' : `A ${config.pozoConfig?.scoringMode ?? config.scoringMode} puntos`} note="Se decide al crear el torneo" />}
                     <Fact label="Partidos jugados" value={total ? `${played} de ${total}` : '—'} />
                 </div>
             </Block>
@@ -314,7 +308,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     ) : (
                         <ul className="bg-white border border-rg-line rounded-lg">
                             {ranking.divisions.filter(d => !removed.has(d.id)).map((div, i) => {
-                                const isPairs = div.players.length > 0 && (format === 'pairs' || isHybrid || isElimination);
+                                const isPairs = div.players.length > 0 && (format === 'pairs' || isHybrid || format === 'elimination');
                                 const people = isPairs ? Math.round(div.players.length / 2) : div.players.length;
                                 return (
                                     <li key={div.id} className={`flex items-center gap-3 px-3 py-2.5 ${i ? 'border-t border-rg-rule' : ''}`}>
@@ -347,7 +341,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     const renderLook = () => {
         const visible = config.visibleColumns ?? ALL_COLUMNS;
         const toggleColumn = (key: string, on: boolean) => set({ visibleColumns: on ? Array.from(new Set([...visible, key])) : visible.filter(k => k !== key) });
-        const columnOptions = isPointBased || isPozo
+        const columnOptions = fs.columns === 'lostOnly'
             ? [{ key: 'pp', label: 'Partidos perdidos' }]
             : [
                 { key: 'pp', label: 'Partidos perdidos' }, { key: 'setsWon', label: 'Sets ganados' }, { key: 'setsLost', label: 'Sets perdidos' },
@@ -356,7 +350,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
             ];
         return (
             <div className="space-y-7">
-                {!isElimination && (
+                {fs.columns !== 'none' && (
                     <Block title="Columnas de la clasificación" description="Puntos, partidos jugados, ganados y % de victorias se ven siempre.">
                         <div className="bg-white border border-rg-line rounded-lg px-4 divide-y divide-rg-rule">
                             {columnOptions.map(col => (
@@ -374,8 +368,12 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                                 onChange={(e) => setTv(prev => ({ ...prev, slideDuration: Math.max(5, parseInt(e.target.value) || 15) }))}
                                 className="w-20 h-9 px-2 rounded-md border border-rg-control text-center text-[15px] num focus:outline-none focus:border-court focus:ring-2 focus:ring-court-track" />
                         </div>
-                        <Switch label="Clasificación" checked={tv.showStandings} onChange={(v) => setTv(prev => ({ ...prev, showStandings: v }))} disabled={isReadOnly} />
-                        <Switch label="Partidos y horarios" checked={tv.showMatches} onChange={(v) => setTv(prev => ({ ...prev, showMatches: v }))} disabled={isReadOnly} />
+                        {fs.tvSlides.map((kind: TVSlideKind) => {
+                            const key = ({ standings: 'showStandings', matches: 'showMatches', brackets: 'showBrackets', schedule: 'showSchedule' } as const)[kind];
+                            const label = { standings: 'Clasificación', matches: 'Partidos', brackets: 'Cuadros', schedule: 'Horarios' }[kind];
+                            const note = isHybrid ? (kind === 'brackets' ? 'En el playoff' : 'En la fase de grupos') : undefined;
+                            return <Switch key={kind} label={label} description={note} checked={tv[key] ?? true} onChange={(v) => setTv(prev => ({ ...prev, [key]: v }))} disabled={isReadOnly} />;
+                        })}
                         <Switch label="Código QR para seguirlo en el móvil" checked={tv.showQR} onChange={(v) => setTv(prev => ({ ...prev, showQR: v }))} disabled={isReadOnly} />
                         <Switch label="Patrocinadores" checked={tv.showSponsors} onChange={(v) => setTv(prev => ({ ...prev, showSponsors: v }))} disabled={isReadOnly} />
                     </div>
@@ -401,7 +399,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
                     <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                             <h2 id="settings-title" className="text-[18px] font-semibold truncate">Ajustes de {ranking.nombre}</h2>
-                            <p className="text-[13px] text-rg-muted num">{FORMAT_LABEL[format] || format} · {total ? `${played} de ${total} partidos jugados` : 'sin partidos todavía'}</p>
+                            <p className="text-[13px] text-rg-muted num">{fs.label} · {total ? `${played} de ${total} partidos jugados` : 'sin partidos todavía'}</p>
                         </div>
                         <button type="button" onClick={onClose} className="w-9 h-9 -mr-2 rounded-md grid place-items-center text-rg-muted hover:text-rg-ink hover:bg-rg-raised" aria-label="Cerrar"><X size={18} /></button>
                     </div>
