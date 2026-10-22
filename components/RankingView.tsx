@@ -42,6 +42,7 @@ import { MobileMatchList } from './public/MobileMatchList';
 import { FollowCard } from './public/FollowCard';
 import { MobileBracket } from './public/MobileBracket';
 import { entryLabel, nextMatchFor, pairKey, useFollowedEntry } from './public/playerMobile';
+import { hasGoldenPoint } from '../config/formatSettings';
 
 interface Props {
   ranking: Ranking;
@@ -299,6 +300,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
               </button>
               <span aria-hidden="true">·</span><span>{getFormatLabel(ranking.format)}</span>
               <span aria-hidden="true">·</span><span>{ranking.categoria}</span>
+              {hasGoldenPoint(ranking) && <><span aria-hidden="true">·</span><span>Punto de oro</span></>}
               <span aria-hidden="true">·</span><span className="num">{participantCount}</span>
             </p>
           </div>
@@ -1592,6 +1594,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
             </button>
             <span aria-hidden="true">·</span><span>{getFormatLabel(ranking.format)}</span>
             <span aria-hidden="true">·</span><span>{ranking.categoria}</span>
+            {hasGoldenPoint(ranking) && <><span aria-hidden="true">·</span><span>Punto de oro</span></>}
             <span aria-hidden="true">·</span><span className="num">{participantCount}</span>
           </p>
         </div>
