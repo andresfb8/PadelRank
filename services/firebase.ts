@@ -7,7 +7,7 @@ import { Analytics, getAnalytics } from "firebase/analytics";
 
 // `npm run dev:emulator` (VITE_USE_EMULATORS=true): local Auth/Firestore emulators on a demo project,
 // so local testing never touches production data. Start them with `npm run emulators`.
-const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
+export const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
 
 const prodConfig = {
   apiKey: "AIzaSyCYRqF3j0cTF0v6_dvmm2-XhMVLeicceqk",
@@ -19,7 +19,7 @@ const prodConfig = {
   measurementId: "G-HJ6B562JW7"
 };
 
-const firebaseConfig = useEmulators
+export const firebaseConfig = useEmulators
   ? { ...prodConfig, apiKey: "demo-api-key", projectId: "demo-padelrank", authDomain: "demo-padelrank.firebaseapp.com", measurementId: undefined }
   : prodConfig;
 
