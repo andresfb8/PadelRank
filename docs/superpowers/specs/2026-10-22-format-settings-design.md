@@ -95,9 +95,8 @@ de `RankingWizard.tsx`.
 
 - `TVConfig` gana `showBrackets?: boolean` y `showSchedule?: boolean` (por defecto `true`).
 - `TVLayout` construye las diapositivas a partir de `tvSlides(ranking)` respetando los interruptores.
-- Pozo: una única diapositiva de clasificación general sumando todas las pistas (misma lógica que
-  `PozoView`; si allí no existe una general, se calcula agregando las estadísticas de todas las pistas)
-  y una de partidos de la ronda actual.
+- Pozo: todo el torneo vive en una única división (`generatePozoDivisions`), así que ya hay una sola
+  clasificación; solo cambia el título («Clasificación general» y «Partidos» en vez de «División 1»).
 - Punto de oro: una línea «Se juega con punto de oro» en el pie de la TV y en la vista pública
   (cabecera del torneo) cuando está activo.
 
