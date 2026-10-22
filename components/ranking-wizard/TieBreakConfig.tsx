@@ -28,7 +28,14 @@ const LABELS: Record<string, string> = {
     random: 'Sorteo (Aleatorio)',
 };
 
+// Americano and mexicano count points, not games
+const POINT_LABELS: Partial<Record<TieBreakCriterion, string>> = {
+    gamesDiff: 'Diferencia de puntos',
+    gamesWon: 'Puntos a favor',
+};
+
 export const TieBreakConfig = ({ config, setConfig, pointBased }: TieBreakConfigProps) => {
+    const label = (c: TieBreakCriterion) => (pointBased && POINT_LABELS[c]) || LABELS[c];
     const applies = (c: TieBreakCriterion) => !pointBased || !SET_CRITERIA.includes(c);
     const currentCriteria = (config.tieBreakCriteria || DEFAULT_TIE_BREAK_ORDER).filter(applies);
     const AVAILABLE_CRITERIA = ALL_CRITERIA.filter(applies);
@@ -65,7 +72,7 @@ export const TieBreakConfig = ({ config, setConfig, pointBased }: TieBreakConfig
                                 <div className="flex-1 font-medium text-gray-700 flex items-center gap-2">
                                     {criterion === 'directEncounter' && <Users size={16} className="text-court" />}
                                     {criterion === 'random' && <Wand2 size={16} className="text-court" />}
-                                    {LABELS[criterion]}
+                                    {label(criterion)}
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 transition-colors"><ArrowUp size={16} /></button>
@@ -84,7 +91,7 @@ export const TieBreakConfig = ({ config, setConfig, pointBased }: TieBreakConfig
                             {AVAILABLE_CRITERIA.filter(c => !currentCriteria.includes(c)).map(c => (
                                 <Button key={c} variant="secondary" onClick={() => addItem(c)}
                                     className="text-xs py-1 h-auto bg-white border border-gray-300 hover:border-primary hover:text-primary transition-colors">
-                                    <Plus size={12} className="mr-1" /> {LABELS[c]}
+                                    <Plus size={12} className="mr-1" /> {label(c)}
                                 </Button>
                             ))}
                         </div>
