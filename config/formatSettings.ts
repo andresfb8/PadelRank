@@ -38,17 +38,17 @@ export const FORMAT_SETTINGS: Record<RankingFormat, FormatSettings> = {
         label: 'Liga clásica', unit: ['División', 'Divisiones', true], scoring: 'sets',
         advance: 'promotion', promotionMinDivisions: 1, columns: 'all', goldenPoint: true, tvSlides: LEAGUE_TV,
         // CPSJ scoring: 4 for 2-0, 3 for 2-1, 2 for a draw, 1 for 1-2, 0 for 0-2
-        defaults: () => ({ ...points(4, 3, 2, 1, 0), promotionCount: 2, relegationCount: 2 }),
+        defaults: () => ({ ...points(4, 3, 2, 1, 0), promotionCount: 2, relegationCount: 2, courts: 2 }),
     },
     individual: {
         label: 'Liga individual', unit: ['División', 'Divisiones', true], scoring: 'sets',
         advance: 'promotion', promotionMinDivisions: 2, columns: 'all', goldenPoint: true, tvSlides: LEAGUE_TV,
-        defaults: () => ({ ...points(4, 3, 2, 1, 0), promotionCount: 2, relegationCount: 2 }),
+        defaults: () => ({ ...points(4, 3, 2, 1, 0), promotionCount: 2, relegationCount: 2, courts: 2 }),
     },
     pairs: {
         label: 'Liga por parejas', unit: ['División', 'Divisiones', true], scoring: 'sets',
         advance: 'promotion', promotionMinDivisions: 2, columns: 'all', goldenPoint: true, tvSlides: LEAGUE_TV,
-        defaults: () => ({ ...points(3, 2, 1, 1, 0), promotionCount: 0, relegationCount: 0 }),
+        defaults: () => ({ ...points(3, 2, 1, 1, 0), promotionCount: 0, relegationCount: 0, courts: 2 }),
     },
     americano: {
         label: 'Americano', unit: ['Grupo', 'Grupos'], scoring: 'points',
@@ -68,7 +68,7 @@ export const FORMAT_SETTINGS: Record<RankingFormat, FormatSettings> = {
     hybrid: {
         label: 'Liga + playoff', unit: ['Grupo', 'Grupos'], scoring: 'sets',
         advance: 'playoff', columns: 'all', goldenPoint: true, tvSlides: ['standings', 'matches', 'brackets'],
-        defaults: () => ({ ...points(3, 2, 1, 1, 0), hybridConfig: { pairsPerGroup: 4, qualifiersPerGroup: 2, consolationQualifiersPerGroup: 0 } }),
+        defaults: () => ({ ...points(3, 2, 1, 1, 0), courts: 2, hybridConfig: { pairsPerGroup: 4, qualifiersPerGroup: 2, consolationQualifiersPerGroup: 0 } }),
     },
     pozo: {
         label: 'Pozo', unit: ['Pista', 'Pistas', true], scoring: 'none',
