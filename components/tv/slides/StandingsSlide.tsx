@@ -7,9 +7,10 @@ interface Props {
     ranking: Ranking;
     players: Record<string, Player>;
     divisionId?: string;
+    title?: string;
 }
 
-export const StandingsSlide = ({ ranking, players, divisionId }: Props) => {
+export const StandingsSlide = ({ ranking, players, divisionId, title }: Props) => {
     // Use provided divisionId, or fallback to default logic
     const division = useMemo(() => {
         if (!ranking.divisions || ranking.divisions.length === 0) return null;
@@ -45,7 +46,7 @@ export const StandingsSlide = ({ ranking, players, divisionId }: Props) => {
                 ) : (
                     <Trophy className="text-yellow-400 w-12 h-12" />
                 )}
-                <h2 className="text-4xl font-bold tracking-tight">Clasificación - {division.name || `División ${division.numero}`}</h2>
+                <h2 className="text-4xl font-bold tracking-tight">{ranking.format === 'pozo' && title ? title : `Clasificación - ${division.name || `División ${division.numero}`}`}</h2>
             </div>
 
             <div className="flex-1 overflow-hidden relative">

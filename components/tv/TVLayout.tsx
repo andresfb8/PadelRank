@@ -7,13 +7,13 @@ import { ScheduleSlide } from './slides/ScheduleSlide';
 import { QRSlide } from './slides/QRSlide';
 import { SponsorsSlide } from './slides/SponsorsSlide';
 import { Maximize, Minimize, ChevronLeft, ChevronRight } from 'lucide-react';
+import { buildSlides, Slide } from './buildSlides';
+import { hasGoldenPoint } from '../../config/formatSettings';
 
 interface Props {
     ranking: Ranking;
     players: Record<string, Player>;
 }
-
-type SlideType = 'standings' | 'matches' | 'bracket' | 'schedule' | 'qr' | 'sponsors';
 
 export const TVLayout = ({ ranking, players }: Props) => {
     const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -40,113 +40,8 @@ export const TVLayout = ({ ranking, players }: Props) => {
         };
     }, [ranking]);
 
-    // Define extended slide type to include division/bracket context
-    type ExtendedSlide = {
-        type: SlideType;
-        divisionId?: string;
-        bracketType?: 'main' | 'consolation';
-        title?: string;
-    };
-
-    // Determine active slides based on config AND divisions
-    const slides: ExtendedSlide[] = React.useMemo(() => {
-        const list: ExtendedSlide[] = [];
-        const activeDivisions = ranking.divisions;
-        const isElimination = ranking.format === 'elimination';
-        const isHybridPlayoff = ranking.format === 'hybrid' && ranking.phase === 'playoff';
-
-        if (isElimination || isHybridPlayoff) {
-            // BRACKET LOGIC: Iterate ALL divisions to generate specific slides for each
-            activeDivisions.forEach(d => {
-                // Determine if this division should have a Main Bracket Slide
-                // Rule: It is a Main/Default type OR it is a Hybrid Playoff division
-                const isMainType = d.type === 'main' || !d.type || d.type === 'consolation' || (isElimination && d.type !== 'league-consolation-main');
-
-                // Determine if this division is explicitly a Consolation Division
-                const isConsolationType = d.type === 'league-consolation-main';
-
-                if (isMainType) {
-                    // Check if it has matches that constitute a "Main Bracket" (not marked as Consolation)
-                    const hasMainMatches = d.matches.some(m => !m.roundName?.includes('(Cons.)'));
-                    if (hasMainMatches || d.matches.length === 0) { // Show even if empty? Usually yes.
-                        list.push({
-                            type: 'bracket',
-                            bracketType: 'main',
-                            divisionId: d.id,
-                            title: d.name ? `Cuadro ${d.name}` : `Cuadro Principal`
-                        });
-                    }
-
-                    // Check if it has INTERNAL Consolation matches
-                    const hasInternalConsolation = d.matches.some(m => m.roundName?.includes('(Cons.)'));
-                    if (hasInternalConsolation) {
-                        list.push({
-                            type: 'bracket',
-                            bracketType: 'consolation',
-                            divisionId: d.id,
-                            title: d.name ? `Consolación ${d.name}` : `Cuadro Consolación`
-                        });
-                    }
-                }
-
-                if (isConsolationType) {
-                    // It is a dedicated Consolation Division
-                    list.push({
-                        type: 'bracket',
-                        bracketType: 'consolation',
-                        divisionId: d.id,
-                        title: d.name || `Cuadro Consolación`
-                    });
-                }
-            });
-
-            // 3. Schedule Slide (Strictly for Elimination format as requested)
-            if (isElimination) {
-                list.push({ type: 'schedule', title: 'Horarios' });
-            }
-        } else {
-            // STANDARD / GROUP LOGIC (Inc. Hybrid Group Phase)
-
-            // 1. Standings Slides (one per division)
-            if (config.showStandings) {
-                if (activeDivisions.length > 0) {
-                    activeDivisions
-                        .filter(d => !d.stage || d.stage === 'group') // Only group divisions
-                        .forEach(div => {
-                            list.push({
-                                type: 'standings',
-                                divisionId: div.id,
-                                title: div.name || `División ${div.numero}`
-                            });
-                        });
-                } else {
-                    list.push({ type: 'standings' });
-                }
-            }
-
-            // 2. Matches Slides (one per division)
-            if (config.showMatches) {
-                if (activeDivisions.length > 0) {
-                    activeDivisions
-                        .filter(d => !d.stage || d.stage === 'group')
-                        .forEach(div => {
-                            list.push({
-                                type: 'matches',
-                                divisionId: div.id,
-                                title: div.name || `División ${div.numero}`
-                            });
-                        });
-                } else {
-                    list.push({ type: 'matches' });
-                }
-            }
-        }
-
-        if (config.showQR) list.push({ type: 'qr' });
-        if (config.showSponsors) list.push({ type: 'sponsors' });
-
-        return list;
-    }, [config, ranking.divisions, ranking.status, ranking.format, ranking.phase]);
+    // Determine active slides from the format and the TV switches
+    const slides: Slide[] = React.useMemo(() => buildSlides(ranking, config), [config, ranking]);
 
     // Timer Logic
     useEffect(() => {
@@ -202,7 +97,7 @@ export const TVLayout = ({ ranking, players }: Props) => {
         const slide = slides[activeSlideIndex];
         switch (slide.type) {
             case 'standings':
-                return <StandingsSlide ranking={ranking} players={players} divisionId={slide.divisionId} />;
+                return <StandingsSlide ranking={ranking} players={players} divisionId={slide.divisionId} title={slide.title} />;
             case 'matches':
                 return <MatchesSlide ranking={ranking} players={players} divisionId={slide.divisionId} />;
             case 'bracket':
@@ -227,6 +122,7 @@ export const TVLayout = ({ ranking, players }: Props) => {
                 <div className="flex items-center gap-4">
                     <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded uppercase tracking-wider animate-pulse">EN VIVO</span>
                     <h1 className="text-xl font-bold text-white truncate max-w-xl">{ranking.nombre}</h1>
+                    {hasGoldenPoint(ranking) && <span className="text-amber-300 text-sm font-semibold whitespace-nowrap">Punto de oro</span>}
                     {/* Slide Title Indicator */}
                     <span className="text-slate-400 text-sm border-l border-slate-700 pl-4 ml-4">
                         {slides[activeSlideIndex].title ||
