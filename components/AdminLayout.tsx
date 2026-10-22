@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Trash2, User as UserIcon, LogOut, ChevronRight, LayoutDashboard, Crown, Trophy, Users, Shield, Settings, Key, UserPlus, FileText, Upload, Download, Copy, ExternalLink, Calendar, Building2, ShieldCheck, Menu } from 'lucide-react';
+import { Monitor, Trash2, User as UserIcon, LogOut, ChevronRight, LayoutDashboard, Crown, Trophy, Users, Shield, Settings, Key, UserPlus, FileText, Upload, Download, Copy, ExternalLink, Calendar, Building2, ShieldCheck, Menu } from 'lucide-react';
 import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
@@ -19,6 +19,8 @@ import { RankingList } from './RankingList';
 import { RankingWizard } from './RankingWizard';
 import { MatchModal } from './MatchModal';
 import { PlayerDatabaseView } from './players/PlayerDatabaseView';
+import { ScreensView } from './screens/ScreensView';
+import { clubIdOf } from '../services/screens/clubScreens';
 import { PlayerDetailView } from './PlayerDetailView';
 import { PairDetailView } from './PairDetailView';
 import { AdminProfile } from './AdminProfile';
@@ -62,8 +64,12 @@ import { MobileBottomNav } from './MobileBottomNav';
 
 
 export const AdminLayout = () => {
-    const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management' | 'player_detail' | 'pair_detail' | 'staff'>('login');
+    const [view, setView] = useState<'login' | 'dashboard' | 'players' | 'ranking_list' | 'ranking_create' | 'ranking_detail' | 'profile' | 'admin_management' | 'player_detail' | 'pair_detail' | 'staff' | 'screens'>('login');
     const [isRegistering, setIsRegistering] = useState(false);
+    // Code from the TV's QR (?vincular=), kept by App.tsx until the club signs in
+    const [pendingPairCode, setPendingPairCode] = useState<string | undefined>(() => {
+        try { return sessionStorage.getItem('rg-pair-code') || undefined; } catch { return undefined; }
+    });
 
     // Auth
     const [firebaseUser, setFirebaseUser] = useState<any>(null);
@@ -182,12 +188,20 @@ export const AdminLayout = () => {
         return () => unsubscribe();
     }, [currentUser]);
 
+    // The TV's QR code was consumed by ScreensView: drop it so it does not reopen the dialog
+    useEffect(() => {
+        if (view === 'screens' && pendingPairCode) {
+            try { sessionStorage.removeItem('rg-pair-code'); } catch { /* ignore */ }
+            setPendingPairCode(undefined); // the dialog already took it; leaving and returning must not reopen it
+        }
+    }, [view, pendingPairCode]);
+
     // Auth Listener
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (user) {
                 setFirebaseUser(user);
-                setView('dashboard');
+                setView(pendingPairCode ? 'screens' : 'dashboard');
             } else {
                 setFirebaseUser(null);
                 setView('login');
@@ -670,6 +684,7 @@ export const AdminLayout = () => {
                                     {!isPublicUser && item(view === 'dashboard', () => handleNavClick('dashboard'), LayoutDashboard, 'Panel')}
                                     {item(['ranking_list', 'ranking_create', 'ranking_detail'].includes(view), () => handleNavClick('ranking_list'), Trophy, isSuper ? 'Control central' : 'Torneos')}
                                     {!isPublicUser && item(['players', 'player_detail', 'pair_detail'].includes(view), () => handleNavClick('players'), Users, 'Jugadores')}
+                                    {!isPublicUser && item(view === 'screens', () => handleNavClick('screens'), Monitor, 'Pantallas')}
                                     {!isPublicUser && <p className="text-[12px] text-rg-muted px-2.5 pt-6 pb-1.5">Club</p>}
                                     {currentUser?.role === 'admin' && item(view === 'staff', () => handleNavClick('staff'), Shield, 'Staff')}
                                     {isSuper && item(view === 'admin_management', () => handleNavClick('admin_management'), ShieldCheck, 'Gestión de admins')}
@@ -913,6 +928,16 @@ export const AdminLayout = () => {
                             onBack={() => setView('dashboard')}
                             totalPlayers={Object.keys(players).length}
                             activeTournaments={activeRankings.length}
+                        />
+                    )}
+
+                    {view === 'screens' && effectiveUser && (
+                        <ScreensView
+                            clubId={clubIdOf(effectiveUser)}
+                            clubName={effectiveUser.clubName}
+                            clubLogoUrl={effectiveUser.branding?.logoUrl}
+                            rankings={rankings}
+                            initialCode={pendingPairCode}
                         />
                     )}
 
