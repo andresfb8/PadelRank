@@ -27,13 +27,15 @@ export const CastButton = ({ rankingId }: { rankingId: string }) => {
     useEffect(() => {
         if (!available) return;
         const context = cast.framework.CastContext.getInstance();
-        const send = () => context.getCurrentSession()?.sendMessage(CAST_NAMESPACE, { rankingId });
+        const send = () => {
+            const session = context.getCurrentSession();
+            if (session) Promise.resolve(session.sendMessage(CAST_NAMESPACE, { rankingId })).catch(() => { /* the receiver may have gone */ });
+        };
         const onState = (e: any) => {
             const S = cast.framework.SessionState;
             if (e.sessionState === S.SESSION_STARTED || e.sessionState === S.SESSION_RESUMED) send();
         };
         context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, onState);
-        send(); // already casting: switch the TV to this tournament
         return () => context.removeEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, onState);
     }, [available, rankingId]);
 

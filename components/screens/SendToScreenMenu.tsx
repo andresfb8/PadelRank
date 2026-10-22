@@ -32,7 +32,7 @@ export const SendToScreenMenu = ({ rankingId, clubId }: { rankingId: string; clu
                         const showing = s.rankingId === rankingId;
                         return (
                             <button key={s.id} type="button" role="menuitemcheckbox" aria-checked={showing}
-                                onClick={() => setScreenRanking(s.id, showing ? null : rankingId)}
+                                onClick={() => setScreenRanking(s.id, showing ? null : rankingId).catch(() => alert('No se ha podido guardar el cambio. Inténtalo de nuevo.'))}
                                 className="w-full px-3 py-2 flex items-center gap-2 text-left text-[14px] hover:bg-rg-raised">
                                 <span className="w-4">{showing && <Check size={15} className="text-court" />}</span>
                                 <span className="flex-1 truncate">{s.name || 'Pantalla'}</span>

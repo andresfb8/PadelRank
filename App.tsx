@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { PublicLayout } from './components/PublicLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { TVPage } from './pages/TVPage';
-import { ScreenPage } from './pages/ScreenPage';
-import { CastReceiverPage } from './pages/CastReceiverPage';
 import { AdminMigrationPage } from './pages/AdminMigrationPage';
 
 import { PaymentSuccess, PaymentCancel } from './pages/PaymentStatus';
@@ -20,6 +18,11 @@ const capturePairCode = () => {
   window.history.replaceState(null, '', window.location.pathname);
 };
 capturePairCode();
+
+// Loaded only on a TV: the TV page starts its own Firebase app, which other visitors never need
+const ScreenPage = lazy(() => import('./pages/ScreenPage').then(m => ({ default: m.ScreenPage })));
+const CastReceiverPage = lazy(() => import('./pages/CastReceiverPage').then(m => ({ default: m.CastReceiverPage })));
+const tvFallback = <div className="h-screen w-screen bg-black" />;
 
 const App = () => {
   const [publicRankingId, setPublicRankingId] = useState<string | null>(null);
@@ -60,8 +63,8 @@ const App = () => {
 
   // Simple Routing
   const path = window.location.pathname.split('?')[0]; // Remove query params for cleaner path
-  if (path === '/tv') return <ScreenPage />;
-  if (new URLSearchParams(window.location.search).get('cast') === '1') return <CastReceiverPage />;
+  if (path === '/tv' || path === '/tv/') return <Suspense fallback={tvFallback}><ScreenPage /></Suspense>;
+  if (new URLSearchParams(window.location.search).get('cast') === '1') return <Suspense fallback={tvFallback}><CastReceiverPage /></Suspense>;
   if (path === '/onboarding/complete') return <RegistrationFinalizer />;
   if (path === '/payment/success') return <PaymentSuccess />;
   if (path === '/payment/cancel') return <PaymentCancel />;
