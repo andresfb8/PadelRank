@@ -30,12 +30,14 @@ en el navegador de la tele cada vez. Los clubes tienen teles variadas: Chromecas
 1. `https://<dominio>/tv` (la app usa `window.location.origin`; no se fija ningún dominio).
 2. Primera vez: la tele entra en Firebase **anónimamente** con una instancia de Firebase
    propia (`screenApp`), para no cerrar la sesión de un administrador que abra `/tv` en su
-   propio navegador. Crea su documento `screens/{screenId}` y un código.
+   propio navegador. Crea su documento `screens/{uid}` (si no existe) y un código.
 3. Muestra el código (6 caracteres sin ambiguos: sin 0/O/1/I/L) en grande y un QR que abre
    `https://<dominio>/?vincular=<código>`. El código caduca a los 15 min y se renueva solo.
 4. Al vincularse, pasa a mostrar el torneo asignado con el `TVLayout` actual, o «En espera»
    (logo y nombre del club) si no hay torneo.
-5. Guarda `screenId` en `localStorage`: tras apagar/reiniciar vuelve directamente a su estado.
+5. El id de su documento es su uid anónimo: tras apagar/reiniciar el mismo navegador vuelve
+   directamente a su estado. Solo crea el documento si no existe; cualquier otro error
+   (sin internet…) muestra «Reintentar», nunca crea otra pantalla.
 6. Envía una señal de vida (`lastSeenAt`) cada 5 minutos.
 7. Si la desvinculan, lo nota al instante (escucha su documento) y vuelve a mostrar un código nuevo.
 8. Si el acceso anónimo no está disponible (proveedor desactivado), muestra
@@ -54,7 +56,8 @@ en el navegador de la tele cada vez. Los clubes tienen teles variadas: Chromecas
 
 ### Datos
 
-`screens/{screenId}` (`screenId`: id aleatorio de Firestore):
+`screens/{uid}` (el id es el uid anónimo de la tele). Las horas son siempre del servidor
+(`serverTimestamp()`), nunca del reloj de la tele o del móvil:
 
 ```ts
 interface Screen {
@@ -66,34 +69,41 @@ interface Screen {
   clubName?: string;          // copiados al vincular: la tele no puede leer users/
   clubLogoUrl?: string;
   pairingCode: string | null;
-  codeExpiresAt: number | null; // epoch ms
-  lastSeenAt: number;
+  codeIssuedAt: Timestamp | null; // hora del servidor al emitir el código; dura 15 min
+  claimCode?: string | null;   // código que escribió el club al vincular
+  lastSeenAt: Timestamp;       // hora del servidor
   pairedAt?: number;
 }
 ```
 
-`screenCodes/{code}` → `{ screenId: string; deviceUid: string; expiresAt: number }`.
+`screenCodes/{code}` → `{ screenId: string; deviceUid: string; issuedAt: Timestamp }`.
+La tele decide cuándo renovar con su propio cronómetro (tiempo desde que obtuvo el código),
+sin comparar su reloj con el del servidor; al arrancar sin vincular pide siempre uno nuevo.
 Permite al administrador encontrar la pantalla por código sin poder listar pantallas ajenas.
 
 ### Reglas de Firestore
 
 - `screenCodes/{code}`
-  - `create`: la tele (`request.auth.uid == request.resource.data.deviceUid`). Como `create`
+  - `create`: la tele (`deviceUid == screenId == auth.uid`, `issuedAt == request.time`). Como `create`
     solo aplica a documentos nuevos, un código repetido falla y la tele genera otro.
   - `get`: cualquier usuario con sesión no anónima.
   - `delete`: la tele que lo creó.
   - Nada de `list` ni `update`.
 - `screens/{screenId}`
-  - `create`: la tele, con `ownerId == null`, `rankingId == null`, `deviceUid == auth.uid`.
-  - `get`: la tele (`deviceUid`), el dueño o su staff.
+  - `create`: la tele, en `screens/{auth.uid}`, con `ownerId == null`, `rankingId == null`,
+    `deviceUid == auth.uid`, `lastSeenAt == request.time` y solo los campos conocidos (`keys().hasOnly`).
+  - `get`: la tele (su uid, aunque el documento aún no exista), el dueño o su staff.
   - `list`: dueño o staff, filtrando por `ownerId`.
-  - `update` por la tele: solo `pairingCode`, `codeExpiresAt`, `lastSeenAt`.
+  - `update` por la tele: `lastSeenAt` (siempre `== request.time`); `pairingCode` y
+    `codeIssuedAt` (`== request.time`) solo mientras no está vinculada.
   - `update` para vincular: usuario no anónimo, `resource.ownerId == null`,
-    `request.ownerId == auth.uid` (o el admin del que es staff), `codeExpiresAt > request.time`,
-    y solo cambian `ownerId`, `name`, `rankingId`, `clubName`, `clubLogoUrl`, `pairedAt`,
-    `pairingCode`, `codeExpiresAt` (el código se anula al vincular).
+    `request.ownerId == auth.uid` (o el admin del que es staff), `request.time < codeIssuedAt + 15 min`,
+    `claimCode == resource.pairingCode` (hay que conocer el código que sale ahora), y solo cambian
+    `ownerId`, `name`, `rankingId`, `clubName`, `clubLogoUrl`, `pairedAt`, `pairingCode`,
+    `codeIssuedAt`, `claimCode` (código y hora pasan a null al vincular).
   - `update` por el dueño o staff: `name`, `rankingId`, `clubName`, `clubLogoUrl`, y
-    desvincular (`ownerId → null`, `rankingId → null`).
+    desvincular (`ownerId → null`, `rankingId → null`); `pairingCode`, `codeIssuedAt` y
+    `claimCode` solo pueden pasar a null (desvincular los limpia).
   - `delete`: nadie (desvincular deja el documento libre para volver a emparejar).
 - «Usuario no anónimo»: `request.auth.token.firebase.sign_in_provider != 'anonymous'`.
   Las reglas existentes que usan `isSignedIn()` para escribir (rankings, players, feedback…)

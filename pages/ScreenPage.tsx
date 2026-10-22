@@ -15,7 +15,10 @@ export const ScreenPage = () => {
         let stop: (() => void) | undefined;
         let cancelled = false;
         setFailed(false);
-        startDeviceScreen((s) => { if (!cancelled) setScreen(s); })
+        startDeviceScreen(
+            (s) => { if (!cancelled) setScreen(s); },
+            () => { if (!cancelled) setFailed(true); },
+        )
             .then((fn) => { if (cancelled) fn(); else stop = fn; })
             .catch(() => { if (!cancelled) setFailed(true); });
         return () => { cancelled = true; stop?.(); };

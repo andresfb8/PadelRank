@@ -15,4 +15,7 @@ describe('screenStatus', () => {
         expect(screenStatus(NOW - 3 * 24 * 60 * min, NOW).label).toBe('Sin señal desde hace 3 días');
         expect(screenStatus(NOW - 25 * min, NOW).online).toBe(false);
     });
+    it('accepts a Firestore Timestamp', () => {
+        expect(screenStatus({ toMillis: () => NOW - 25 * min }, NOW).label).toBe('Sin señal desde hace 25 min');
+    });
 });

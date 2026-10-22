@@ -112,22 +112,45 @@ service cloud.firestore {
       allow update: if isSuperAdmin();
     }
     
-    // Club TVs (pages/ScreenPage.tsx). A TV signs in anonymously and owns its own document.
+    // Club TVs (pages/ScreenPage.tsx). A TV signs in anonymously and owns screens/{its uid}.
+    // Codes last 15 min from codeIssuedAt, always the server's time (TV clocks are often wrong).
+    function codeIsLive(screen) {
+      return screen.pairingCode != null && screen.codeIssuedAt != null
+        && request.time < screen.codeIssuedAt + duration.value(15, 'm');
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Fields a club may only clear, never set
+    function nullIfChanged(key) {
+      return !changed().hasAny([key]) || request.resource.data.get(key, null) == null;
+    }
+
     match /screenCodes/{code} {
       allow create: if isAuthed()
         && request.resource.data.deviceUid == request.auth.uid
-        && request.resource.data.keys().hasOnly(['screenId', 'deviceUid', 'expiresAt']);
+        && request.resource.data.screenId == request.auth.uid
+        && request.resource.data.issuedAt == request.time
+        && request.resource.data.keys().hasOnly(['screenId', 'deviceUid', 'issuedAt']);
       allow get: if isSignedIn();
       allow delete: if isAuthed() && resource.data.deviceUid == request.auth.uid;
     }
 
     match /screens/{screenId} {
       allow create: if isAuthed()
+        && screenId == request.auth.uid
         && request.resource.data.deviceUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['id', 'deviceUid', 'ownerId', 'name', 'rankingId', 'clubName', 'clubLogoUrl', 'pairingCode', 'codeIssuedAt', 'lastSeenAt', 'pairedAt'])
         && request.resource.data.ownerId == null
-        && request.resource.data.rankingId == null;
+        && request.resource.data.rankingId == null
+        && request.resource.data.get('pairingCode', null) == null
+        && request.resource.data.lastSeenAt == request.time;
 
+      // The TV may read its own id before the document exists
       allow get: if isAuthed() && (
+        screenId == request.auth.uid ||
         resource.data.deviceUid == request.auth.uid ||
         (resource.data.ownerId != null && isClub(resource.data.ownerId)) ||
         isSuperAdmin()
@@ -136,19 +159,26 @@ service cloud.firestore {
       allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isStaffOf(resource.data.ownerId));
 
       allow update: if
-        // The TV renewing its code or saying it is alive
+        // The TV saying it is alive, or renewing its code while unpaired
         (isAuthed() && resource.data.deviceUid == request.auth.uid
-          && changedOnly(['pairingCode', 'codeExpiresAt', 'lastSeenAt']))
-        // A club pairing an unpaired TV whose code has not expired
+          && changedOnly(['pairingCode', 'codeIssuedAt', 'lastSeenAt'])
+          && (!changed().hasAny(['lastSeenAt']) || request.resource.data.lastSeenAt == request.time)
+          && (!changed().hasAny(['pairingCode', 'codeIssuedAt'])
+            || (resource.data.ownerId == null
+              && request.resource.data.pairingCode is string
+              && request.resource.data.codeIssuedAt == request.time)))
+        // A club pairing an unpaired TV with the code it shows now
         || (resource.data.ownerId == null
           && isClub(request.resource.data.ownerId)
-          && resource.data.codeExpiresAt != null
-          && resource.data.codeExpiresAt > request.time.toMillis()
+          && codeIsLive(resource.data)
+          && request.resource.data.claimCode == resource.data.pairingCode
           && request.resource.data.pairingCode == null
-          && changedOnly(['ownerId', 'name', 'rankingId', 'clubName', 'clubLogoUrl', 'pairedAt', 'pairingCode', 'codeExpiresAt']))
+          && request.resource.data.codeIssuedAt == null
+          && changedOnly(['ownerId', 'name', 'rankingId', 'clubName', 'clubLogoUrl', 'pairedAt', 'pairingCode', 'codeIssuedAt', 'claimCode']))
         // The club managing its TV, or unpairing it
         || (resource.data.ownerId != null && isClub(resource.data.ownerId)
-          && changedOnly(['name', 'rankingId', 'clubName', 'clubLogoUrl', 'ownerId', 'pairedAt'])
+          && changedOnly(['name', 'rankingId', 'clubName', 'clubLogoUrl', 'ownerId', 'pairedAt', 'pairingCode', 'codeIssuedAt', 'claimCode'])
+          && nullIfChanged('pairingCode') && nullIfChanged('codeIssuedAt') && nullIfChanged('claimCode')
           && (request.resource.data.ownerId == resource.data.ownerId
             || (request.resource.data.ownerId == null && request.resource.data.rankingId == null)));
     }

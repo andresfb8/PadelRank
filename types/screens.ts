@@ -1,7 +1,9 @@
-/** A club TV: a browser that opened /tv and was paired with a code */
+import { Timestamp } from 'firebase/firestore';
+
+/** A club TV: a browser that opened /tv and was paired with a code. Its id is the TV's anonymous uid. */
 export interface Screen {
     id: string;
-    /** Anonymous uid of the TV's browser */
+    /** Anonymous uid of the TV's browser (same as id) */
     deviceUid: string;
     /** Club that owns it (uid of the owning admin); null while unpaired */
     ownerId: string | null;
@@ -12,9 +14,12 @@ export interface Screen {
     clubName: string | null;
     clubLogoUrl: string | null;
     pairingCode: string | null;
-    /** epoch ms */
-    codeExpiresAt: number | null;
-    lastSeenAt: number;
+    /** Server time the code was issued; it lasts CODE_TTL_MS */
+    codeIssuedAt: Timestamp | null;
+    /** The code the club typed when pairing; the rules check it against pairingCode */
+    claimCode?: string | null;
+    /** Server time of the TV's last signal */
+    lastSeenAt: Timestamp;
     pairedAt: number | null;
 }
 
@@ -22,5 +27,5 @@ export interface Screen {
 export interface ScreenCode {
     screenId: string;
     deviceUid: string;
-    expiresAt: number;
+    issuedAt: Timestamp;
 }
