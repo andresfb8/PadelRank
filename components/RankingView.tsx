@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Share2, Clock, Calendar, ChevronDown, ChevronUp, Trophy, Medal, AlertCircle, Edit2, Play, PauseCircle, CheckCircle, Save, X, Plus, Trash2, StopCircle, ArrowLeft, RefreshCw, Filter, Users, Shuffle, Flag, Settings, BookOpen, Monitor, ArrowUpDown, ArrowUp, ArrowDown, Check, BarChart, AlertTriangle, Wand2, FileText, UserPlus, ArrowRight, RotateCcw, Download, Sheet, Code, ListOrdered, CalendarDays, Network } from 'lucide-react';
 import { SendToScreenMenu } from './screens/SendToScreenMenu';
+import { CastButton } from './screens/CastButton';
 import { Button, Card, Badge, Modal } from './ui/Components';
 import { ActionToolbar, ToolbarAction } from './ui/ActionToolbar';
 import { exportRankingToPDF, exportRankingToCSV, exportRankingToExcel, exportRankingToJSON } from '../services/export';
@@ -317,6 +318,7 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                 <Monitor size={18} />
               </button>
               {ranking.ownerId && <SendToScreenMenu rankingId={ranking.id} clubId={ranking.ownerId} />}
+              <CastButton rankingId={ranking.id} />
               <button onClick={() => setIsSettingsModalOpen(true)} className="w-10 h-10 grid place-items-center rounded-lg border border-rg-line bg-white text-rg-muted" title="Ajustes">
                 <Settings size={18} />
               </button>

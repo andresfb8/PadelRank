@@ -3,6 +3,7 @@ import { PublicLayout } from './components/PublicLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { TVPage } from './pages/TVPage';
 import { ScreenPage } from './pages/ScreenPage';
+import { CastReceiverPage } from './pages/CastReceiverPage';
 import { AdminMigrationPage } from './pages/AdminMigrationPage';
 
 import { PaymentSuccess, PaymentCancel } from './pages/PaymentStatus';
@@ -57,6 +58,7 @@ const App = () => {
   // Simple Routing
   const path = window.location.pathname.split('?')[0]; // Remove query params for cleaner path
   if (path === '/tv') return <ScreenPage />;
+  if (new URLSearchParams(window.location.search).get('cast') === '1') return <CastReceiverPage />;
   if (path === '/onboarding/complete') return <RegistrationFinalizer />;
   if (path === '/payment/success') return <PaymentSuccess />;
   if (path === '/payment/cancel') return <PaymentCancel />;
