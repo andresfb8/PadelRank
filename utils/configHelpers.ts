@@ -141,12 +141,17 @@ export function getPozoConfig(config: RankingConfig | undefined): PozoConfig {
 /**
  * Get Hybrid format configuration with fallbacks
  */
-export function getHybridConfig(config: RankingConfig | undefined): HybridConfig {
-    if (config?.hybridConfig) {
-        return config.hybridConfig;
-    }
-
-    return DEFAULT_HYBRID_CONFIG;
+export function getHybridConfig(config: RankingConfig | undefined): HybridConfig & Required<Pick<HybridConfig, 'pointsPerWin2_0' | 'pointsPerWin2_1' | 'pointsDraw' | 'pointsPerLoss2_1' | 'pointsPerLoss2_0'>> {
+    const hc = { ...DEFAULT_HYBRID_CONFIG, ...(config?.hybridConfig || {}) };
+    // Results are scored with the top-level points; the copy inside hybridConfig is only for old tournaments
+    return {
+        ...hc,
+        pointsPerWin2_0: config?.pointsPerWin2_0 ?? hc.pointsPerWin2_0 ?? 4,
+        pointsPerWin2_1: config?.pointsPerWin2_1 ?? hc.pointsPerWin2_1 ?? 3,
+        pointsDraw: config?.pointsDraw ?? hc.pointsDraw ?? 2,
+        pointsPerLoss2_1: config?.pointsPerLoss2_1 ?? hc.pointsPerLoss2_1 ?? 1,
+        pointsPerLoss2_0: config?.pointsPerLoss2_0 ?? hc.pointsPerLoss2_0 ?? 0,
+    };
 }
 
 /**
