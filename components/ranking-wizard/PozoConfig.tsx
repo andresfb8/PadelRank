@@ -86,27 +86,10 @@ export const PozoConfig = ({ config, setConfig }: PozoConfigProps) => {
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                             {config.scoringMode === 'per-game'
-                                ? 'Sistema tradicional: 6 juegos por set, con o sin punto de oro.'
+                                ? 'Sistema tradicional: 6 juegos por set.'
                                 : 'Los equipos acumulan puntos hasta alcanzar el total (o por tiempo).'}
                         </p>
                     </div>
-
-                    {config.scoringMode === 'per-game' && (
-                        <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1">Opciones</label>
-                            <div className="flex items-center gap-2 mt-2">
-                                <input
-                                    type="checkbox"
-                                    checked={pc?.goldenPoint}
-                                    onChange={(e) =>
-                                        setConfig({ ...config, pozoConfig: { ...pc, goldenPoint: e.target.checked } })
-                                    }
-                                    className="w-4 h-4 text-primary rounded ring-1 ring-gray-300"
-                                />
-                                <span className="text-sm">Activar Punto de Oro</span>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

@@ -9,6 +9,7 @@ import { User, Player, Ranking, RankingFormat, RankingConfig, ScoringMode, Divis
 import { SUBSCRIPTION_PLANS, canUseFormat, canCreateTournament } from '../config/subscriptionPlans';
 
 import { generateDivisions } from '../services/wizardGenerators';
+import { configForFormat, goldenPointApplies } from '../config/formatSettings';
 import { AmericanoConfig } from './ranking-wizard/AmericanoConfig';
 import { AmericanoAssignments } from './ranking-wizard/AmericanoAssignments';
 import { EliminationConfig } from './ranking-wizard/EliminationConfig';
@@ -49,32 +50,8 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
     const [sponsors, setSponsors] = useState<Sponsor[]>([]);
 
     // Config
-    const [config, setConfig] = useState<RankingConfig>({
-        pointsPerWin2_0: 4,
-        pointsPerWin2_1: 3,
-        pointsDraw: 2,
-        pointsPerLoss2_1: 1,
-        pointsPerLoss2_0: 0,
-        promotionCount: 2,
-        relegationCount: 2,
-        courts: 2,
-        scoringMode: '24', // Default for Mexicano/Americano
-        eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' },
-        hybridConfig: {
-            qualifiersPerGroup: 2,
-            pairsPerGroup: 4,
-            consolationQualifiersPerGroup: 0,
-            pointsPerWin2_0: 3,
-            pointsPerWin2_1: 2,
-            pointsDraw: 1,
-            pointsPerLoss2_1: 1,
-            pointsPerLoss2_0: 0
-        },
-        branding: {
-            logoUrl: currentUser?.branding?.logoUrl
-        },
-        tieBreakCriteria: DEFAULT_TIE_BREAK_ORDER
-    });
+    const [config, setConfig] = useState<RankingConfig>(() =>
+        configForFormat('classic', { branding: { logoUrl: currentUser?.branding?.logoUrl } }));
 
     // Reactively update branding if user profile changes (e.g. logo upload)
     React.useEffect(() => {
@@ -197,72 +174,10 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 setCategories([]);
                                 setCategorySizes({});
 
-                                // Pairs Defaults
-                                if (f.id === 'pairs') {
-                                    setIndividualMaxPlayers(6);
-                                    setConfig(prev => ({
-                                        ...prev,
-                                        promotionCount: 0,
-                                        relegationCount: 0,
-                                        pointsPerWin2_0: 3,
-                                        pointsPerWin2_1: 2,
-                                        pointsDraw: 1,
-                                        pointsPerLoss2_1: 1,
-                                        pointsPerLoss2_0: 0
-                                    }));
-                                }
-                                // Update Config Points if Classic
-                                else if (f.id === 'classic') {
-                                    // CPSJ scoring: 4 for 2-0, 3 for 2-1, 2 for a draw, 1 for 1-2, 0 for 0-2
-                                    setIndividualMaxPlayers(4); // Groups of 4
-                                    setConfig(prev => ({
-                                        ...prev,
-                                        pointsPerWin2_0: 4,
-                                        pointsPerWin2_1: 3,
-                                        pointsDraw: 2,
-                                        pointsPerLoss2_1: 1,
-                                        pointsPerLoss2_0: 0
-                                    }));
-                                } else if (f.id === 'elimination') {
-                                    setNumDivisions(1); // Default to 1 category
-                                    setIndividualMaxPlayers(8); // Default pairs per category
-                                    setConfig(prev => ({
-                                        ...prev,
-                                        eliminationConfig: { consolation: true, thirdPlaceMatch: false, type: 'pairs' }
-                                    }));
-                                } else if (f.id === 'hybrid') {
-                                    setNumDivisions(1);
-                                    setIndividualMaxPlayers(4); // Groups of 4 usually
-                                    setConfig(prev => ({
-                                        ...prev,
-                                        pointsPerWin2_0: 3,
-                                        pointsPerWin2_1: 2,
-                                        pointsDraw: 1,
-                                        pointsPerLoss2_1: 1,
-                                        pointsPerLoss2_0: 0,
-                                        hybridConfig: {
-                                            qualifiersPerGroup: 2,
-                                            pairsPerGroup: 4,
-                                            consolationQualifiersPerGroup: 0,
-                                            pointsPerWin2_0: 3,
-                                            pointsPerWin2_1: 2,
-                                            pointsDraw: 1,
-                                            pointsPerLoss2_1: 1,
-                                            pointsPerLoss2_0: 0
-                                        }
-                                    }));
-                                } else if (f.id === 'pozo') {
-                                    setNumDivisions(1);
-                                    setConfig(prev => ({
-                                        ...prev,
-                                        pozoConfig: {
-                                            variant: 'individual',
-                                            numCourts: 2,
-                                            scoringMode: 'per-game',
-                                            goldenPoint: true
-                                        }
-                                    }));
-                                }
+                                setConfig(prev => configForFormat(f.id as RankingFormat, prev));
+                                // How many players or pairs go in each division by default
+                                const MAX_PER_DIVISION: Partial<Record<RankingFormat, number>> = { pairs: 6, classic: 4, elimination: 8, hybrid: 4 };
+                                if (MAX_PER_DIVISION[f.id as RankingFormat]) setIndividualMaxPlayers(MAX_PER_DIVISION[f.id as RankingFormat]!);
 
                                 // Default Official Status
                                 if (f.id === 'americano' || f.id === 'mexicano') {
@@ -328,6 +243,19 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                     <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${isOfficial ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                 </span>
             </label>
+
+            {goldenPointApplies(format, config) && (
+                <label className="flex items-start gap-4 p-4 rounded-lg bg-rg-raised cursor-pointer">
+                    <span className="flex-1">
+                        <span className="block text-[15px] font-semibold">Se juega con punto de oro</span>
+                        <span className="block text-[14px] text-rg-muted mt-0.5">Solo informativo: los jugadores lo verán en la vista pública y en la TV.</span>
+                    </span>
+                    <input type="checkbox" role="switch" checked={!!config.goldenPoint} onChange={(e) => setConfig(prev => ({ ...prev, goldenPoint: e.target.checked }))} className="sr-only peer" />
+                    <span aria-hidden="true" className={`mt-1 w-10 h-6 rounded-full flex-none relative transition-colors ${config.goldenPoint ? 'bg-court' : 'bg-rg-control'} peer-focus-visible:ring-2 peer-focus-visible:ring-court-track`}>
+                        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${config.goldenPoint ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                    </span>
+                </label>
+            )}
 
             {/* Format-specific config */}
             {(format === 'americano' || format === 'mexicano') && (
