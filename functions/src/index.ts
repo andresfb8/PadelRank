@@ -85,6 +85,10 @@ export const sendWelcomeEmail = onCall({
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Debes estar autenticado para realizar esta acción.');
     }
+    // Club TVs sign in anonymously; they must never send emails
+    if (request.auth.token.firebase.sign_in_provider === 'anonymous') {
+        throw new HttpsError('permission-denied', 'Esta acción necesita una cuenta.');
+    }
 
     // 2. Validate Data
     const { email, name, password, clubName } = request.data;
@@ -142,6 +146,10 @@ export const sendActivationEmail = onCall({
     // 1. Authentication Check
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Debes estar autenticado para realizar esta acción.');
+    }
+    // Club TVs sign in anonymously; they must never send emails
+    if (request.auth.token.firebase.sign_in_provider === 'anonymous') {
+        throw new HttpsError('permission-denied', 'Esta acción necesita una cuenta.');
     }
 
     // 2. Validate Data
