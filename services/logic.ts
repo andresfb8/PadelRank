@@ -22,13 +22,13 @@ export function calculateMatchPoints(
   finalizationType: 'completo' | 'victoria_incompleta' | 'empate_diferencia' | 'empate_manual' | 'derrota_incompleta';
   description: string;
 } {
-  // Defaults (Classic)
-  const cfg = config || {
-    pointsPerWin2_0: 4,
-    pointsPerWin2_1: 3,
-    pointsDraw: 2,
-    pointsPerLoss2_1: 1,
-    pointsPerLoss2_0: 0
+  // Defaults (Classic), value by value: formats without points per result store none
+  const cfg = {
+    pointsPerWin2_0: config?.pointsPerWin2_0 ?? 4,
+    pointsPerWin2_1: config?.pointsPerWin2_1 ?? 3,
+    pointsDraw: config?.pointsDraw ?? 2,
+    pointsPerLoss2_1: config?.pointsPerLoss2_1 ?? 1,
+    pointsPerLoss2_0: config?.pointsPerLoss2_0 ?? 0
   };
 
   // Force Draw (Manual)

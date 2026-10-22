@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Ranking, Player } from '../../../types';
 import { generateStandings } from '../../../services/logic';
+import { promotionApplies } from '../../../config/formatSettings';
 import { Trophy, ArrowUp, ArrowDown, Activity } from 'lucide-react';
 
 interface Props {
@@ -34,6 +35,7 @@ export const StandingsSlide = ({ ranking, players, divisionId, title }: Props) =
         return generateStandings(division.id, division.matches || [], division.players || [], ranking.format as any);
     }, [division, ranking.format]);
 
+    const promotes = promotionApplies(ranking);
     const isPointsBased = ranking.format === 'americano' || ranking.format === 'mexicano' || ranking.format === 'pozo';
 
     if (!division) return <div className="p-8 text-white">No hay divisiones activas</div>;
@@ -91,8 +93,8 @@ export const StandingsSlide = ({ ranking, players, divisionId, title }: Props) =
                         return (
                             <div
                                 key={row.playerId}
-                                className={`grid grid-cols-12 gap-2 p-3 items-center border-b border-slate-700/50 text-lg font-medium ${idx < (ranking.config?.promotionCount || 0) ? 'bg-green-500/10' :
-                                    idx >= standings.length - (ranking.config?.relegationCount || 0) ? 'bg-red-500/10' : ''
+                                className={`grid grid-cols-12 gap-2 p-3 items-center border-b border-slate-700/50 text-lg font-medium ${promotes && idx < (ranking.config?.promotionCount || 0) ? 'bg-green-500/10' :
+                                    promotes && idx >= standings.length - (ranking.config?.relegationCount || 0) ? 'bg-red-500/10' : ''
                                     }`}
                             >
                                 <div className="col-span-1 flex justify-center">

@@ -87,6 +87,12 @@ export const goldenPointApplies = (format: RankingFormat | undefined, config: Ra
     return typeof g === 'function' ? g(config) : g;
 };
 
+/** Promotions and relegations mean something for this tournament (its format has them, with enough divisions) */
+export const promotionApplies = (ranking: Pick<Ranking, 'format' | 'divisions'>): boolean => {
+    const fs = getFormatSettings(ranking.format);
+    return fs.advance === 'promotion' && (ranking.divisions?.length ?? 0) >= (fs.promotionMinDivisions ?? 1);
+};
+
 /** The tournament is played with golden point (tournaments made before 2026-10 kept it in pozoConfig) */
 export const hasGoldenPoint = (ranking: Pick<Ranking, 'format' | 'config'>): boolean => {
     const config = ranking.config || {};

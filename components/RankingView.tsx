@@ -42,7 +42,7 @@ import { MobileMatchList } from './public/MobileMatchList';
 import { FollowCard } from './public/FollowCard';
 import { MobileBracket } from './public/MobileBracket';
 import { entryLabel, nextMatchFor, pairKey, useFollowedEntry } from './public/playerMobile';
-import { hasGoldenPoint } from '../config/formatSettings';
+import { hasGoldenPoint, promotionApplies } from '../config/formatSettings';
 
 interface Props {
   ranking: Ranking;
@@ -476,8 +476,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
         }
 
 
-        const isPromoting = (!isGlobal && ranking.config?.promotionCount && index < ranking.config.promotionCount);
-        const isRelegating = (!isGlobal && ranking.config?.relegationCount && index >= data.length - ranking.config.relegationCount);
+        const isPromoting = (!isGlobal && promotionApplies(ranking) && ranking.config?.promotionCount && index < ranking.config.promotionCount);
+        const isRelegating = (!isGlobal && promotionApplies(ranking) && ranking.config?.relegationCount && index >= data.length - ranking.config.relegationCount);
         const positionClass = isPromoting ? "bg-green-100 text-green-700" : isRelegating ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600";
         // Rank change logic would need history, simpler for now to omit or calc if available
         const rankChange = row.previousRank ? row.previousRank - (index + 1) : 0;
@@ -2554,8 +2554,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                               return total > 0 ? `${played} de ${total} partidos jugados` : undefined;
                             })() : undefined}
                             followed={showPlayerMobile ? followed : null}
-                            promotionCount={ranking.config?.promotionCount}
-                            relegationCount={ranking.config?.relegationCount}
+                            promotionCount={promotionApplies(ranking) ? ranking.config?.promotionCount : 0}
+                            relegationCount={promotionApplies(ranking) ? ranking.config?.relegationCount : 0}
                             qualifiersCount={ranking.config?.hybridConfig?.qualifiersPerGroup}
                             consolationCount={ranking.config?.hybridConfig?.consolationQualifiersPerGroup}
                             onOpenDetail={isPlayerClickEnabled && onPlayerClick ? onPlayerClick : undefined}
@@ -2588,8 +2588,8 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
                                 setEditingPlayerName(players[row.playerId] ? `${players[row.playerId].nombre} ${players[row.playerId].apellidos}` : row.playerId);
                                 setIsStatsModalOpen(true);
                               }}
-                              promotionCount={ranking.config?.promotionCount}
-                              relegationCount={ranking.config?.relegationCount}
+                              promotionCount={promotionApplies(ranking) ? ranking.config?.promotionCount : 0}
+                              relegationCount={promotionApplies(ranking) ? ranking.config?.relegationCount : 0}
                               qualifiersCount={ranking.config?.hybridConfig?.qualifiersPerGroup}
                               consolationCount={ranking.config?.hybridConfig?.consolationQualifiersPerGroup}
                               highlightEntry={showPlayerMobile ? followed : null}

@@ -82,3 +82,12 @@ describe('substitutePair', () => {
         expect(divs[0].matches[0].pair1.p1Id).toBe('g1');
     });
 });
+
+describe('calculateMatchPoints with a config missing point values', () => {
+    // Elimination, pozo, americano and mexicano tournaments store no points per result
+    it('falls back to the defaults field by field, so the winner still wins', () => {
+        const partial = { pointsPerWin2_0: undefined, pointsPerWin2_1: undefined, pointsDraw: undefined, pointsPerLoss2_1: undefined, pointsPerLoss2_0: undefined } as any;
+        const r = calculateMatchPoints({ p1: 6, p2: 2 }, { p1: 6, p2: 3 }, undefined, false, partial, false, false);
+        expect(r.points).toEqual({ p1: 4, p2: 0 });
+    });
+});

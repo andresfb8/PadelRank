@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FORMAT_SETTINGS, getFormatSettings, configForFormat, hasGoldenPoint } from '../formatSettings';
+import { FORMAT_SETTINGS, getFormatSettings, configForFormat, hasGoldenPoint, promotionApplies } from '../formatSettings';
 import { RankingFormat, DEFAULT_TIE_BREAK_ORDER } from '../../types';
 
 const FORMATS: RankingFormat[] = ['classic', 'individual', 'pairs', 'americano', 'mexicano', 'elimination', 'hybrid', 'pozo'];
@@ -75,5 +75,15 @@ describe('hasGoldenPoint', () => {
     it('pozo: only when played by games, and reads the old field', () => {
         expect(hasGoldenPoint({ format: 'pozo', config: { scoringMode: 'per-game', pozoConfig: { variant: 'individual', numCourts: 2, scoringMode: 'per-game', goldenPoint: true } } })).toBe(true);
         expect(hasGoldenPoint({ format: 'pozo', config: { scoringMode: '24', goldenPoint: true } })).toBe(false);
+    });
+});
+
+describe('promotionApplies', () => {
+    const divs = (n: number) => Array.from({ length: n }, () => ({})) as any;
+    it('needs a league format and enough divisions', () => {
+        expect(promotionApplies({ format: 'classic', divisions: divs(1) })).toBe(true);
+        expect(promotionApplies({ format: 'individual', divisions: divs(1) })).toBe(false);
+        expect(promotionApplies({ format: 'individual', divisions: divs(2) })).toBe(true);
+        expect(promotionApplies({ format: 'pozo', divisions: divs(3) })).toBe(false);
     });
 });

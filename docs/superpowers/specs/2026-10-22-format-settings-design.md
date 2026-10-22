@@ -37,7 +37,7 @@ Parejas, Liga + playoff, Eliminatoria y Pozo cuando se juega a sets. No en Ameri
 | Clásica | 5 valores + desempates sets/juegos | Ascensos y descensos | Divisiones | Todas | Clasificación, Partidos |
 | Individual | Igual | Ascensos/descensos solo si hay ≥ 2 divisiones | Divisiones | Todas | Clasificación, Partidos |
 | Parejas | Igual (+ ida y vuelta, informativo) | Igual que Individual | Divisiones | Todas | Clasificación, Partidos |
-| Liga + playoff | 5 valores (grupos) + desempates | Paso al playoff | Grupos, parejas por grupo | Todas (grupos) | Grupos: Clasificación, Partidos · Playoff: Cuadros, Horarios |
+| Liga + playoff | 5 valores (grupos) + desempates | Paso al playoff | Grupos, parejas por grupo | Todas (grupos) | Grupos: Clasificación, Partidos · Playoff: Cuadros |
 | Americano / Mexicano | Puntos por partido + desempates por puntos (sin criterios de sets ni juegos) | — | Grupos, pistas, modalidad (informativo) | Solo «Partidos perdidos» | Clasificación, Partidos |
 | Eliminatoria | — | Cuadros (consolación, 3.er puesto, informativo) | Categorías, pistas | — | Cuadros, Horarios |
 | Pozo | Sistema (por juegos / sets, informativo) | Rotación (explicación) | Pistas en juego | Solo «Partidos perdidos» | Clasificación general, Partidos de la ronda |

@@ -5,7 +5,7 @@ import { Button } from './ui/Components';
 import { SponsorsEditor, LogoPicker } from './ranking-settings/PresentationFields';
 import { calculateMatchPoints } from '../services/logic';
 import { TieBreakConfig } from './ranking-wizard/TieBreakConfig';
-import { getFormatSettings, goldenPointApplies, TVSlideKind } from '../config/formatSettings';
+import { getFormatSettings, goldenPointApplies, promotionApplies, TVSlideKind } from '../config/formatSettings';
 
 interface Props {
     isOpen: boolean;
@@ -28,7 +28,7 @@ interface Props {
 
 type Section = 'win' | 'advance' | 'setup' | 'look';
 
-const DEFAULT_TV: TVConfig = { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors: [] };
+const DEFAULT_TV: TVConfig = { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, showBrackets: true, showSchedule: true, sponsors: [] };
 const ALL_COLUMNS = ['pts', 'pj', 'pg', 'pp', 'setsWon', 'setsLost', 'setsDiff', 'gamesWon', 'gamesLost', 'gamesDiff', 'winRate'];
 
 // ---------- small controls in the app's style ----------
@@ -96,7 +96,7 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
     const isHybrid = format === 'hybrid';
     const isPozo = format === 'pozo';
     const showGoldenPoint = goldenPointApplies(format, config);
-    const showPromotion = fs.advance === 'promotion' && ranking.divisions.length >= (fs.promotionMinDivisions ?? 1);
+    const showPromotion = promotionApplies(ranking);
 
     const sections = useMemo(() => ([
         { id: 'win' as Section, label: 'Puntuación', show: fs.scoring !== 'none' || showGoldenPoint },
@@ -105,6 +105,10 @@ export const RankingSettingsModal = ({ isOpen, onClose, ranking, onUpdateRanking
         { id: 'look' as Section, label: 'Presentación', show: true },
     ].filter(s => s.show)), [fs, showGoldenPoint, showPromotion]);
     const [section, setSection] = useState<Section>(sections[0].id);
+    // The tabs depend on the config being edited: never stay on one that is no longer shown
+    useEffect(() => {
+        if (!sections.some(s => s.id === section)) setSection(sections[0].id);
+    }, [sections, section]);
 
     useEffect(() => {
         if (!isOpen) return;
