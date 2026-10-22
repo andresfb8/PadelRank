@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PublicLayout } from './components/PublicLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { TVPage } from './pages/TVPage';
+import { ScreenPage } from './pages/ScreenPage';
 import { AdminMigrationPage } from './pages/AdminMigrationPage';
 
 import { PaymentSuccess, PaymentCancel } from './pages/PaymentStatus';
@@ -33,6 +34,13 @@ const App = () => {
     const registerPathMatch = path.match(/^\/(?:register|inscripcion)\/(.+)$/);
     const registerPathId = registerPathMatch ? registerPathMatch[1] : null;
 
+    // A TV's QR opens /?vincular=CODE: remember the code for the Screens view after logging in
+    const pairCode = params.get('vincular');
+    if (pairCode) {
+      try { sessionStorage.setItem('rg-pair-code', pairCode); } catch { /* typed by hand instead */ }
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
     if (migration === 'true') {
       setIsMigration(true);
     } else if (tvId) {
@@ -48,6 +56,7 @@ const App = () => {
 
   // Simple Routing
   const path = window.location.pathname.split('?')[0]; // Remove query params for cleaner path
+  if (path === '/tv') return <ScreenPage />;
   if (path === '/onboarding/complete') return <RegistrationFinalizer />;
   if (path === '/payment/success') return <PaymentSuccess />;
   if (path === '/payment/cancel') return <PaymentCancel />;
