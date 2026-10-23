@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkoutRedirect = exports.claimSubscription = exports.getCheckoutSession = exports.stripeWebhook = exports.createPortalSession = exports.createCheckoutSession = void 0;
+exports.createPortalSession = exports.finalizeRegistration = exports.checkoutRedirect = exports.claimSubscription = exports.getCheckoutSession = exports.stripeWebhook = exports.createCheckoutSession = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const stripe_1 = require("stripe");
@@ -47,33 +47,6 @@ exports.createCheckoutSession = (0, https_1.onCall)({
     }
     catch (error) {
         console.error("Stripe Checkout Error:", error);
-        throw new https_1.HttpsError('internal', error.message);
-    }
-});
-exports.createPortalSession = (0, https_1.onCall)({
-    secrets: [stripeSecretKey],
-    cors: true
-}, async (request) => {
-    var _a;
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated.');
-    }
-    const userId = request.auth.uid;
-    const userDoc = await admin.firestore().collection('users').doc(userId).get();
-    const customerId = (_a = userDoc.data()) === null || _a === void 0 ? void 0 : _a.stripeCustomerId;
-    if (!customerId) {
-        throw new https_1.HttpsError('failed-precondition', 'User does not have a Stripe Customer ID.');
-    }
-    const stripe = getStripe();
-    try {
-        const session = await stripe.billingPortal.sessions.create({
-            customer: customerId,
-            return_url: `${request.data.origin}/settings`,
-        });
-        return { url: session.url };
-    }
-    catch (error) {
-        console.error("Stripe Portal Error:", error);
         throw new https_1.HttpsError('internal', error.message);
     }
 });
@@ -198,8 +171,7 @@ exports.checkoutRedirect = (0, https_1.onRequest)({
     const mode = plan === 'weekend' ? 'payment' : 'subscription';
     const isPro = priceId === config_1.STRIPE_CONFIG.products.pro.priceId;
     // Determine the origin for redirects. 
-    // Usually we want to go back to the app, not the landing.
-    const origin = 'https://racketgrid-web.web.app';
+    const origin = 'https://app.racketgrid.com';
     try {
         const session = await stripe.checkout.sessions.create({
             mode: mode,
@@ -210,7 +182,7 @@ exports.checkoutRedirect = (0, https_1.onRequest)({
                     quantity: 1,
                 },
             ],
-            success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+            success_url: `${origin}/onboarding/complete?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${origin}/payment/cancel`,
             subscription_data: mode === "subscription" ? {
                 trial_period_days: isPro ? 30 : undefined,
@@ -226,6 +198,106 @@ exports.checkoutRedirect = (0, https_1.onRequest)({
     catch (error) {
         console.error("Stripe Redirect Error:", error);
         res.status(500).send(error.message);
+    }
+});
+exports.finalizeRegistration = (0, https_1.onCall)({
+    secrets: [stripeSecretKey],
+    cors: true
+}, async (request) => {
+    var _a, _b, _c;
+    const { sessionId, password, clubName, name } = request.data;
+    if (!sessionId || !password || !clubName || !name) {
+        throw new https_1.HttpsError('invalid-argument', 'Missing required fields.');
+    }
+    const stripe = getStripe();
+    const db = admin.firestore();
+    try {
+        // 1. Retrieve session and verify payment
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.payment_status !== 'paid') {
+            throw new https_1.HttpsError('failed-precondition', 'The session has not been paid yet.');
+        }
+        const email = ((_a = session.customer_details) === null || _a === void 0 ? void 0 : _a.email) || session.customer_email;
+        if (!email)
+            throw new https_1.HttpsError('internal', 'Customer email not found in Stripe session.');
+        // 2. Check if user already exists
+        let userAuth;
+        try {
+            userAuth = await admin.auth().getUserByEmail(email);
+            // If user exists, maybe they are just claiming the subscription?
+            // For safety in this "Instant" flow, we assume it's a new user.
+        }
+        catch (e) {
+            // User doesn't exist, this is good.
+        }
+        if (userAuth) {
+            throw new https_1.HttpsError('already-exists', 'A user with this email already exists. Please log in.');
+        }
+        // 3. Create Firebase Auth User
+        const newUser = await admin.auth().createUser({
+            email,
+            password,
+            displayName: name,
+        });
+        // 4. Determine Plan
+        // We could look up the priceId from the session
+        const lineItems = await stripe.checkout.sessions.listLineItems(sessionId);
+        const priceId = (_c = (_b = lineItems.data[0]) === null || _b === void 0 ? void 0 : _b.price) === null || _c === void 0 ? void 0 : _c.id;
+        let plan = 'pro';
+        if (priceId === config_1.STRIPE_CONFIG.products.basic.priceId)
+            plan = 'basic';
+        if (priceId === config_1.STRIPE_CONFIG.products.star.priceId)
+            plan = 'star';
+        // Weekend check...
+        // 5. Create Firestore Document
+        const userData = {
+            id: newUser.uid,
+            email,
+            name,
+            clubName,
+            role: 'admin',
+            status: 'active',
+            plan,
+            stripeCustomerId: session.customer,
+            subscriptionStatus: 'active',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastLogin: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await db.collection('users').doc(newUser.uid).set(userData);
+        // 6. Clean up pending if it exists
+        await db.collection('pending_subscriptions').doc(sessionId).delete().catch(() => { });
+        return { success: true, uid: newUser.uid };
+    }
+    catch (error) {
+        console.error("Error finalizing registration:", error);
+        throw new https_1.HttpsError('internal', error.message);
+    }
+});
+exports.createPortalSession = (0, https_1.onCall)({
+    secrets: [stripeSecretKey],
+    cors: true
+}, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    const stripe = getStripe();
+    const db = admin.firestore();
+    try {
+        const userDoc = await db.collection('users').doc(request.auth.uid).get();
+        const userData = userDoc.data();
+        if (!(userData === null || userData === void 0 ? void 0 : userData.stripeCustomerId)) {
+            throw new https_1.HttpsError('failed-precondition', 'No Stripe customer ID found for this user.');
+        }
+        const origin = request.rawRequest.headers.origin || 'https://app.racketgrid.com';
+        const session = await stripe.billingPortal.sessions.create({
+            customer: userData.stripeCustomerId,
+            return_url: `${origin}/profile`,
+        });
+        return { url: session.url };
+    }
+    catch (error) {
+        console.error("Error creating portal session:", error);
+        throw new https_1.HttpsError('internal', error.message);
     }
 });
 //# sourceMappingURL=index.js.map

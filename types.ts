@@ -208,6 +208,8 @@ export interface TournamentRegistration {
   id: string;
   rankingId: string;
   ownerId?: string;
+  /** Public 8-char tracking code; the player uses it to look up the status of the registration. */
+  localizador?: string;
   player1: {
     name: string;
     phone: string;

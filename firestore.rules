@@ -95,6 +95,13 @@ service cloud.firestore {
       }
     }
 
+    // 2bis. Public status mirror of tournament registrations, keyed by the player's tracking code.
+    // Written only by the cloud function (Admin SDK); players read their own code only.
+    match /registrationStatus/{code} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
     // 3. Players
     match /players/{playerId} {
       allow get: if true;

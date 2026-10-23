@@ -19,6 +19,7 @@ import {
   Mail,
   Shirt,
   MoonStar,
+  MessageCircle,
   Sparkles,
   RefreshCw,
   SlidersHorizontal,
@@ -217,6 +218,34 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
     navigator.clipboard.writeText(registrationUrl);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2500);
+  };
+
+  /** WhatsApp one-click notice to the registered pair, wording depending on the current status. */
+  const localizadorOf = (reg: TournamentRegistration) => (reg.localizador || reg.id.substring(0, 8)).toUpperCase();
+  const waPhoneOf = (raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    return digits.length === 9 ? `34${digits}` : digits; // Spanish mobile without country prefix
+  };
+  const handleWhatsAppNotice = (reg: TournamentRegistration) => {
+    const code = localizadorOf(reg);
+    const cat = reg.assignedCategory || reg.selectedCategory;
+    const pair = `${reg.player1.name}${reg.player2 ? ` y ${reg.player2.name}` : ''}`;
+    const base = `Torneo: ${ranking.nombre}\nCategoría: ${cat}\nLocalizador: #${code}`;
+    let msg: string;
+    switch (reg.status) {
+      case 'approved':
+        msg = `✅ ¡Estáis DENTRO!\n\n${pair} ha quedado inscrito en ${ranking.nombre}.\nCategoría: ${cat}\nLocalizador: #${code}\n\nNos vemos en el torneo. ¡Un saludo!`;
+        break;
+      case 'waitlist':
+        msg = `📋 Hola, seguimos con vuestra inscripción de ${pair} pero de momento estáis en lista de espera.\n\n${base}\n\nSi se libera un hueco, os llamamos sin falta.`;
+        break;
+      case 'rejected':
+        msg = `Lamentamos comunicaros que la inscripción de ${pair} no ha sido admitida en esta edición.\n\n${base}\n\nEsperamos veros en las próximas, ¡gracias por inscribiros!`;
+        break;
+      default:
+        msg = `👋 Hola, hemos recibido vuestra inscripción de ${pair} y está en revisión.\n\n${base}\n\nOs avisamos en cuanto esté aprobada.`;
+    }
+    window.open(`https://wa.me/${waPhoneOf(reg.player1.phone)}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const handleShareWhatsApp = () => {
@@ -717,7 +746,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="font-mono text-[11px] font-bold text-slate-500">
-                        #{reg.id.substring(0, 6).toUpperCase()}
+                        #{localizadorOf(reg)}
                       </span>
 
                       {/* Status Badge */}
@@ -856,6 +885,14 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                           Aprobar
                         </button>
                       )}
+
+                      <button
+                        onClick={() => handleWhatsAppNotice(reg)}
+                        className="px-2 py-1.5 bg-white hover:bg-rg-raised text-[#25D366] font-semibold rounded-xl text-xs border border-rg-line transition"
+                        title="Avisar por WhatsApp el estado de esta inscripción"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </button>
 
                       {reg.status !== 'rejected' && (
                         <button

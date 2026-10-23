@@ -53,37 +53,6 @@ export const createCheckoutSession = onCall({
     }
 });
 
-export const createPortalSession = onCall({
-    secrets: [stripeSecretKey],
-    cors: true
-}, async (request) => {
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated.');
-    }
-
-    const userId = request.auth.uid;
-    const userDoc = await admin.firestore().collection('users').doc(userId).get();
-    const customerId = userDoc.data()?.stripeCustomerId;
-
-    if (!customerId) {
-        throw new HttpsError('failed-precondition', 'User does not have a Stripe Customer ID.');
-    }
-
-    const stripe = getStripe();
-
-    try {
-        const session = await stripe.billingPortal.sessions.create({
-            customer: customerId,
-            return_url: `${request.data.origin}/settings`,
-        });
-
-        return { url: session.url };
-    } catch (error: any) {
-        console.error("Stripe Portal Error:", error);
-        throw new HttpsError('internal', error.message);
-    }
-});
-
 export const stripeWebhook = onRequest({
     secrets: [stripeSecretKey, stripeWebhookSecret],
     cors: true

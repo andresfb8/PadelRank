@@ -118,6 +118,12 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
   const [availabilityNotes, setAvailabilityNotes] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
 
+  // Status check: the player looks up their registration with the 8-char tracking code
+  const [checkCode, setCheckCode] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<{ status: TournamentRegistration['status']; category?: string } | null | undefined>(undefined);
+  const [submittedCode, setSubmittedCode] = useState('');
+
   useEffect(() => {
     const fetchTournament = async () => {
       try {
@@ -206,6 +212,8 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
       const registrationData: Omit<TournamentRegistration, 'id'> = {
         rankingId: ranking.id,
         ownerId: ranking.ownerId || '',
+        // Public 8-char tracking code the player uses to look up the status later
+        localizador: crypto.randomUUID().substring(0, 8).toUpperCase(),
         // Firestore rejects undefined fields: an empty email is left out, not sent as undefined
         player1: {
           name: player1.name.trim(),
@@ -232,6 +240,8 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
 
       const docId = await createTournamentRegistration(ranking.id, registrationData);
       setSubmittedRegId(docId);
+      setSubmittedCode(registrationData.localizador);
+      setCheckCode(registrationData.localizador);
       window.scrollTo({ top: 0 });
     } catch (err: any) {
       console.error('Error submitting registration:', err);
@@ -243,12 +253,33 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
 
   const handleShareWhatsApp = () => {
     if (!ranking) return;
+    const code = submittedCode || submittedRegId?.substring(0, 6).toUpperCase();
     const text = isIndividual
-      ? `🎾 ¡Me he inscrito al torneo "${ranking.nombre}" en la categoría ${selectedCategory}! Localizador: #${submittedRegId?.substring(0, 6).toUpperCase()}`
-      : `🎾 ¡Pareja inscrita al torneo "${ranking.nombre}"!\n🏆 Categoría: ${selectedCategory}\n👥 ${player1.name} y ${player2.name}\n🔖 Localizador: #${submittedRegId?.substring(0, 6).toUpperCase()}`;
+      ? `🎾 ¡Me he inscrito al torneo "${ranking.nombre}" en la categoría ${selectedCategory}! Localizador: #${code}`
+      : `🎾 ¡Pareja inscrita al torneo "${ranking.nombre}"!\n🏆 Categoría: ${selectedCategory}\n👥 ${player1.name} y ${player2.name}\n🔖 Localizador: #${code}`;
 
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
+  };
+
+  // Consulta de estado por localizador: la colección pública registrationStatus la actualiza una función cloud
+  const handleCheckStatus = async () => {
+    const code = checkCode.trim().toUpperCase();
+    if (!code) return;
+    setChecking(true);
+    setCheckResult(undefined);
+    try {
+      const snap = await getDoc(doc(db, 'registrationStatus', code));
+      if (snap.exists()) {
+        setCheckResult({ status: snap.data().status, category: snap.data().category });
+      } else {
+        setCheckResult(null);
+      }
+    } catch {
+      setCheckResult(null);
+    } finally {
+      setChecking(false);
+    }
   };
 
   if (loading) {
@@ -286,9 +317,12 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
             <p className="text-[15px] text-rg-muted mt-1">
               {ranking.nombre}. El club revisará la inscripción y os contactará por WhatsApp.
             </p>
+            <p className="text-[13px] text-rg-muted">
+              Guarda el localizador: en esta misma página puedes consultar el estado de la inscripción escribiéndolo en «¿Ya te inscribiste?».
+            </p>
           </div>
           <dl className="bg-white border border-rg-line rounded-xl divide-y divide-rg-rule text-[14px]">
-            <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">Localizador</dt><dd className="font-semibold num">#{submittedRegId.substring(0, 8).toUpperCase()}</dd></div>
+            <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">Localizador</dt><dd className="font-semibold num">{submittedCode || submittedRegId.substring(0, 8).toUpperCase()}</dd></div>
             <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">Categoría</dt><dd className="font-semibold text-right">{selectedCategory}</dd></div>
             <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-rg-muted">{isIndividual ? 'Jugador' : 'Pareja'}</dt><dd className="font-semibold text-right">{player1.name}{isIndividual ? '' : ` y ${player2.name}`}</dd></div>
             <div className="px-4 py-3"><dt className="text-rg-muted">Horario</dt><dd className="mt-0.5">{summarize(blockedRanges, days)}</dd></div>
@@ -306,6 +340,9 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
                 setSubmittedRegId(null);
                 setPlayer1({ name: '', phone: '', email: '', shirtSize: 'M' });
                 setPlayer2({ name: '', phone: '', email: '', shirtSize: 'L' });
+                setSubmittedCode('');
+                setCheckCode('');
+                setCheckResult(undefined);
                 setBlockedRanges([]);
                 setAvailabilityNotes('');
                 setAcceptTerms(false);
@@ -393,6 +430,50 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
               </div>
             ))}
           </dl>
+        )}
+
+        {stepIndex === 0 && (
+          <div className="bg-white border border-rg-line rounded-xl p-4 mb-5">
+            <p className="text-[14px] font-semibold text-rg-ink">¿Ya te inscribiste? Consulta tu estado</p>
+            <p className="text-[13px] text-rg-muted mt-0.5">
+              Escribe el código de 8 caracteres que te dimos al enviar la inscripción.
+            </p>
+            <div className="flex gap-2 mt-3">
+              <input
+                type="text"
+                value={checkCode}
+                onChange={e => { setCheckCode(e.target.value.toUpperCase()); setCheckResult(undefined); }}
+                placeholder="AB12CD34"
+                maxLength={8}
+                aria-label="Código de inscripción"
+                className={`${inputClass} num w-40 flex-none`}
+              />
+              <button
+                type="button"
+                onClick={handleCheckStatus}
+                disabled={checking || !checkCode.trim()}
+                className="h-11 px-4 rounded-lg bg-court text-white font-semibold text-[14px] disabled:opacity-50 whitespace-nowrap active:opacity-90"
+              >
+                {checking ? 'Consultando…' : 'Consultar'}
+              </button>
+            </div>
+            {checkResult !== undefined && checkResult !== null && (
+              <div className={`text-[13px] rounded-lg p-3 mt-3 border ${
+                checkResult.status === 'approved' ? 'bg-[#dcfce7] border-[#a7f3d0] text-rg-positive'
+                : checkResult.status === 'rejected' ? 'bg-[#ffedea] border-[#f5c2bd] text-[#831c1e]'
+                : checkResult.status === 'waitlist' ? 'bg-[#eef4fe] border-[#d6e4fb] text-court-ink'
+                : 'bg-[#fffbeb] border-[#fde68a] text-[#92400e]'
+              }`}>
+                {checkResult.status === 'approved' && <><strong>¡Estáis dentro!</strong> Inscripción aprobada{checkResult.category ? ` (${checkResult.category})` : ''}. El club os contactará con los horarios.</>}
+                {checkResult.status === 'rejected' && <>La inscripción no ha sido admitida en esta edición{checkResult.category ? ` (${checkResult.category})` : ''}. Esperamos veros en próximas ediciones.</>}
+                {checkResult.status === 'waitlist' && <>Estáis en <strong>lista de espera</strong>{checkResult.category ? ` (${checkResult.category})` : ''}. Si se libera un hueco, el club os avisará.</>}
+                {checkResult.status === 'pending' && <>Inscripción recibida y en revisión{checkResult.category ? ` (${checkResult.category})` : ''}. El club la revisará y os contactará.</>}
+              </div>
+            )}
+            {checkResult === null && (
+              <p className="text-[13px] text-[#831c1e] mt-3">No hay inscripciones con ese código. Revisa que lo escribas tal cual te lo dimos.</p>
+            )}
+          </div>
         )}
 
         <div className="flex gap-1.5 mb-1" aria-hidden="true">

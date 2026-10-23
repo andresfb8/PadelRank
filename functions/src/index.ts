@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { Resend } from "resend";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
@@ -431,4 +431,131 @@ export const sendSupportReply = onCall({
 
 // Export Stripe Functions
 export * from './stripe';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tournament registrations: public status mirror + status-change emails
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Public doc: only the status of the registration, keyed by the player's tracking code. No personal data. */
+const publicStatusData = (reg: any) => ({
+    rankingId: reg?.rankingId ?? null,
+    status: reg?.status ?? 'pending',
+    category: reg?.assignedCategory || reg?.selectedCategory || '',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+});
+
+const localizadorOf = (regId: string, reg: any) => (reg?.localizador || regId.substring(0, 8)).toUpperCase();
+
+export const mirrorRegistrationStatus = onDocumentCreated(
+    'rankings/{rankingId}/registrations/{regId}',
+    async (event) => {
+        const reg = event.data?.data();
+        if (!reg) return;
+        const db = admin.firestore();
+        await db.collection('registrationStatus').doc(localizadorOf(event.params!.regId as string, reg)).set(publicStatusData(reg));
+    }
+);
+
+export const onRegistrationStatusChange = onDocumentUpdated(
+    {
+        document: 'rankings/{rankingId}/registrations/{regId}',
+        secrets: [resendApiKey],
+    },
+    async (event) => {
+        const before = event.data?.before.data();
+        const after = event.data?.after.data();
+        if (!before || !after) return;
+
+        const statusChanged = before.status !== after.status;
+        const paymentChanged = before.paymentStatus !== after.paymentStatus;
+        if (!statusChanged && !paymentChanged) return;
+        if (before.updatedAt && after.updatedAt && before.updatedAt === after.updatedAt && !statusChanged && !paymentChanged) return;
+
+        const db = admin.firestore();
+        const regId = event.params!.regId as string;
+        const rankingId = event.params!.rankingId as string;
+
+        // 1. Update the public status mirror (the player's consultation page reads this collection)
+        const code = localizadorOf(regId, after);
+        try {
+            await db.collection('registrationStatus').doc(code).set(publicStatusData(after), { merge: true });
+        } catch (e: any) {
+            console.error('Failed to update public status mirror:', e);
+        }
+
+        // 2. Only email when the player left an email address
+        const emails = [after.player1?.email, after.player2?.email]
+            .filter((e: unknown): e is string => typeof e === 'string' && e.includes('@'));
+        if (emails.length === 0) return;
+
+        const rankName = (await db.collection('rankings').doc(rankingId).get()).data()?.nombre || 'un torneo';
+        const pairName = after.player2 ? `${after.player1?.name} y ${after.player2.name}` : (after.player1?.name ?? '');
+        const cat = assignedOrSelected(after);
+        const resend = new Resend(resendApiKey.value());
+
+        if (statusChanged) {
+            const texts: Record<string, { subject: string; body: string }> = {
+                approved: {
+                    subject: `✅ Inscripción APROBADA - ${rankName}`,
+                    body: `<p>¡Enhorabuena! La inscripción de <strong>${pairName}</strong> ha sido <strong style="color:#059669;">APROBADA</strong>.</p>
+                       <p>Torneo: <strong>${rankName}</strong><br>Categoría: <strong>${cat || '-'}</strong><br>Localizador: <strong>#${code}</strong></p>
+                       <p>El club os contactará con los horarios y el pago. ¡Nos vemos en la pista!</p>`,
+                },
+                waitlist: {
+                    subject: `📋 Lista de espera - ${rankName}`,
+                    body: `<p>La inscripción de <strong>${pairName}</strong> está ahora en <strong>lista de espera</strong>.</p>
+                       <p>Torneo: <strong>${rankName}</strong><br>Categoría: <strong>${cat || '-'}</strong><br>Localizador: <strong>#${code}</strong></p>
+                       <p>Si se libera un hueco, el club os avisará.</p>`,
+                },
+                rejected: {
+                    subject: `Inscripción no admitida - ${rankName}`,
+                    body: `<p>Lamentamos comunicaros que la inscripción de <strong>${pairName}</strong> no ha sido admitida en esta edición.</p>
+                       <p>Torneo: <strong>${rankName}</strong><br>Categoría: <strong>${cat || '-'}</strong><br>Localizador: <strong>#${code}</strong></p>
+                       <p>Esperamos veros en las próximas ediciones. ¡Gracias por inscribiros!</p>`,
+                },
+                pending: {
+                    subject: `Inscripción pendiente de revisión - ${rankName}`,
+                    body: `<p>Hemos vuelto la inscripción de <strong>${pairName}</strong> a estado <strong>pendiente de revisión</strong>.</p>
+                       <p>Torneo: <strong>${rankName}</strong><br>Categoría: <strong>${cat || '-'}</strong><br>Localizador: <strong>#${code}</strong></p>`,
+                },
+            };
+            const t = texts[after.status];
+            if (!t) return;
+
+            try {
+                for (const email of Array.from(new Set(emails))) {
+                    await resend.emails.send({
+                        from: 'RacketGrid <onboarding@resend.dev>',
+                        to: [email],
+                        subject: t.subject,
+                        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">${t.body}</div>`,
+                    });
+                }
+            } catch (e: any) {
+                console.error('Failed to send status email:', e);
+            }
+            return;
+        }
+
+        if (paymentChanged && after.paymentStatus === 'paid') {
+            try {
+                for (const email of Array.from(new Set(emails))) {
+                    await resend.emails.send({
+                        from: 'RacketGrid <onboarding@resend.dev>',
+                        to: [email],
+                        subject: `💳 Pago confirmado - ${rankName}`,
+                        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                            <p>El pago de la inscripción de <strong>${pairName}</strong> ha sido <strong style="color:#059669;">CONFIRMADO</strong>.</p>
+                            <p>Torneo: <strong>${rankName}</strong><br>Categoría: <strong>${cat || '-'}</strong><br>Localizador: <strong>#${code}</strong></p>
+                        </div>`,
+                    });
+                }
+            } catch (e: any) {
+                console.error('Failed to send payment email:', e);
+            }
+        }
+    }
+);
+
+const assignedOrSelected = (reg: any): string => reg?.assignedCategory || reg?.selectedCategory || '';
 
