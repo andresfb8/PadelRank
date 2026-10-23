@@ -770,6 +770,10 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
   const activeDivision = ranking.divisions.find(d => d.id === activeDivisionId);
   const isLastDivision = activeDivision && activeDivision.numero === ranking.divisions.length;
 
+  /** Tournament created in registration mode: it fills in later from the approved public registrations. */
+  const emptyTournament = (ranking.format === 'elimination' || ranking.format === 'pairs' || ranking.format === 'hybrid')
+    && ranking.divisions.length === 0;
+
   // For elimination format, get all divisions of the same category (main + consolation)
   const categoryDivisions = ranking.format === 'elimination' && activeDivision
     ? ranking.divisions.filter(d => {
@@ -1777,6 +1781,46 @@ export const RankingView = ({ ranking, players: initialPlayers, onMatchClick, on
       </div >
 
 
+
+      {/* Empty tournament (created in registration mode): CTA to the registration manager */}
+      {emptyTournament && (
+        <div className="rg hidden md:block bg-white border border-rg-line rounded-lg p-6 text-center animate-fade-in">
+          <Users className="w-8 h-8 mx-auto text-court" aria-hidden="true" />
+          <h2 className="mt-3 text-[17px] font-semibold text-rg-ink">El torneo todavía está vacío: a la espera de inscripciones</h2>
+          <p className="mt-1 text-[14px] text-rg-muted max-w-xl mx-auto leading-relaxed">
+            Este torneo se creó para llenarse con las inscripciones públicas. Comparte el enlace de inscripción, aprueba
+            las parejas que lleguen y genera el {ranking.format === 'elimination' ? 'cuadro' : ranking.format === 'hybrid' ? 'los grupos y el cuadro' : 'calendario'} con un clic.
+          </p>
+          <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+            {isAdmin && (
+              <Button onClick={() => setIsRegistrationModalOpen(true)}>
+                <Users size={16} className="mr-1.5" /> Gestionar inscripciones
+              </Button>
+            )}
+            <a
+              href={`${window.location.origin}/?inscripcion=${ranking.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-10 px-4 inline-flex items-center rounded-md text-[14px] font-medium text-rg-ink hover:bg-rg-raised border border-rg-line bg-white"
+            >
+              Ver formulario de inscripción
+            </a>
+          </div>
+        </div>
+      )}
+      {emptyTournament && (
+        <div className="rg md:hidden bg-white border border-rg-line rounded-lg p-4 text-center animate-fade-in">
+          <h2 className="text-[15px] font-semibold text-rg-ink">Torneo a la espera de inscripciones</h2>
+          <p className="mt-1 text-[13px] text-rg-muted leading-relaxed">
+            Se llenará con las parejas que se inscriban desde el enlace público.
+          </p>
+          {isAdmin && (
+            <Button variant="secondary" className="mt-3 w-full" onClick={() => setIsRegistrationModalOpen(true)}>
+              Gestionar inscripciones
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Hybrid Phase Switcher */}
       {

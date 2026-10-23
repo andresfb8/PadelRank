@@ -18,6 +18,7 @@ import {
   Phone,
   Mail,
   Shirt,
+  MoonStar,
   Sparkles,
   RefreshCw,
   SlidersHorizontal,
@@ -51,7 +52,7 @@ import {
   sortDays,
   summarize
 } from '../../services/registration/blockedTimes';
-import { applyRegistrationBlocks, importRegistrations, isImported } from '../../services/registration/syncRegistration';
+import { applyRegistrationBlocks, generateDivisionsFromRegistrations, importRegistrations, isImported } from '../../services/registration/syncRegistration';
 
 interface RegistrationManagerModalProps {
   ranking: Ranking;
@@ -86,6 +87,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
   const days = sortDays(ranking.schedulerConfig?.dailySchedule ?? []);
   const hasDays = days.length > 0;
+  /** Empty tournament created in registration mode: the bracket/schedule is generated from the approved registrations. */
+  const hasNoBracket = ranking.divisions.length === 0;
 
   // Manual Form State
   const [manualData, setManualData] = useState({
@@ -310,6 +313,37 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
     }
   };
 
+  /** Generates the tournament bracket/schedule from the approved registrations (empty tournaments). */
+  const handleGenerateBracketFromRegistrations = async () => {
+    const approvedList = registrations.filter(r => r.status === 'approved');
+    if (approvedList.length < 2) {
+      alert('Necesitas al menos 2 inscripciones aprobadas (ambos jugadores) para generar el torneo.');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const updatedRanking = generateDivisionsFromRegistrations(ranking, approvedList);
+      if (!updatedRanking) {
+        alert('No hay suficientes parejas completas aprobadas (se necesitan al menos 2 con los dos jugadores).');
+        return;
+      }
+
+      await updateRanking(updatedRanking);
+      onUpdateRanking(updatedRanking);
+
+      setImportSuccessMessage(
+        `✅ Torneo generado con ${approvedList.length} parejas aprobadas y sus restricciones horarias. Revisa el cuadro/calendario en la vista del torneo.`
+      );
+      setTimeout(() => setImportSuccessMessage(null), 6000);
+    } catch (err: any) {
+      console.error('Error generating the tournament from registrations:', err);
+      alert('Error al generar el torneo: ' + err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleOpenBlocksEditor = (reg: TournamentRegistration) => {
     setSelectedReg(reg);
     setEditingBlocks(clipToDays(effectiveBlockedRanges(reg, days, ranking.fechaInicio), days).kept);
@@ -520,12 +554,21 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
             </button>
 
             <button
-              onClick={handleImportApprovedToTournament}
-              disabled={importing || approvedCount === 0}
+              onClick={hasNoBracket ? handleGenerateBracketFromRegistrations : handleImportApprovedToTournament}
+              disabled={importing || approvedCount < (hasNoBracket ? 2 : 1)}
+              title={hasNoBracket
+                ? 'Genera el cuadro o el calendario del torneo con las parejas aprobadas'
+                : 'Añade las parejas aprobadas como invitados al torneo'}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl transition shadow-md shadow-emerald-950/40"
             >
-              {importing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Importar ({approvedCount}) al Torneo
+              {importing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : hasNoBracket ? <MoonStar className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {hasNoBracket
+                ? ranking.format === 'elimination'
+                  ? `Generar Cuadro con Aprobadas (${approvedCount})`
+                  : ranking.format === 'hybrid'
+                    ? `Generar Grupos con Aprobadas (${approvedCount})`
+                    : `Generar Calendario con Aprobadas (${approvedCount})`
+                : `Importar (${approvedCount}) al Torneo`}
             </button>
 
             <button
@@ -552,6 +595,17 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
             <button onClick={() => setImportSuccessMessage(null)} className="text-slate-400 hover:text-white">
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )}
+
+        {hasNoBracket && (
+          <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-200 text-xs leading-relaxed">
+            <p className="font-semibold text-amber-400">Torneo sin cuadro/calendario todavía</p>
+            <p className="mt-1 text-slate-300">
+              Este torneo se creó para llenarse con las inscripciones públicas. Aprueba las inscripciones que quieras y
+              pulsa «Generar {ranking.format === 'elimination' ? 'Cuadro' : ranking.format === 'hybrid' ? 'Grupos' : 'Calendario'} con
+              Aprobadas» — se crearán las divisiones y partidos respetando lo que no puedan jugar.
+            </p>
           </div>
         )}
 

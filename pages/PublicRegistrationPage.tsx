@@ -19,7 +19,8 @@ const LEVEL_OPTIONS = [
   { value: '4.0 - 4.5', label: 'Intermedio alto (4.0 - 4.5)' },
   { value: '5.0+', label: 'Avanzado / Primera (5.0+)' },
 ];
-const DEFAULT_CATEGORIES = ['1ª Masculina', '2ª Masculina', '3ª Masculina', '1ª Femenina', '2ª Femenina', '3ª Femenina', 'Mixto A', 'Mixto B'];
+import { DEFAULT_REGISTRATION_CATEGORIES } from '../config/registrationDefaults';
+const DEFAULT_CATEGORIES = DEFAULT_REGISTRATION_CATEGORIES;
 
 type PlayerForm = { name: string; phone: string; email: string; level: string; shirtSize: string };
 type Step = 'contact' | 'partner' | 'schedule' | 'confirm';

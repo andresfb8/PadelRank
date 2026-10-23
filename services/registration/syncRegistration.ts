@@ -1,5 +1,7 @@
-import type { Ranking, TournamentRegistration } from '../../types';
+import type { Division, Ranking, TournamentRegistration } from '../../types';
 import { SchedulerEngine, makePairKey } from '../scheduler';
+import { TournamentEngine } from '../TournamentEngine';
+import { MatchGenerator } from '../matchGenerator';
 import type { ResultCheck } from '../scheduler';
 import { clipToDays, effectiveBlockedRanges } from './blockedTimes';
 
@@ -52,4 +54,78 @@ export const importRegistrations = (ranking: Ranking, approved: TournamentRegist
         updated = withRegistrationBlocks(updated, reg);
     });
     return { ...updated, guestPlayers };
+};
+
+/**
+ * Builds the tournament divisions from the approved registrations: one bracket per category
+ * (elimination) or one division per category (pairs league / hybrid groups). Also imports the
+ * registrations as guest players with their availability blocks.
+ * Returns null when there are fewer than 2 complete pairs.
+ */
+export const generateDivisionsFromRegistrations = (
+    ranking: Ranking,
+    approved: TournamentRegistration[]
+): Ranking | null => {
+    const approvedPairs = approved.filter(r => r.player2);
+    if (approvedPairs.length < 2) return null;
+
+    // Guests + availability constraints first, so the pair ids used in the divisions are known players.
+    const withGuests = importRegistrations(ranking, approved);
+
+    const pairStringOf = (reg: TournamentRegistration): string => {
+        const { p1, p2 } = guestIdsOf(reg.id);
+        return `${p1}::${p2}`;
+    };
+
+    // Group the complete pairs by category; categories with a single pair fall into "General".
+    const byCategory = new Map<string, string[]>();
+    approvedPairs.forEach(reg => {
+        const cat = (reg.assignedCategory || reg.selectedCategory || '').trim() || 'General';
+        if (!byCategory.has(cat)) byCategory.set(cat, []);
+        byCategory.get(cat)!.push(pairStringOf(reg));
+    });
+
+    const valid = new Map<string, string[]>();
+    let leftovers: string[] = [];
+    byCategory.forEach((list, cat) => {
+        if (list.length >= 2) valid.set(cat, list);
+        else leftovers.push(...list);
+    });
+    if (valid.size === 0 && leftovers.length < 2) return null;
+    if (leftovers.length >= 2) valid.set('General', leftovers);
+
+    const isElimination = ranking.format === 'elimination';
+    const consolation = !!ranking.config?.eliminationConfig?.consolation;
+    const doubleRoundRobin = ranking.format === 'hybrid'
+        ? !!ranking.config?.hybridConfig?.doubleRoundRobin
+        : !!ranking.config?.pairsConfig?.doubleRoundRobin;
+
+    const divisions: Division[] = [];
+    let numero = 0;
+    valid.forEach((list, cat) => {
+        numero++;
+        if (isElimination) {
+            const bracketDivisions = TournamentEngine.generateBracket(list, consolation);
+            bracketDivisions.forEach(d => {
+                d.category = cat;
+                d.name = `${cat} - ${d.type === 'main' ? 'Principal' : 'Consolación'}`;
+            });
+            divisions.push(...bracketDivisions);
+        } else {
+            const pairs = list.map(s => s.split('::'));
+            const matches = MatchGenerator.generatePairsLeague(pairs, numero - 1, doubleRoundRobin);
+            divisions.push({
+                id: crypto.randomUUID(),
+                numero,
+                status: 'activa',
+                players: pairs.flat(),
+                stage: ranking.format === 'hybrid' ? 'group' : undefined,
+                name: ranking.format === 'hybrid' ? `Grupo ${String.fromCharCode(64 + numero)}` : cat || undefined,
+                category: cat || undefined,
+                matches
+            });
+        }
+    });
+
+    return { ...withGuests, divisions };
 };

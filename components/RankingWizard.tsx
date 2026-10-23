@@ -10,6 +10,7 @@ import { SUBSCRIPTION_PLANS, canUseFormat, canCreateTournament } from '../config
 
 import { generateDivisions } from '../services/wizardGenerators';
 import { configForFormat, goldenPointApplies } from '../config/formatSettings';
+import { DEFAULT_REGISTRATION_CATEGORIES } from '../config/registrationDefaults';
 import { AmericanoConfig } from './ranking-wizard/AmericanoConfig';
 import { AmericanoAssignments } from './ranking-wizard/AmericanoAssignments';
 import { EliminationConfig } from './ranking-wizard/EliminationConfig';
@@ -35,6 +36,9 @@ const STEPS = [
     { number: 3, title: 'Jugadores', icon: Users },
     { number: 4, title: 'Presentación', icon: Grid },
 ];
+
+/** Formats where the draw or schedule can be filled later from the public registrations. */
+const REG_FILL_FORMATS: RankingFormat[] = ['elimination', 'pairs', 'hybrid'];
 
 export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, onCancel, onSave }: Props) => {
     const userPlan = currentUser?.plan || 'pro';
@@ -81,6 +85,8 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
     const [guestPlayers, setGuestPlayers] = useState<{ id: string; nombre: string; apellidos?: string }[]>([]);
     const [newGuestName, setNewGuestName] = useState('');
     const [newCategoryName, setNewCategoryName] = useState('');
+    /** Public-registration mode: skip manual pair assignment; the tournament fills in from approved registrations. */
+    const [fillFromRegistrations, setFillFromRegistrations] = useState(false);
 
     // --- Helpers ---
     const availablePlayers = [...Object.values(players), ...guestPlayers];
@@ -173,6 +179,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                                 setNumDivisions(1);
                                 setCategories([]);
                                 setCategorySizes({});
+                                setFillFromRegistrations(false);
 
                                 setConfig(prev => configForFormat(f.id as RankingFormat, prev));
                                 // How many players or pairs go in each division by default
@@ -292,12 +299,47 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         </div>
     );
 
+    const supportsRegFill = REG_FILL_FORMATS.includes(format);
+
     const renderStep3 = () => (
         <div className="space-y-6">
             <h2 className="text-[17px] font-semibold">Jugadores y divisiones</h2>
-            {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
-            {format === 'elimination' && <EliminationAssignments config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} onCreateGuest={handleCreateGuest} />}
-            {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} setDrawSeed={setDrawSeed} />}
+            {supportsRegFill && (
+                <label className="flex items-start gap-4 p-4 rounded-lg bg-court-soft border border-court-track cursor-pointer">
+                    <span className="flex-1">
+                        <span className="block text-[15px] font-semibold text-court-ink">
+                            Llenar el torneo con las inscripciones públicas
+                        </span>
+                        <span className="block text-[14px] text-rg-muted mt-0.5">
+                            {fillFromRegistrations
+                                ? 'Se crea el torneo sin parejas y con la inscripción abierta. Comparte el enlace, aprueba las inscripciones y genera el cuadro o el calendario con un clic en «Inscripciones».'
+                                : 'Los jugadores se inscriben desde el enlace público y tú los apruebas: el cuadro o el calendario se genera con las parejas aprobadas.'}
+                        </span>
+                        {!fillFromRegistrations && (
+                            <span className="block text-[13px] text-rg-muted mt-1">
+                                Después de crearlo, configura los días del torneo en «Disponibilidad» para abrir la inscripción.
+                            </span>
+                        )}
+                    </span>
+                    <input
+                        type="checkbox"
+                        role="switch"
+                        checked={fillFromRegistrations}
+                        onChange={() => setFillFromRegistrations(!fillFromRegistrations)}
+                        className="sr-only peer"
+                    />
+                    <span aria-hidden="true" className={`mt-1 w-10 h-6 rounded-full flex-none relative transition-colors ${fillFromRegistrations ? 'bg-court' : 'bg-rg-control'} peer-focus-visible:ring-2 peer-focus-visible:ring-court-track`}>
+                        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${fillFromRegistrations ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                    </span>
+                </label>
+            )}
+            {!fillFromRegistrations && (
+                <>
+                    {(format === 'americano' || format === 'mexicano') && <AmericanoAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} />}
+                    {format === 'elimination' && <EliminationAssignments config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} categories={categories} categorySizes={categorySizes} setCategorySizes={setCategorySizes} onCreateGuest={handleCreateGuest} />}
+                    {(format === 'classic' || format === 'individual' || format === 'pairs' || format === 'hybrid' || format === 'pozo') && <LeagueAssignments format={format} config={config} setConfig={setConfig} assignments={assignments} setAssignments={setAssignments} selectedPlayerIds={selectedPlayerIds} availablePlayers={availablePlayers} numDivisions={numDivisions} setNumDivisions={setNumDivisions} individualMaxPlayers={individualMaxPlayers} setIndividualMaxPlayers={setIndividualMaxPlayers} setDrawSeed={setDrawSeed} />}
+                </>
+            )}
         </div>
     );
 
@@ -331,21 +373,27 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
         if (!tournamentCheck.allowed) return alert(tournamentCheck.message);
         if (!name) return alert('Falta el nombre del torneo');
 
-        let divisions = [];
-        try {
-            divisions = generateDivisions({
-                format,
-                assignments,
-                config,
-                numDivisions,
-                individualMaxPlayers,
-                categories,
-                categorySizes: {}, 
-                selectedPlayerIds,
-                availablePlayers: [...Object.values(players), ...guestPlayers],
-            });
-        } catch (err) {
-            return alert(err.message);
+        // In registration mode the tournament is created empty: the divisions are generated
+        // later from the approved public registrations (gestor de inscripciones).
+        const registrationMode = supportsRegFill && fillFromRegistrations;
+
+        let divisions: Division[] = [];
+        if (!registrationMode) {
+            try {
+                divisions = generateDivisions({
+                    format,
+                    assignments,
+                    config,
+                    numDivisions,
+                    individualMaxPlayers,
+                    categories,
+                    categorySizes: {},
+                    selectedPlayerIds,
+                    availablePlayers: [...Object.values(players), ...guestPlayers],
+                });
+            } catch (err) {
+                return alert(err.message);
+            }
         }
 
         const activeGuestPlayers = guestPlayers.filter(g => {
@@ -355,6 +403,10 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
                 .flat();
             return manualIds.includes(g.id) || selectedPlayerIds.includes(g.id);
         });
+
+        const registrationCategories = format === 'elimination' && categories.length
+            ? categories
+            : DEFAULT_REGISTRATION_CATEGORIES;
 
         const newRanking = {
             id: `r-${crypto.randomUUID()}`,
@@ -367,6 +419,7 @@ export const RankingWizard = ({ players, currentUser, activeRankingsCount = 0, o
             config: { ...config, maxPlayersPerDivision: format === 'individual' ? individualMaxPlayers : undefined },
             isOfficial,
             guestPlayers: activeGuestPlayers,
+            ...(registrationMode ? { registrationConfig: { isOpen: true, categories: registrationCategories } } : {}),
             ...(format === 'hybrid' && drawSeed !== undefined ? { drawSeed } : {}),
             ...(sponsors.length ? { tvConfig: { enabled: true, slideDuration: 15, showStandings: true, showMatches: true, showQR: true, showSponsors: true, sponsors } } : {}),
         };
