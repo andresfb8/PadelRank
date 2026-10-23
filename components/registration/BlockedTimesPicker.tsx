@@ -11,7 +11,7 @@ interface Props {
     value: DaySchedule[];
     onChange?: (ranges: DaySchedule[]) => void;
     readOnly?: boolean;
-    /** 'dark' for the admin modals, 'light' for the public registration page */
+    /** 'light' for the app modal and the public registration page; 'dark' kept for compatibility with dark screens. */
     tone?: 'dark' | 'light';
 }
 
@@ -43,7 +43,7 @@ const TONES = {
 };
 
 /** "When can you NOT play?": one tab per tournament day, one row per half hour. */
-export const BlockedTimesPicker: React.FC<Props> = ({ days, value, onChange, readOnly = false, tone = 'dark' }) => {
+export const BlockedTimesPicker: React.FC<Props> = ({ days, value, onChange, readOnly = false, tone = 'light' }) => {
     const t = TONES[tone];
     const sorted = sortDays(days);
     const [activeDate, setActiveDate] = useState(sorted[0]?.date ?? '');

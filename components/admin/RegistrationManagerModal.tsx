@@ -95,12 +95,10 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
     p1Name: '',
     p1Phone: '',
     p1Email: '',
-    p1Level: '3.0 - 3.5',
     p1Shirt: 'M',
     p2Name: '',
     p2Phone: '',
     p2Email: '',
-    p2Level: '3.0 - 3.5',
     p2Shirt: 'L',
     category: '',
     notes: '',
@@ -242,14 +240,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
         name: manualData.p1Name.trim(),
         phone: manualData.p1Phone.trim(),
         email: manualData.p1Email.trim() || undefined,
-        level: manualData.p1Level,
         shirtSize: manualData.p1Shirt
       },
       player2: manualData.p2Name.trim() ? {
         name: manualData.p2Name.trim(),
         phone: manualData.p2Phone.trim(),
         email: manualData.p2Email.trim() || undefined,
-        level: manualData.p2Level,
         shirtSize: manualData.p2Shirt
       } : undefined,
       selectedCategory: cat,
@@ -268,12 +264,10 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
         p1Name: '',
         p1Phone: '',
         p1Email: '',
-        p1Level: '3.0 - 3.5',
         p1Shirt: 'M',
         p2Name: '',
         p2Phone: '',
         p2Email: '',
-        p2Level: '3.0 - 3.5',
         p2Shirt: 'L',
         category: '',
         notes: '',
@@ -459,23 +453,23 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
   const isRegistrationOpen = hasDays && ranking.registrationConfig?.isOpen !== false;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-[#0F1729]/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white border border-rg-line rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between gap-4 flex-shrink-0">
+        <div className="px-6 py-5 border-b border-rg-line bg-white flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <h2 className="text-xl font-bold text-rg-ink flex items-center gap-2">
                 Gestión de Inscripciones
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white text-rg-muted border border-rg-line">
                   {ranking.nombre}
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-rg-muted">
                 Revisa solicitudes, reasigna categorías por nivel y genera el cuadro con 1 clic.
               </p>
             </div>
@@ -487,8 +481,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               title={hasDays ? undefined : 'Configura los días del torneo en «Disponibilidad»'}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 isRegistrationOpen
-                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                  : 'bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20'
+                  : 'bg-rose-500/10 border border-rose-500/30 text-[#C4242A] hover:bg-rose-500/20'
               }`}
             >
               <div className={`w-2 h-2 rounded-full ${isRegistrationOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></div>
@@ -497,7 +491,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="p-2 text-rg-muted hover:text-rg-ink rounded-xl hover:bg-rg-raised transition"
             >
               <X className="w-5 h-5" />
             </button>
@@ -505,12 +499,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
         </div>
 
         {/* Action & Share Bar */}
-        <div className="px-6 py-3.5 bg-slate-950/60 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0">
+        <div className="px-6 py-3.5 bg-rg-raised border-b border-rg-line flex flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0">
           {/* Share Links */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleCopyLink}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl border border-slate-700 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rg-raised text-rg-ink font-semibold rounded-xl border border-rg-line transition"
             >
               <Copy className="w-3.5 h-3.5" />
               {copySuccess ? '¡Enlace Copiado!' : 'Copiar Enlace'}
@@ -518,7 +512,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
             <button
               onClick={handleShareWhatsApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold rounded-xl border border-emerald-500/30 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-600 font-semibold rounded-xl border border-emerald-500/30 transition"
             >
               <Share2 className="w-3.5 h-3.5" />
               Compartir WhatsApp
@@ -526,7 +520,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
             <button
               onClick={() => setShowQRModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl border border-slate-700 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rg-raised text-rg-ink font-semibold rounded-xl border border-rg-line transition"
             >
               <QrCode className="w-3.5 h-3.5" />
               Código QR
@@ -536,7 +530,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               href={registrationUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 px-2.5 py-1.5 text-slate-400 hover:text-slate-200 transition"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-rg-muted hover:text-rg-ink transition"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               Ver Formulario
@@ -559,7 +553,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               title={hasNoBracket
                 ? 'Genera el cuadro o el calendario del torneo con las parejas aprobadas'
                 : 'Añade las parejas aprobadas como invitados al torneo'}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl transition shadow-md shadow-emerald-950/40"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-md shadow-emerald-100"
             >
               {importing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : hasNoBracket ? <MoonStar className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
               {hasNoBracket
@@ -574,25 +568,25 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
             <button
               onClick={handleExportExcel}
               title="Exportar a Excel"
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition"
+              className="p-1.5 bg-white hover:bg-rg-raised text-rg-muted rounded-xl border border-rg-line transition"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             </button>
 
             <button
               onClick={handleExportPDF}
               title="Exportar a PDF"
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition"
+              className="p-1.5 bg-white hover:bg-rg-raised text-rg-muted rounded-xl border border-rg-line transition"
             >
-              <FileText className="w-4 h-4 text-rose-400" />
+              <FileText className="w-4 h-4 text-[#C4242A]" />
             </button>
           </div>
         </div>
 
         {importSuccessMessage && (
-          <div className="mx-6 mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 text-xs font-medium flex items-center justify-between">
+          <div className="mx-6 mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-600 text-xs font-medium flex items-center justify-between">
             <span>{importSuccessMessage}</span>
-            <button onClick={() => setImportSuccessMessage(null)} className="text-slate-400 hover:text-white">
+            <button onClick={() => setImportSuccessMessage(null)} className="text-rg-muted hover:text-rg-ink">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -600,8 +594,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
         {hasNoBracket && (
           <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-200 text-xs leading-relaxed">
-            <p className="font-semibold text-amber-400">Torneo sin cuadro/calendario todavía</p>
-            <p className="mt-1 text-slate-300">
+            <p className="font-semibold text-amber-600">Torneo sin cuadro/calendario todavía</p>
+            <p className="mt-1 text-rg-muted">
               Este torneo se creó para llenarse con las inscripciones públicas. Aprueba las inscripciones que quieras y
               pulsa «Generar {ranking.format === 'elimination' ? 'Cuadro' : ranking.format === 'hybrid' ? 'Grupos' : 'Calendario'} con
               Aprobadas» — se crearán las divisiones y partidos respetando lo que no puedan jugar.
@@ -611,34 +605,34 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
         {/* Metrics Overview Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-6 pb-2 flex-shrink-0">
-          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
-            <span className="text-[11px] font-semibold text-slate-400">Total Inscritos</span>
-            <p className="text-2xl font-black text-white mt-0.5">{totalCount}</p>
+          <div className="bg-rg-raised border border-rg-line rounded-2xl p-3">
+            <span className="text-[11px] font-semibold text-rg-muted">Total Inscritos</span>
+            <p className="text-2xl font-black text-rg-ink mt-0.5">{totalCount}</p>
           </div>
 
-          <div className="bg-slate-950/60 border border-amber-500/20 rounded-2xl p-3">
-            <span className="text-[11px] font-semibold text-amber-400">Pendientes de Validar</span>
-            <p className="text-2xl font-black text-amber-400 mt-0.5">{pendingCount}</p>
+          <div className="bg-rg-raised border border-amber-500/20 rounded-2xl p-3">
+            <span className="text-[11px] font-semibold text-amber-600">Pendientes de Validar</span>
+            <p className="text-2xl font-black text-amber-600 mt-0.5">{pendingCount}</p>
           </div>
 
-          <div className="bg-slate-950/60 border border-emerald-500/20 rounded-2xl p-3">
-            <span className="text-[11px] font-semibold text-emerald-400">Aprobadas</span>
-            <p className="text-2xl font-black text-emerald-400 mt-0.5">{approvedCount}</p>
+          <div className="bg-rg-raised border border-emerald-500/20 rounded-2xl p-3">
+            <span className="text-[11px] font-semibold text-emerald-600">Aprobadas</span>
+            <p className="text-2xl font-black text-emerald-600 mt-0.5">{approvedCount}</p>
           </div>
 
-          <div className="bg-slate-950/60 border border-blue-500/20 rounded-2xl p-3">
+          <div className="bg-rg-raised border border-blue-500/20 rounded-2xl p-3">
             <span className="text-[11px] font-semibold text-blue-400">Pagos Confirmados</span>
             <p className="text-2xl font-black text-blue-400 mt-0.5">{paidCount} / {totalCount}</p>
           </div>
 
-          <div className="bg-slate-950/60 border border-rose-500/20 rounded-2xl p-3">
-            <span className="text-[11px] font-semibold text-rose-400">Rechazadas / Espera</span>
-            <p className="text-2xl font-black text-slate-400 mt-0.5">{rejectedCount + waitlistCount}</p>
+          <div className="bg-rg-raised border border-rose-500/20 rounded-2xl p-3">
+            <span className="text-[11px] font-semibold text-[#C4242A]">Rechazadas / Espera</span>
+            <p className="text-2xl font-black text-rg-muted mt-0.5">{rejectedCount + waitlistCount}</p>
           </div>
         </div>
 
         {/* Filter and Search Bar */}
-        <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 flex-shrink-0">
+        <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-rg-line flex-shrink-0">
           {/* Status Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
             {[
@@ -653,8 +647,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                 onClick={() => setFilterStatus(tab.key as any)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                   filterStatus === tab.key
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30'
+                    : 'text-rg-muted hover:text-rg-ink hover:bg-rg-raised'
                 }`}
               >
                 {tab.label}
@@ -671,14 +665,14 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                 placeholder="Buscar jugador..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-white border border-rg-line rounded-xl pl-8 pr-3 py-1.5 text-xs text-rg-ink placeholder-slate-500 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <select
               value={filterCategory}
               onChange={e => setFilterCategory(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+              className="bg-white border border-rg-line rounded-xl px-3 py-1.5 text-xs text-rg-muted focus:outline-none focus:border-emerald-500"
             >
               <option value="all">Todas las Categorías</option>
               {availableCategories.map(cat => (
@@ -696,9 +690,9 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               Cargando inscripciones...
             </div>
           ) : filteredRegistrations.length === 0 ? (
-            <div className="text-center py-12 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-8 space-y-3">
-              <Users className="w-10 h-10 text-slate-600 mx-auto" />
-              <h3 className="text-base font-bold text-slate-300">No hay inscripciones con los filtros seleccionados</h3>
+            <div className="text-center py-12 bg-rg-ground border border-rg-line rounded-2xl p-8 space-y-3">
+              <Users className="w-10 h-10 text-rg-muted mx-auto" />
+              <h3 className="text-base font-bold text-rg-muted">No hay inscripciones con los filtros seleccionados</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 Comparte el enlace de inscripción para que las parejas se apunten o añade una manualmente.
               </p>
@@ -711,12 +705,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               return (
                 <div
                   key={reg.id}
-                  className={`bg-slate-950/70 border rounded-2xl p-4 transition-all duration-150 flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                  className={`bg-white border rounded-2xl p-4 transition-all duration-150 flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                     reg.status === 'approved'
-                      ? 'border-emerald-500/30 shadow-sm shadow-emerald-950/20'
+                      ? 'border-emerald-500/30 shadow-sm shadow-emerald-100'
                       : reg.status === 'pending'
                       ? 'border-amber-500/30'
-                      : 'border-slate-800'
+                      : 'border-rg-line'
                   }`}
                 >
                   {/* Left Column: Player & Contact Details */}
@@ -729,12 +723,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                       {/* Status Badge */}
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                         reg.status === 'approved'
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
                           : reg.status === 'pending'
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                          ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
                           : reg.status === 'waitlist'
                           ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                          : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                          : 'bg-rose-500/10 text-[#C4242A] border-rose-500/30'
                       }`}>
                         {reg.status === 'approved' ? 'Aprobada' : reg.status === 'pending' ? 'Pendiente' : reg.status === 'waitlist' ? 'Lista Espera' : 'Rechazada'}
                       </span>
@@ -744,8 +738,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                         onClick={() => handlePaymentToggle(reg)}
                         className={`px-2 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 transition ${
                           reg.paymentStatus === 'paid'
-                            ? 'bg-emerald-900/30 text-emerald-300 border-emerald-700/50 hover:bg-emerald-900/50'
-                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'
+                            : 'bg-white text-rg-muted border-rg-line hover:bg-rg-raised'
                         }`}
                         title="Click para cambiar estado de pago"
                       >
@@ -762,16 +756,16 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       {/* Jugador 1 */}
                       <div className="text-xs space-y-0.5">
-                        <div className="font-bold text-white flex items-center gap-1.5">
+                        <div className="font-bold text-rg-ink flex items-center gap-1.5">
                           <span>{reg.player1.name}</span>
                           {reg.player1.shirtSize && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white text-rg-muted">
                               Talla {reg.player1.shirtSize}
                             </span>
                           )}
                         </div>
-                        <div className="text-slate-400 text-[11px] flex items-center gap-2">
-                          <a href={`tel:${reg.player1.phone}`} className="hover:text-emerald-400 flex items-center gap-1">
+                        <div className="text-rg-muted text-[11px] flex items-center gap-2">
+                          <a href={`tel:${reg.player1.phone}`} className="hover:text-emerald-600 flex items-center gap-1">
                             <Phone className="w-3 h-3 text-slate-500" /> {reg.player1.phone}
                           </a>
                           {reg.player1.level && <span className="text-slate-500">({reg.player1.level})</span>}
@@ -781,16 +775,16 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                       {/* Jugador 2 */}
                       {reg.player2 ? (
                         <div className="text-xs space-y-0.5">
-                          <div className="font-bold text-white flex items-center gap-1.5">
+                          <div className="font-bold text-rg-ink flex items-center gap-1.5">
                             <span>{reg.player2.name}</span>
                             {reg.player2.shirtSize && (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-white text-rg-muted">
                                 Talla {reg.player2.shirtSize}
                               </span>
                             )}
                           </div>
-                          <div className="text-slate-400 text-[11px] flex items-center gap-2">
-                            <a href={`tel:${reg.player2.phone}`} className="hover:text-emerald-400 flex items-center gap-1">
+                          <div className="text-rg-muted text-[11px] flex items-center gap-2">
+                            <a href={`tel:${reg.player2.phone}`} className="hover:text-emerald-600 flex items-center gap-1">
                               <Phone className="w-3 h-3 text-slate-500" /> {reg.player2.phone}
                             </a>
                             {reg.player2.level && <span className="text-slate-500">({reg.player2.level})</span>}
@@ -804,8 +798,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                     </div>
 
                     {/* Blocked times */}
-                    <div className="text-[11px] bg-slate-900/90 border border-slate-800/80 rounded-xl px-2.5 py-1 text-slate-300 flex items-start gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-[11px] bg-white border border-rg-line rounded-xl px-2.5 py-1 text-rg-muted flex items-start gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
                       <span className="flex-1">
                         <strong>Bloqueos:</strong> {notesWithSummary(summarize(effectiveBlockedRanges(reg, days, ranking.fechaInicio), days), registrationNote(reg))}
                       </span>
@@ -813,7 +807,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                         <button
                           type="button"
                           onClick={() => handleOpenBlocksEditor(reg)}
-                          className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 flex-shrink-0"
+                          className="text-emerald-600 hover:text-emerald-300 font-bold flex items-center gap-1 flex-shrink-0"
                         >
                           <Edit2 className="w-3 h-3" /> Editar bloqueos
                         </button>
@@ -822,11 +816,11 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                   </div>
 
                   {/* Right Column: Category Reassignment & Actions */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-800">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-rg-line">
                     
                     {/* Reassign Category Dropdown */}
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-bold uppercase text-slate-400">
+                      <label className="block text-[10px] font-bold uppercase text-rg-muted">
                         Categoría Asignada
                       </label>
                       <select
@@ -834,8 +828,8 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                         onChange={e => handleCategoryChange(reg.id, e.target.value)}
                         className={`text-xs font-bold rounded-xl px-2.5 py-1.5 border focus:outline-none transition ${
                           isModifiedCategory
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/40'
-                            : 'bg-slate-900 text-white border-slate-700'
+                            ? 'bg-amber-500/10 text-amber-600 border-amber-500/40 ring-1 ring-amber-500/40'
+                            : 'bg-white text-rg-ink border-rg-line'
                         }`}
                         title={isModifiedCategory ? `Originalmente eligió: ${reg.selectedCategory}` : 'Cambiar categoría por nivel'}
                       >
@@ -844,7 +838,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                         ))}
                       </select>
                       {isModifiedCategory && (
-                        <span className="block text-[10px] text-amber-400 font-medium">
+                        <span className="block text-[10px] text-amber-600 font-medium">
                           ⚠️ Modificada (Eligió: {reg.selectedCategory})
                         </span>
                       )}
@@ -866,7 +860,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                       {reg.status !== 'rejected' && (
                         <button
                           onClick={() => handleStatusChange(reg.id, 'rejected')}
-                          className="px-2 py-1.5 bg-slate-800 hover:bg-rose-950/60 hover:text-rose-400 text-slate-400 font-semibold rounded-xl text-xs border border-slate-700 transition"
+                          className="px-2 py-1.5 bg-white hover:bg-rose-50 hover:text-[#C4242A] text-rg-muted font-semibold rounded-xl text-xs border border-rg-line transition"
                           title="Rechazar inscripción"
                         >
                           <XCircle className="w-3.5 h-3.5" />
@@ -875,7 +869,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
                       <button
                         onClick={() => handleDelete(reg.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition"
+                        className="p-1.5 text-slate-500 hover:text-[#C4242A] hover:bg-rg-raised rounded-xl transition"
                         title="Eliminar"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -889,11 +883,11 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between text-xs text-slate-400 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-rg-line bg-white flex items-center justify-between text-xs text-rg-muted flex-shrink-0">
           <span>{filteredRegistrations.length} inscripciones visibles</span>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition"
+            className="px-4 py-2 bg-white hover:bg-rg-raised text-rg-ink font-bold rounded-xl transition"
           >
             Cerrar
           </button>
@@ -902,10 +896,10 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
       {/* QR Code Modal */}
       {showQRModal && (
-        <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold text-white">Código QR de Inscripción</h3>
-            <p className="text-xs text-slate-400">
+        <div className="fixed inset-0 z-60 bg-[#0F1729]/40 flex items-center justify-center p-4">
+          <div className="bg-white border border-rg-line rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <h3 className="text-lg font-bold text-rg-ink">Código QR de Inscripción</h3>
+            <p className="text-xs text-rg-muted">
               Imprime o muestra este código en el club para que los jugadores se inscriban escaneando con la cámara.
             </p>
 
@@ -913,13 +907,13 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               <QRCodeSVG value={registrationUrl} size={180} level="M" />
             </div>
 
-            <p className="text-[11px] font-mono text-slate-400 break-all bg-slate-950 p-2 rounded-xl border border-slate-800">
+            <p className="text-[11px] font-mono text-rg-muted break-all bg-rg-ground p-2 rounded-xl border border-rg-line">
               {registrationUrl}
             </p>
 
             <button
               onClick={() => setShowQRModal(false)}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
+              className="w-full bg-white hover:bg-rg-raised text-rg-ink font-bold py-2.5 rounded-xl transition"
             >
               Cerrar
             </button>
@@ -929,14 +923,14 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
       {/* Blocked Times Editor */}
       {selectedReg && (
-        <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-60 bg-[#0F1729]/40 flex items-center justify-center p-4">
+          <div className="bg-white border border-rg-line rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-lg font-bold text-rg-ink flex items-center gap-2">
+                <Clock className="w-5 h-5 text-emerald-600" />
                 Bloqueos de {selectedReg.player1.name}{selectedReg.player2 ? ` / ${selectedReg.player2.name}` : ''}
               </h3>
-              <button onClick={() => setSelectedReg(null)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setSelectedReg(null)} className="text-rg-muted hover:text-rg-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -944,7 +938,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
             {(() => {
               const dropped = clipToDays(effectiveBlockedRanges(selectedReg, days, ranking.fechaInicio), days).droppedCount;
               return dropped > 0 ? (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 text-xs">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   {dropped} franja{dropped > 1 ? 's' : ''} fuera de los días del torneo; no se tendrán en cuenta.
                 </div>
@@ -954,7 +948,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
             <BlockedTimesPicker days={days} value={editingBlocks} onChange={setEditingBlocks} />
 
             {isImported(ranking, selectedReg) && (
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-rg-muted">
                 Esta pareja ya está en el torneo: al guardar se actualizan sus restricciones y se revisan sus partidos (no se mueve ninguno).
               </p>
             )}
@@ -963,7 +957,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               <button
                 type="button"
                 onClick={() => setSelectedReg(null)}
-                className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+                className="w-1/2 py-2.5 bg-white hover:bg-rg-raised text-rg-ink font-bold rounded-xl text-xs transition"
               >
                 Cancelar
               </button>
@@ -982,25 +976,25 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
 
       {/* Manual Registration Modal */}
       {showManualModal && (
-        <div className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-60 bg-[#0F1729]/40 flex items-center justify-center p-4">
+          <div className="bg-white border border-rg-line rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-lg font-bold text-rg-ink flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-emerald-600" />
                 Inscripción Manual
               </h3>
-              <button onClick={() => setShowManualModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowManualModal(false)} className="text-rg-muted hover:text-rg-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateManual} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">Categoría</label>
+                <label className="block text-xs font-bold text-rg-muted mb-1">Categoría</label>
                 <select
                   value={manualData.category || availableCategories[0]}
                   onChange={e => setManualData({ ...manualData, category: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-white border border-rg-line rounded-xl px-3 py-2 text-sm text-rg-ink focus:outline-none focus:border-emerald-500"
                 >
                   {availableCategories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -1009,15 +1003,15 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               </div>
 
               {/* Player 1 */}
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-emerald-400">Jugador 1</span>
+              <div className="p-3 bg-white rounded-2xl border border-rg-line space-y-2">
+                <span className="text-xs font-bold text-emerald-600">Jugador 1</span>
                 <input
                   type="text"
                   required
                   placeholder="Nombre y Apellidos *"
                   value={manualData.p1Name}
                   onChange={e => setManualData({ ...manualData, p1Name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500"
+                  className="w-full bg-white border border-rg-line rounded-xl px-3 py-1.5 text-xs text-rg-ink placeholder-slate-500"
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -1026,12 +1020,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                     placeholder="Teléfono *"
                     value={manualData.p1Phone}
                     onChange={e => setManualData({ ...manualData, p1Phone: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500"
+                    className="w-full bg-white border border-rg-line rounded-xl px-3 py-1.5 text-xs text-rg-ink placeholder-slate-500"
                   />
                   <select
                     value={manualData.p1Shirt}
                     onChange={e => setManualData({ ...manualData, p1Shirt: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-white"
+                    className="w-full bg-white border border-rg-line rounded-xl px-2 py-1.5 text-xs text-rg-ink"
                   >
                     {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(s => <option key={s} value={s}>Talla {s}</option>)}
                   </select>
@@ -1039,14 +1033,14 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               </div>
 
               {/* Player 2 */}
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-emerald-400">Jugador 2 (Opcional)</span>
+              <div className="p-3 bg-white rounded-2xl border border-rg-line space-y-2">
+                <span className="text-xs font-bold text-emerald-600">Jugador 2 (Opcional)</span>
                 <input
                   type="text"
                   placeholder="Nombre y Apellidos"
                   value={manualData.p2Name}
                   onChange={e => setManualData({ ...manualData, p2Name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500"
+                  className="w-full bg-white border border-rg-line rounded-xl px-3 py-1.5 text-xs text-rg-ink placeholder-slate-500"
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -1054,12 +1048,12 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                     placeholder="Teléfono"
                     value={manualData.p2Phone}
                     onChange={e => setManualData({ ...manualData, p2Phone: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500"
+                    className="w-full bg-white border border-rg-line rounded-xl px-3 py-1.5 text-xs text-rg-ink placeholder-slate-500"
                   />
                   <select
                     value={manualData.p2Shirt}
                     onChange={e => setManualData({ ...manualData, p2Shirt: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-white"
+                    className="w-full bg-white border border-rg-line rounded-xl px-2 py-1.5 text-xs text-rg-ink"
                   >
                     {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(s => <option key={s} value={s}>Talla {s}</option>)}
                   </select>
@@ -1067,23 +1061,23 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
               </div>
 
               {/* Blocked times in Manual Modal */}
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-emerald-400">¿Cuándo NO pueden jugar? (opcional)</span>
+              <div className="p-3 bg-white rounded-2xl border border-rg-line space-y-3">
+                <span className="text-xs font-bold text-emerald-600">¿Cuándo NO pueden jugar? (opcional)</span>
                 {hasDays ? (
                   <BlockedTimesPicker days={days} value={manualBlocked} onChange={setManualBlocked} />
                 ) : (
-                  <p className="text-[11px] text-slate-400">Configura los días del torneo en «Disponibilidad» para indicar bloqueos.</p>
+                  <p className="text-[11px] text-rg-muted">Configura los días del torneo en «Disponibilidad» para indicar bloqueos.</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">Observaciones adicionales</label>
+                <label className="block text-xs font-bold text-rg-muted mb-1">Observaciones adicionales</label>
                 <textarea
                   rows={2}
                   placeholder="Notas adicionales..."
                   value={manualData.notes}
                   onChange={e => setManualData({ ...manualData, notes: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 resize-none"
+                  className="w-full bg-white border border-rg-line rounded-xl px-3 py-1.5 text-xs text-rg-ink placeholder-slate-500 resize-none"
                 ></textarea>
               </div>
 
@@ -1091,7 +1085,7 @@ export const RegistrationManagerModal: React.FC<RegistrationManagerModalProps> =
                 <button
                   type="button"
                   onClick={() => setShowManualModal(false)}
-                  className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+                  className="w-1/2 py-2.5 bg-white hover:bg-rg-raised text-rg-ink font-bold rounded-xl text-xs transition"
                 >
                   Cancelar
                 </button>

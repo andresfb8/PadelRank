@@ -13,16 +13,10 @@ interface PublicRegistrationPageProps {
 }
 
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const LEVEL_OPTIONS = [
-  { value: '1.0 - 2.5', label: 'Iniciación (1.0 - 2.5)' },
-  { value: '3.0 - 3.5', label: 'Intermedio bajo (3.0 - 3.5)' },
-  { value: '4.0 - 4.5', label: 'Intermedio alto (4.0 - 4.5)' },
-  { value: '5.0+', label: 'Avanzado / Primera (5.0+)' },
-];
 import { DEFAULT_REGISTRATION_CATEGORIES } from '../config/registrationDefaults';
 const DEFAULT_CATEGORIES = DEFAULT_REGISTRATION_CATEGORIES;
 
-type PlayerForm = { name: string; phone: string; email: string; level: string; shirtSize: string };
+type PlayerForm = { name: string; phone: string; email: string; shirtSize: string };
 type Step = 'contact' | 'partner' | 'schedule' | 'confirm';
 
 const STEP_TITLE: Record<Step, string> = {
@@ -62,18 +56,11 @@ const PlayerFields = ({ prefix, value, onChange, namePlaceholder, phonePlacehold
       <input id={`${prefix}-email`} type="email" inputMode="email" autoComplete="email" placeholder="nombre@correo.com"
         value={value.email} onChange={e => onChange({ ...value, email: e.target.value })} className={inputClass} />
     </Field>
-    <div className="grid grid-cols-[1fr_2fr] gap-3">
-      <Field id={`${prefix}-shirt`} label="Talla">
-        <select id={`${prefix}-shirt`} value={value.shirtSize} onChange={e => onChange({ ...value, shirtSize: e.target.value })} className={inputClass}>
-          {SHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </Field>
-      <Field id={`${prefix}-level`} label="Nivel">
-        <select id={`${prefix}-level`} value={value.level} onChange={e => onChange({ ...value, level: e.target.value })} className={inputClass}>
-          {LEVEL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-      </Field>
-    </div>
+    <Field id={`${prefix}-shirt`} label="Talla">
+      <select id={`${prefix}-shirt`} value={value.shirtSize} onChange={e => onChange({ ...value, shirtSize: e.target.value })} className={inputClass}>
+        {SHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+    </Field>
   </div>
 );
 
@@ -123,8 +110,8 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
 
   // Form State
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [player1, setPlayer1] = useState<PlayerForm>({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'M' });
-  const [player2, setPlayer2] = useState<PlayerForm>({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'L' });
+  const [player1, setPlayer1] = useState<PlayerForm>({ name: '', phone: '', email: '', shirtSize: 'M' });
+  const [player2, setPlayer2] = useState<PlayerForm>({ name: '', phone: '', email: '', shirtSize: 'L' });
 
   // Availability: ranges in which the pair can NOT play
   const [blockedRanges, setBlockedRanges] = useState<DaySchedule[]>([]);
@@ -224,7 +211,6 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
           name: player1.name.trim(),
           phone: player1.phone.trim(),
           ...(player1.email.trim() ? { email: player1.email.trim() } : {}),
-          level: player1.level,
           shirtSize: player1.shirtSize
         },
         ...(isIndividual ? {} : {
@@ -232,7 +218,6 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
             name: player2.name.trim(),
             phone: player2.phone.trim(),
             ...(player2.email.trim() ? { email: player2.email.trim() } : {}),
-            level: player2.level,
             shirtSize: player2.shirtSize
           }
         }),
@@ -319,8 +304,8 @@ export const PublicRegistrationPage: React.FC<PublicRegistrationPageProps> = ({ 
               type="button"
               onClick={() => {
                 setSubmittedRegId(null);
-                setPlayer1({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'M' });
-                setPlayer2({ name: '', phone: '', email: '', level: '3.0 - 3.5', shirtSize: 'L' });
+                setPlayer1({ name: '', phone: '', email: '', shirtSize: 'M' });
+                setPlayer2({ name: '', phone: '', email: '', shirtSize: 'L' });
                 setBlockedRanges([]);
                 setAvailabilityNotes('');
                 setAcceptTerms(false);
