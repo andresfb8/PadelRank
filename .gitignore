@@ -28,3 +28,5 @@ functions/service-account-key.json
 
 # Brainstorming mockups (superpowers visual companion)
 .superpowers/
+
+.firebase/
